@@ -249,7 +249,7 @@ describe('initPaneApp', () => {
   });
 
   it('uses default onAction logger when none is passed', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const instance = await initPaneApp({
       container,
       search: '?conversationId=conv_default_action',

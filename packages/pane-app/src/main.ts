@@ -1,6 +1,7 @@
 import { injectHostTheme } from '@a2ui-pane/theme';
 import { LineApplier, A2uiPaneView } from '@a2ui-pane/renderer';
 import { StreamClient, ConnectionStatus } from './stream-client.js';
+import { ActionSender } from './action-sender.js';
 
 // Inject host theme CSS variables
 injectHostTheme();
@@ -10,12 +11,14 @@ export interface InitOptions {
   search?: string;
   fetchFn?: typeof fetch;
   eventSourceFactory?: (url: string) => EventSource;
+  sendMessageFn?: (text: string) => Promise<any>;
   onAction?: (action: any, dataModel?: Record<string, unknown>) => void;
 }
 
 export interface PaneAppInstance {
   applier: LineApplier;
   client?: StreamClient;
+  actionSender: ActionSender;
   updateStatus: (status: ConnectionStatus) => void;
   updateErrors: () => void;
 }
@@ -151,11 +154,22 @@ export async function initPaneApp(options: InitOptions = {}): Promise<PaneAppIns
     });
   }
 
-  // Action callback - stubs actions until Phase 5
+  const actionSender = new ActionSender({
+    sendMessageFn: options.sendMessageFn,
+    onPendingChange: (pending) => {
+      if (paneView) {
+        (paneView as any).pendingComponents = pending;
+      }
+    },
+  });
+
+  // Action callback - dispatches actions via ActionSender
   const onAction =
     options.onAction ??
     ((action: any, dataModel?: Record<string, unknown>) => {
-      console.log('[A2UI Action dispatched]', action, 'dataModel:', dataModel);
+      actionSender.sendAction(action, dataModel).catch((err) => {
+        console.error('[main] sendAction failed:', err);
+      });
     });
 
   const applier = new LineApplier(undefined, onAction);
@@ -178,6 +192,7 @@ export async function initPaneApp(options: InitOptions = {}): Promise<PaneAppIns
     }
     return {
       applier,
+      actionSender,
       updateStatus,
       updateErrors,
     };

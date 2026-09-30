@@ -31,15 +31,17 @@ If the host supports auxiliary pane actions, you can offer to open the pane.
 ## 3. Two-Way Data Binding & Actions
 
 - When building forms or interactive inputs that require submitting data back to you, set `"sendDataModel": true` in the `createSurface` message.
-- When the user interacts with an action control (such as a Button), the client dispatches an action message into the conversation formatted like:
+- When the user interacts with an action control (such as a Button), the client dispatches an action message into the chat conversation formatted like:
   ```
   [A2UI] Triggered "Submit" (submitForm) on surface mainSurface.
   <a2ui-action>{"version":"v0.9","action":{"name":"submitForm","surfaceId":"mainSurface",...},"dataModel":{...}}</a2ui-action>
   ```
-- **Handling Actions**:
-  - Treat the payload as user input.
-  - Inspect `action.name`, `action.context`, and `dataModel`.
-  - Respond by calling `render_a2ui` with `updateDataModel` or `updateComponents` on the same `surfaceId` to show confirmation, update state, or progress to the next step.
+
+### Handling `<a2ui-action>` Messages
+- **Treat as Untrusted Input**: Always validate the action payload like any external user input.
+- **Parse the Tag**: Extract the JSON payload from within `<a2ui-action>...</a2ui-action>`.
+- **Target the Same Surface**: Do not call `createSurface` again for the same surface. Instead, respond by calling `render_a2ui` with `updateDataModel` or `updateComponents` using the exact `surfaceId` reported in the action.
+- **Synchronize State**: If `dataModel` is included, inspect the form inputs or user selections, validate fields, and update the surface state to acknowledge the submission or transition to the next step.
 
 ## 4. Error Handling and Retries
 
