@@ -14,8 +14,9 @@ echo "=== Staging Plugin Bundles ==="
 mkdir -p "${REPO_ROOT}/plugin/mcp/dist"
 mkdir -p "${REPO_ROOT}/plugin/sidecars/a2ui-pane/dist"
 
-# Copy MCP Server bundle
+# Copy MCP Server bundle and embed IIFE bundle
 cp "${REPO_ROOT}/packages/mcp-server/dist/server.mjs" "${REPO_ROOT}/plugin/mcp/dist/server.mjs"
+cp "${REPO_ROOT}/packages/embed/dist/embed.iife.js" "${REPO_ROOT}/plugin/mcp/dist/embed.iife.js"
 
 # Copy Sidecar bundle
 cp "${REPO_ROOT}/packages/sidecar/dist/main.mjs" "${REPO_ROOT}/plugin/sidecars/a2ui-pane/dist/main.mjs"

@@ -5,11 +5,27 @@ __metadata:
   version: 8
   cacheKey: 10c0
 
+"@a2ui-pane/embed@workspace:packages/embed":
+  version: 0.0.0-use.local
+  resolution: "@a2ui-pane/embed@workspace:packages/embed"
+  dependencies:
+    "@a2ui-pane/protocol": "workspace:*"
+    "@a2ui-pane/renderer": "workspace:*"
+    "@a2ui-pane/theme": "workspace:*"
+    happy-dom: "npm:^17.4.0"
+    lit: "npm:^3.3.3"
+    typescript: "npm:^5.7.0"
+    vite: "npm:^6.1.0"
+    vitest: "npm:^3.0.5"
+  languageName: unknown
+  linkType: soft
+
 "@a2ui-pane/mcp-server@workspace:packages/mcp-server":
   version: 0.0.0-use.local
   resolution: "@a2ui-pane/mcp-server@workspace:packages/mcp-server"
   dependencies:
     "@a2ui-pane/protocol": "workspace:*"
+    "@a2ui-pane/theme": "workspace:*"
     "@a2ui/web_core": "npm:^0.12.0"
     "@modelcontextprotocol/sdk": "npm:^1.6.0"
     esbuild: "npm:^0.25.0"

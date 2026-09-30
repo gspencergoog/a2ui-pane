@@ -1,8 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createServer, isMainModule, run } from '../src/server.js';
+import { CatalogRegistry } from '../src/catalog-registry.js';
+import { buildPrompt } from '../src/prompt/build-prompt.js';
 import { handleA2uiInstructions } from '../src/tools/instructions.js';
 import { handleRenderA2ui } from '../src/tools/render.js';
 
@@ -76,6 +78,19 @@ describe('MCP Server Tools and Entrypoint', () => {
       const def = serverInstance.catalogs.getDefaultCatalog();
       expect(def).toBeDefined();
       expect(def.id).toContain('basic');
+    });
+
+    it('covers CatalogRegistry fallbacks and buildPrompt edge cases', () => {
+      const reg = new CatalogRegistry();
+      reg.register({} as any);
+      expect(reg.get('custom-catalog')).toBeDefined();
+
+      const p = buildPrompt([
+        { id: '', components: new Map([['Comp1', { schema: {} } as any]]) } as any,
+        { id: 'emptyCat', components: new Map() } as any,
+      ]);
+      expect(p).toContain('Comp1');
+      expect(p).toContain('no extra properties');
     });
   });
 
@@ -204,6 +219,193 @@ describe('MCP Server Tools and Entrypoint', () => {
       expect(conversationStates.size).toBeLessThanOrEqual(100);
       expect(conversationStates.has('conv-0')).toBe(false);
       expect(conversationStates.has('conv-104')).toBe(true);
+    });
+
+    it('renders inline card mode and returns <agent-embed> markup', async () => {
+      const result = await handleRenderA2ui(
+        {
+          conversationId: 'inline-conv-1',
+          mode: 'inline',
+          messages: [
+            {
+              version: 'v0.9',
+              createSurface: { surfaceId: 'surfInline', catalogId: 'basic' },
+            },
+            {
+              version: 'v0.9',
+              updateComponents: {
+                surfaceId: 'surfInline',
+                components: [{ id: 'root', component: 'Text', text: 'Inline Message' }],
+              },
+            },
+          ],
+        },
+        serverInstance.getState,
+        serverInstance.catalogs,
+        tempDir,
+      );
+
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0].text).toContain('Rendered inline A2UI card');
+      expect(result.content[0].text).toContain('<agent-embed src="file://');
+      expect(result.content[0].text).toContain('[surfInline]');
+    });
+
+    it('returns validation failure when inline mode contains invalid messages', async () => {
+      const result = await handleRenderA2ui(
+        {
+          conversationId: 'inline-conv-invalid',
+          mode: 'inline',
+          messages: [
+            {
+              version: 'v0.9',
+              updateDataModel: {
+                surfaceId: 'missingInlineSurf',
+                path: '/invalid',
+                value: 123,
+              },
+            },
+          ],
+        },
+        serverInstance.getState,
+        serverInstance.catalogs,
+        tempDir,
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('A2UI Inline Validation Failed at Message #1');
+    });
+
+    it('handles inline mode without surfaceId gracefully', async () => {
+      const result = await handleRenderA2ui(
+        {
+          conversationId: 'inline-conv-nosurf',
+          mode: 'inline',
+          messages: [],
+        },
+        serverInstance.getState,
+        serverInstance.catalogs,
+        tempDir,
+      );
+
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0].text).toContain(
+        'Rendered inline A2UI card with 0 message(s) to surfaces.',
+      );
+    });
+
+    it('handles replaying history with corrupted message by warning and continuing', () => {
+      const convId = 'corrupt-replay';
+      // Write a line that will fail validation during state replay
+      serverInstance.store.append(convId, 'corrupt-call', [
+        {
+          version: 'v0.9',
+          updateDataModel: {
+            surfaceId: 'nonexistent',
+            path: '/x',
+            value: 1,
+          },
+        },
+      ]);
+
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const freshState = serverInstance.getState(convId);
+      expect(freshState).toBeDefined();
+      expect(consoleSpy).toHaveBeenCalled();
+      consoleSpy.mockRestore();
+    });
+
+    it('renders 0 messages in pane mode and covers empty surface text branch', async () => {
+      const result = await handleRenderA2ui(
+        {
+          conversationId: 'pane-empty-messages',
+          messages: [],
+        },
+        serverInstance.getState,
+      );
+
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0].text).toContain(
+        'Rendered 0 message(s) to surfaces in the A2UI pane.',
+      );
+    });
+
+    it('processes deleteSurface message and extracts surfaceId correctly', async () => {
+      const result = await handleRenderA2ui(
+        {
+          conversationId: 'delete-surface-conv',
+          messages: [
+            {
+              version: 'v0.9',
+              createSurface: { surfaceId: 'surfToDelete', catalogId: 'basic' },
+            },
+            {
+              version: 'v0.9',
+              deleteSurface: { surfaceId: 'surfToDelete' },
+            },
+          ],
+        },
+        serverInstance.getState,
+      );
+
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0].text).toContain('[surfToDelete]');
+    });
+
+    it('resolves effective dataDir from environment variables or /tmp in inline mode', async () => {
+      // 1. With A2UI_PANE_DATA
+      process.env.A2UI_PANE_DATA = tempDir;
+      const res1 = await handleRenderA2ui(
+        {
+          conversationId: 'env-a2ui-pane-data',
+          mode: 'inline',
+          messages: [],
+        },
+        serverInstance.getState,
+        serverInstance.catalogs,
+      );
+      expect(res1.isError).toBeUndefined();
+
+      // 2. With PLUGIN_DATA
+      delete process.env.A2UI_PANE_DATA;
+      process.env.PLUGIN_DATA = tempDir;
+      const res2 = await handleRenderA2ui(
+        {
+          conversationId: 'env-plugin-data',
+          mode: 'inline',
+          messages: [],
+        },
+        serverInstance.getState,
+        serverInstance.catalogs,
+      );
+      expect(res2.isError).toBeUndefined();
+
+      // 3. Fallback to /tmp
+      delete process.env.PLUGIN_DATA;
+      const res3 = await handleRenderA2ui(
+        {
+          conversationId: 'env-fallback-tmp',
+          mode: 'inline',
+          messages: [],
+        },
+        serverInstance.getState,
+        serverInstance.catalogs,
+      );
+      expect(res3.isError).toBeUndefined();
+    });
+
+    it('returns false for isMainModule when argv[1] is undefined or error occurs', () => {
+      const originalArgv1 = process.argv[1];
+      try {
+        (process.argv as any)[1] = undefined;
+        expect(isMainModule()).toBe(false);
+
+        // Path that throws in realpathSync
+        process.argv[1] = '/nonexistent/path/that/cannot/exist/at/all';
+        expect(isMainModule()).toBe(false);
+      } finally {
+        process.argv[1] = originalArgv1;
+      }
     });
   });
 });

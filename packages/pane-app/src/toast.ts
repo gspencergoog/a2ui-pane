@@ -2,11 +2,7 @@
  * Displays temporary toast notifications in the pane viewport.
  * Used to report action transmission failures or system alerts.
  */
-export function showToast(
-  message: string,
-  isError = true,
-  durationMs = 4000,
-): HTMLElement | null {
+export function showToast(message: string, isError = true, durationMs = 4000): HTMLElement | null {
   if (typeof document === 'undefined') return null;
 
   let toastContainer = document.getElementById('a2ui-toast-container');

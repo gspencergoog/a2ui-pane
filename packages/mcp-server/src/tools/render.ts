@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { isValidId } from '@a2ui-pane/protocol';
+import { MessageProcessor } from '@a2ui/web_core/v0_9';
 import { ConversationState } from '../conversation-state.js';
+import { CatalogRegistry } from '../catalog-registry.js';
+import { writeEmbed } from '../embed-writer.js';
 
 export const renderA2uiSchema = {
   conversationId: z
@@ -13,11 +16,11 @@ export const renderA2uiSchema = {
     .array(z.record(z.unknown()))
     .describe('Array of A2UI v0.9 server-to-client layout operations.'),
   mode: z
-    .enum(['pane'])
+    .enum(['pane', 'inline'])
     .optional()
     .default('pane')
     .describe(
-      'Rendering destination: "pane" (live AuxPane side panel). Note: inline chat card mode will be enabled in Phase 6.',
+      'Rendering destination: "pane" (live AuxPane side panel) or "inline" (embedded interactive chat card).',
     ),
 };
 
@@ -27,9 +30,11 @@ export async function handleRenderA2ui(
   args: {
     conversationId?: string;
     messages: unknown[];
-    mode?: 'pane';
+    mode?: 'pane' | 'inline';
   },
   getState: ConversationStateFactory,
+  catalogs?: CatalogRegistry,
+  dataDir?: string,
 ) {
   const hostConvId = process.env.ANTIGRAVITY_CONVERSATION_ID;
   const conversationId = args.conversationId || hostConvId || '';
@@ -71,6 +76,62 @@ export async function handleRenderA2ui(
     };
   }
 
+  // 1. INLINE MODE: Standalone self-contained card
+  if (args.mode === 'inline') {
+    const catalogList = catalogs ? catalogs.list() : [];
+    const freshProcessor = new MessageProcessor(catalogList, () => {}, {
+      validationConfig: {
+        allowUnknownElements: false,
+        allowOrphanComponents: false,
+        allowDanglingReferences: false,
+        allowMissingRoot: false,
+      },
+    });
+
+    const surfaceIds = new Set<string>();
+    for (let i = 0; i < args.messages.length; i++) {
+      const msg = args.messages[i] as Record<string, unknown>;
+      const sid =
+        (msg.createSurface as any)?.surfaceId ||
+        (msg.updateComponents as any)?.surfaceId ||
+        (msg.updateDataModel as any)?.surfaceId;
+      if (sid) surfaceIds.add(sid);
+
+      try {
+        const versionedMsg = !msg.version ? { version: 'v0.9', ...msg } : msg;
+        freshProcessor.processMessages([versionedMsg as any]);
+      } catch (err: any) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: 'text' as const,
+              text: `A2UI Inline Validation Failed at Message #${i + 1}: ${err?.message || err}`,
+            },
+          ],
+        };
+      }
+    }
+
+    const effectiveDataDir =
+      dataDir || process.env.A2UI_PANE_DATA || process.env.PLUGIN_DATA || '/tmp';
+    const surfaceIdList = Array.from(surfaceIds);
+    const embedPath = writeEmbed(effectiveDataDir, conversationId, surfaceIdList, args.messages);
+
+    const surfacesText =
+      surfaceIdList.length > 0 ? `surface(s) [${surfaceIdList.join(', ')}]` : 'surfaces';
+
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: `Rendered inline A2UI card with ${args.messages.length} message(s) to ${surfacesText}.\n<agent-embed src="file://${embedPath}"></agent-embed>`,
+        },
+      ],
+    };
+  }
+
+  // 2. PANE MODE: Persistent live AuxPane state
   const callId = `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const state = getState(conversationId);
 

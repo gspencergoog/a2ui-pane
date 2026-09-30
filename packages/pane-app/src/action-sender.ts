@@ -42,17 +42,13 @@ export class ActionSender {
     }
 
     const text = formatActionText(action, {
-      label:
-        typeof action.context?.label === 'string'
-          ? action.context.label
-          : undefined,
+      label: typeof action.context?.label === 'string' ? action.context.label : undefined,
       dataModel,
     });
 
     const sendFn =
       this.options.sendMessageFn ??
-      (typeof window !== 'undefined' &&
-      (window as any).sidecar?.agent?.sendMessage
+      (typeof window !== 'undefined' && (window as any).sidecar?.agent?.sendMessage
         ? (window as any).sidecar.agent.sendMessage
         : undefined);
 

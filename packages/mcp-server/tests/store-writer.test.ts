@@ -19,6 +19,14 @@ describe('StoreWriter', () => {
     }
   });
 
+  it('throws error when dataDir is empty', () => {
+    expect(() => new StoreWriter('')).toThrow('StoreWriter requires a valid dataDir path');
+  });
+
+  it('throws error when conversationId is invalid in getConversationFilePath', () => {
+    expect(() => writer.getConversationFilePath('../traversal')).toThrow('Invalid conversationId');
+  });
+
   it('reads empty array when conversation file does not exist', () => {
     const lines = writer.readAll('nonexistent-conv');
     expect(lines).toEqual([]);
@@ -108,5 +116,25 @@ describe('StoreWriter', () => {
 
     writer.clear('conv-1');
     expect(writer.readAll('conv-1')).toHaveLength(0);
+  });
+
+  it('handles empty messages array and invalid callId in append', () => {
+    expect(writer.append('conv-1', 'call-1', [])).toEqual([]);
+    expect(() => writer.append('conv-1', '../bad-call-id', [])).toThrow('Invalid callId');
+  });
+
+  it('reads completely empty file and appends from fresh state without cached seq', () => {
+    const filePath = writer.getConversationFilePath('conv-empty-file');
+    writeFileSync(filePath, '   \n  \n');
+
+    const lines = writer.readAll('conv-empty-file');
+    expect(lines).toEqual([]);
+
+    // Appending on a new conversation where lastSeqMap has not been initialized
+    const newWriter = new StoreWriter(tempDir);
+    const added = newWriter.append('conv-empty-file', 'call-init', [
+      { version: 'v0.9', createSurface: { surfaceId: 'surf', catalogId: 'basic' } },
+    ]);
+    expect(added[0].seq).toBe(1);
   });
 });

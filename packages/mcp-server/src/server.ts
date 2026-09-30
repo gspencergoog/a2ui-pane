@@ -50,7 +50,7 @@ export function createServer(dataDir: string) {
     'render_a2ui',
     'Renders and incrementally updates A2UI surfaces in the user interface.',
     renderA2uiSchema,
-    async (args) => handleRenderA2ui(args, getState),
+    async (args) => handleRenderA2ui(args, getState, catalogs, dataDir),
   );
 
   return { server, catalogs, store, getState, conversationStates };

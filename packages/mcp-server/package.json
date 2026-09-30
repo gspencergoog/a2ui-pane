@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@a2ui-pane/protocol": "workspace:*",
+    "@a2ui-pane/theme": "workspace:*",
     "@a2ui/web_core": "^0.12.0",
     "@modelcontextprotocol/sdk": "^1.6.0",
     "zod": "^3.24.0"
