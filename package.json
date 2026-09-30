@@ -1,0 +1,27 @@
+{
+  "name": "a2ui-pane-root",
+  "private": true,
+  "type": "module",
+  "packageManager": "yarn@4.5.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "yarn workspaces foreach -A --topological-dev --exclude a2ui-pane-root run build",
+    "test": "yarn workspaces foreach -A --exclude a2ui-pane-root run test",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.20.0",
+    "eslint": "^9.20.0",
+    "prettier": "^3.5.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.24.0"
+  }
+}

@@ -1,0 +1,12 @@
+node_modules/
+dist/
+tmp/
+.yarn/*
+!.yarn/releases
+!.yarn/plugins
+.pnp.*
+*.log
+.DS_Store
+plugin/sidecars/*/dist/
+plugin/mcp/dist/
+plugin/mcp_config.json
