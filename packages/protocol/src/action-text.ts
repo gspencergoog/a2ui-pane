@@ -32,10 +32,15 @@ export function formatActionText(
   options: ActionTextOptions = {},
 ): string {
   const surfaceId = action.surfaceId || 'unknown-surface';
-  const label = options.label ? ` "${options.label}"` : '';
+  const safeLabel = options.label
+    ? ` "${options.label
+        .replace(/[\r\n"]/g, ' ')
+        .trim()
+        .slice(0, 80)}"`
+    : '';
   const actionName = action.name || 'action';
 
-  const summary = `[A2UI] Triggered${label} (${actionName}) on surface ${surfaceId}.`;
+  const summary = `[A2UI] Triggered${safeLabel} (${actionName}) on surface ${surfaceId}.`;
 
   const payload: A2uiClientActionPayload = {
     version: 'v0.9',
@@ -49,24 +54,33 @@ export function formatActionText(
     payload.dataModel = options.dataModel;
   }
 
-  const jsonStr = JSON.stringify(payload);
+  // Escape '<' as '\\u003c' to prevent tag-breaking when dataModel contains '</a2ui-action>'
+  const jsonStr = JSON.stringify(payload).replace(/</g, '\\u003c');
   return `${summary}\n<a2ui-action>${jsonStr}</a2ui-action>`;
 }
 
 /**
  * Parses an `<a2ui-action>` tag from chat text, if present.
+ * Searches all tags in the text until a valid A2UI action payload is found.
  */
 export function parseActionText(text: string): A2uiClientActionPayload | null {
   if (!text || typeof text !== 'string') return null;
-  const match = text.match(/<a2ui-action>([\s\S]*?)<\/a2ui-action>/);
-  if (!match || !match[1]) return null;
-  try {
-    const parsed = JSON.parse(match[1]);
-    if (parsed && typeof parsed === 'object' && parsed.action) {
-      return parsed as A2uiClientActionPayload;
+  const matches = text.matchAll(/<a2ui-action>([\s\S]*?)<\/a2ui-action>/g);
+  for (const match of matches) {
+    if (!match[1]) continue;
+    try {
+      const parsed = JSON.parse(match[1]);
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        typeof parsed.action === 'object' &&
+        parsed.action !== null
+      ) {
+        return parsed as A2uiClientActionPayload;
+      }
+    } catch {
+      // Continue to next match if this tag had malformed JSON
     }
-  } catch {
-    // Malformed JSON inside tag
   }
   return null;
 }

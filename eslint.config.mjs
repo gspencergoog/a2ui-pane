@@ -21,6 +21,12 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/tmp/**', '**/.yarn/**'],
+    ignores: [
+      '**/dist/**',
+      '**/node_modules/**',
+      '**/tmp/**',
+      '**/.yarn/**',
+      '**/coverage/**',
+    ],
   },
 );

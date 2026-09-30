@@ -73,7 +73,7 @@ sequenceDiagram
     A->>M: render_a2ui(conversationId, messages)
     M->>M: Validate on headless MessageProcessor
     alt Validation Failed
-      M-->>A: isError: true with line & path diagnostics
+      M-->>A: isError: true with message index diagnostics
     else Validation Succeeded
       M->>S: Append N lines to <conversationId>.jsonl
       M-->>A: Ok (surfaces updated, AuxPane hint)
@@ -137,7 +137,7 @@ When a user triggers an action (e.g. click), the Lit component emits an `A2uiCli
 The pane formats the action into chat text via `formatActionText`:
 
 ```text
-[A2UI] Clicked "Book Table" on surface booking-form.
+[A2UI] Triggered "Book Table" (book) on surface booking-form.
 <a2ui-action>{"version":"v0.9","action":{"name":"book","surfaceId":"booking-form","sourceComponentId":"btn_submit","context":{"partySize":4}},"dataModel":{"partySize":4}}</a2ui-action>
 ```
 

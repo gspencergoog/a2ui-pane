@@ -23,6 +23,18 @@ describe('ConversationState', () => {
     }
   });
 
+  it('handles empty or non-array messages arguments gracefully', async () => {
+    const state = new ConversationState('conv-empty', catalogs, store);
+    const emptyResult = await state.apply([], 'call-empty');
+    expect(emptyResult.ok).toBe(true);
+
+    const nonArrayResult = await state.apply('not an array' as any, 'call-bad');
+    expect(nonArrayResult.ok).toBe(false);
+    if (!nonArrayResult.ok) {
+      expect(nonArrayResult.issues[0].messageIndex).toBe(-1);
+    }
+  });
+
   it('successfully creates and updates a surface with valid components', async () => {
     const state = new ConversationState('conv-1', catalogs, store);
 
@@ -69,6 +81,80 @@ describe('ConversationState', () => {
     expect(storedLines[1].seq).toBe(2);
 
     expect(state.getSurfaces().has('surf-1')).toBe(true);
+  });
+
+  it('pre-validates envelope structure and surfaceIds without mutating processor (H3, L1)', async () => {
+    const state = new ConversationState('conv-preval', catalogs, store);
+
+    // Initial valid surface
+    await state.apply(
+      [
+        {
+          version: 'v0.9',
+          createSurface: { surfaceId: 'surf-valid', catalogId: 'basic' },
+        },
+      ],
+      'call-init',
+    );
+
+    // Batch: message 0 valid, message 1 has invalid surfaceId traversal
+    const res1 = await state.apply(
+      [
+        {
+          version: 'v0.9',
+          updateDataModel: { surfaceId: 'surf-valid', path: '/val', value: 1 },
+        },
+        {
+          version: 'v0.9',
+          createSurface: { surfaceId: '../bad-path', catalogId: 'basic' },
+        },
+      ],
+      'call-bad-id',
+    );
+
+    expect(res1.ok).toBe(false);
+    if (!res1.ok) {
+      expect(res1.issues[0].messageIndex).toBe(1);
+      expect(res1.issues[0].message).toContain('Invalid surfaceId');
+    }
+    // Verify message 0 was not committed or applied
+    expect(store.readAll('conv-preval')).toHaveLength(1);
+
+    // Batch: message 0 valid, message 1 is not an object
+    const res2 = await state.apply(
+      [
+        {
+          version: 'v0.9',
+          updateDataModel: { surfaceId: 'surf-valid', path: '/val', value: 2 },
+        },
+        'string message' as any,
+      ],
+      'call-non-obj',
+    );
+    expect(res2.ok).toBe(false);
+    if (!res2.ok) {
+      expect(res2.issues[0].messageIndex).toBe(1);
+      expect(res2.issues[0].message).toContain('must be an object');
+    }
+    expect(store.readAll('conv-preval')).toHaveLength(1);
+
+    // Batch: message 0 valid, message 1 missing version
+    const res3 = await state.apply(
+      [
+        {
+          version: 'v0.9',
+          updateDataModel: { surfaceId: 'surf-valid', path: '/val', value: 3 },
+        },
+        { createSurface: { surfaceId: 'surf-no-ver', catalogId: 'basic' } },
+      ],
+      'call-no-ver',
+    );
+    expect(res3.ok).toBe(false);
+    if (!res3.ok) {
+      expect(res3.issues[0].messageIndex).toBe(1);
+      expect(res3.issues[0].message).toContain('version');
+    }
+    expect(store.readAll('conv-preval')).toHaveLength(1);
   });
 
   it('rejects updates to nonexistent surfaces and rolls back atomically', async () => {

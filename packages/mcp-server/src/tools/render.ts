@@ -3,16 +3,21 @@ import { isValidId } from '@a2ui-pane/protocol';
 import { ConversationState } from '../conversation-state.js';
 
 export const renderA2uiSchema = {
-  conversationId: z.string().describe('The conversation ID to associate this layout with.'),
+  conversationId: z
+    .string()
+    .optional()
+    .describe(
+      'The conversation ID to associate this layout with. Defaults to the active host conversation if omitted.',
+    ),
   messages: z
     .array(z.record(z.unknown()))
     .describe('Array of A2UI v0.9 server-to-client layout operations.'),
   mode: z
-    .enum(['pane', 'inline'])
+    .enum(['pane'])
     .optional()
     .default('pane')
     .describe(
-      'Rendering destination: "pane" (default, live AuxPane) or "inline" (snapshot card in chat).',
+      'Rendering destination: "pane" (live AuxPane side panel). Note: inline chat card mode will be enabled in Phase 6.',
     ),
 };
 
@@ -20,13 +25,39 @@ export type ConversationStateFactory = (conversationId: string) => ConversationS
 
 export async function handleRenderA2ui(
   args: {
-    conversationId: string;
+    conversationId?: string;
     messages: unknown[];
-    mode?: 'pane' | 'inline';
+    mode?: 'pane';
   },
   getState: ConversationStateFactory,
 ) {
-  const { conversationId, messages, mode = 'pane' } = args;
+  const hostConvId = process.env.ANTIGRAVITY_CONVERSATION_ID;
+  const conversationId = args.conversationId || hostConvId || '';
+
+  if (!conversationId) {
+    return {
+      isError: true,
+      content: [
+        {
+          type: 'text' as const,
+          text: 'Missing required conversationId. Specify conversationId or run within an active host session.',
+        },
+      ],
+    };
+  }
+
+  // Enforce trust boundary: prevent modifying external conversations when host environment specifies active ID
+  if (hostConvId && args.conversationId && args.conversationId !== hostConvId) {
+    return {
+      isError: true,
+      content: [
+        {
+          type: 'text' as const,
+          text: `Unauthorized conversationId '${args.conversationId}'. Operations are restricted to the active conversation '${hostConvId}'.`,
+        },
+      ],
+    };
+  }
 
   if (!isValidId(conversationId)) {
     return {
@@ -40,22 +71,10 @@ export async function handleRenderA2ui(
     };
   }
 
-  if (mode === 'inline') {
-    return {
-      isError: true,
-      content: [
-        {
-          type: 'text' as const,
-          text: 'Inline rendering mode will be enabled in Phase 6.',
-        },
-      ],
-    };
-  }
-
   const callId = `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const state = getState(conversationId);
 
-  const result = await state.apply(messages, callId);
+  const result = await state.apply(args.messages, callId);
 
   if (!result.ok) {
     const errorLines = result.issues.map(
@@ -79,7 +98,7 @@ export async function handleRenderA2ui(
     content: [
       {
         type: 'text' as const,
-        text: `Rendered ${messages.length} message(s) to ${surfacesText} in the A2UI pane.\nThe live surface is visible in the A2UI side panel.`,
+        text: `Rendered ${args.messages.length} message(s) to ${surfacesText} in the A2UI pane.\nThe live surface is visible in the A2UI side panel.`,
       },
     ],
   };

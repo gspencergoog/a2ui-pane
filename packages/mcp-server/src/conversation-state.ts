@@ -1,5 +1,5 @@
 import { MessageProcessor } from '@a2ui/web_core/v0_9';
-import { A2uiServerMessage } from '@a2ui-pane/protocol';
+import { A2uiServerMessage, isValidId } from '@a2ui-pane/protocol';
 import { CatalogRegistry } from './catalog-registry.js';
 import { StoreWriter } from './store-writer.js';
 
@@ -54,9 +54,21 @@ export class ConversationState {
   }
 
   /**
+   * Extracts the surfaceId targeted by an A2UI message, if present.
+   */
+  private getSurfaceId(msg: Record<string, unknown>): string | undefined {
+    return (
+      (msg.createSurface as any)?.surfaceId ||
+      (msg.updateComponents as any)?.surfaceId ||
+      (msg.updateDataModel as any)?.surfaceId ||
+      (msg.deleteSurface as any)?.surfaceId
+    );
+  }
+
+  /**
    * Validates and applies a batch of server messages.
-   * If any message fails validation, the processor is restored to its previous state
-   * and no changes are committed to the persistent store.
+   * Performs pre-validation on envelopes and surfaceIds prior to mutating the processor,
+   * guaranteeing strict atomic rollback if any message fails.
    */
   async apply(messages: unknown[], callId: string): Promise<ApplyResult> {
     if (!Array.isArray(messages)) {
@@ -70,9 +82,7 @@ export class ConversationState {
       return { ok: true, surfaceIds: [] };
     }
 
-    const validMessages: A2uiServerMessage[] = [];
-    const surfaceIds = new Set<string>();
-
+    // Step 1: Pre-validate structural envelopes and surfaceIds for the entire batch
     for (let i = 0; i < messages.length; i++) {
       const msg = messages[i];
       if (!msg || typeof msg !== 'object' || Array.isArray(msg)) {
@@ -90,13 +100,28 @@ export class ConversationState {
         };
       }
 
-      // Collect touched surfaceId for result reporting
-      const sid =
-        (candidate.createSurface as any)?.surfaceId ||
-        (candidate.updateComponents as any)?.surfaceId ||
-        (candidate.updateDataModel as any)?.surfaceId ||
-        (candidate.deleteSurface as any)?.surfaceId;
-      if (sid && typeof sid === 'string') {
+      const sid = this.getSurfaceId(candidate);
+      if (sid !== undefined && !isValidId(sid)) {
+        return {
+          ok: false,
+          issues: [
+            {
+              messageIndex: i,
+              message: `Invalid surfaceId '${sid}'. ID must match ^[A-Za-z0-9_-]{1,128}$.`,
+            },
+          ],
+        };
+      }
+    }
+
+    // Step 2: Sequentially apply messages to processor with rollback on failure
+    const validMessages: A2uiServerMessage[] = [];
+    const surfaceIds = new Set<string>();
+
+    for (let i = 0; i < messages.length; i++) {
+      const candidate = messages[i] as Record<string, unknown>;
+      const sid = this.getSurfaceId(candidate);
+      if (sid) {
         surfaceIds.add(sid);
       }
 
@@ -104,7 +129,7 @@ export class ConversationState {
         this.processor.processMessages([candidate as any]);
         validMessages.push(candidate as A2uiServerMessage);
       } catch (err: any) {
-        // Rollback state by rebuilding from the persistent store
+        // Roll back state by rebuilding from the persistent store
         this.rebuildProcessor();
         return {
           ok: false,
@@ -118,7 +143,7 @@ export class ConversationState {
       }
     }
 
-    // All messages verified successfully on the processor — commit atomically
+    // Step 3: All messages verified successfully on the processor — commit to persistent store
     this.store.append(this.conversationId, callId, validMessages);
     return {
       ok: true,

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { StoreWriter } from '../src/store-writer.js';
@@ -24,7 +24,7 @@ describe('StoreWriter', () => {
     expect(lines).toEqual([]);
   });
 
-  it('appends messages with incrementing sequence numbers', () => {
+  it('appends messages with incrementing sequence numbers and caches seq', () => {
     const lines1 = writer.append('conv-1', 'call-1', [
       {
         version: 'v0.9',
@@ -37,6 +37,7 @@ describe('StoreWriter', () => {
     expect(lines1[0].callId).toBe('call-1');
     expect(lines1[0].message.createSurface?.surfaceId).toBe('surf-1');
 
+    // Second append uses in-memory sequence cache
     const lines2 = writer.append('conv-1', 'call-2', [
       {
         version: 'v0.9',
@@ -57,11 +58,46 @@ describe('StoreWriter', () => {
     expect(all.map((l) => l.seq)).toEqual([1, 2, 3]);
   });
 
-  it('throws on invalid conversation or call identifiers', () => {
+  it('throws on invalid conversation or call identifiers before checking messages', () => {
     expect(() => writer.append('../traversal', 'call-1', [])).toThrow(/conversationId/);
     expect(() =>
       writer.append('conv-1', '../call', [{ version: 'v0.9', deleteSurface: { surfaceId: 's' } }]),
     ).toThrow(/callId/);
+    expect(writer.append('conv-1', 'call-valid', [])).toEqual([]);
+  });
+
+  it('tolerates and skips an unparseable trailing line from an interrupted write', () => {
+    writer.append('conv-partial', 'call-1', [
+      { version: 'v0.9', createSurface: { surfaceId: 's1', catalogId: 'basic' } },
+      { version: 'v0.9', createSurface: { surfaceId: 's2', catalogId: 'basic' } },
+    ]);
+
+    const filePath = writer.getConversationFilePath('conv-partial');
+    // Append a truncated/incomplete line mimicking process crash
+    writeFileSync(filePath, '{"seq": 3, "callId": "call-interrupted"\n', { flag: 'a' });
+
+    // Should successfully read the 2 valid lines without throwing
+    const lines = writer.readAll('conv-partial');
+    expect(lines).toHaveLength(2);
+    expect(lines.map((l) => l.seq)).toEqual([1, 2]);
+
+    // Next append should correctly continue from seq 2
+    const nextLines = writer.append('conv-partial', 'call-2', [
+      { version: 'v0.9', deleteSurface: { surfaceId: 's1' } },
+    ]);
+    expect(nextLines[0].seq).toBe(3);
+  });
+
+  it('throws an error if a line in the middle of the store is corrupted', () => {
+    const filePath = writer.getConversationFilePath('conv-middle-corrupt');
+    writeFileSync(
+      filePath,
+      '{"seq":1,"callId":"c1","ts":"2026-09-30T00:00:00Z","message":{"version":"v0.9"}}\n' +
+        'INVALID_JSON_MIDDLE_LINE\n' +
+        '{"seq":2,"callId":"c1","ts":"2026-09-30T00:00:00Z","message":{"version":"v0.9"}}\n',
+    );
+
+    expect(() => writer.readAll('conv-middle-corrupt')).toThrow(/Corrupt line at index 1/);
   });
 
   it('clears conversation files cleanly', () => {

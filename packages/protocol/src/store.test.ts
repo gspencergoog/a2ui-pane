@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest';
+import * as protocol from './index.js';
 import { isValidId, parseStoreLine, serializeStoreLine, StoreLine } from './store.js';
+
+describe('index barrel exports', () => {
+  it('re-exports store, stream-events, and action-text symbols', () => {
+    expect(protocol.isValidId).toBeDefined();
+    expect(protocol.formatSseEvent).toBeDefined();
+    expect(protocol.formatActionText).toBeDefined();
+  });
+});
 
 describe('isValidId', () => {
   it('accepts valid alphanumeric, hyphen, and underscore IDs', () => {

@@ -1,3 +1,5 @@
+import { realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CatalogRegistry } from './catalog-registry.js';
@@ -5,6 +7,8 @@ import { StoreWriter } from './store-writer.js';
 import { ConversationState } from './conversation-state.js';
 import { handleA2uiInstructions, a2uiInstructionsSchema } from './tools/instructions.js';
 import { handleRenderA2ui, renderA2uiSchema } from './tools/render.js';
+
+const MAX_CONVERSATION_STATES = 100;
 
 /**
  * Creates and configures an MCP server instance with registered A2UI tools and state.
@@ -17,6 +21,13 @@ export function createServer(dataDir: string) {
   const getState = (conversationId: string): ConversationState => {
     let state = conversationStates.get(conversationId);
     if (!state) {
+      // LRU eviction to prevent unbounded memory growth in long-running processes
+      if (conversationStates.size >= MAX_CONVERSATION_STATES) {
+        const oldestKey = conversationStates.keys().next().value;
+        if (oldestKey) {
+          conversationStates.delete(oldestKey);
+        }
+      }
       state = new ConversationState(conversationId, catalogs, store);
       conversationStates.set(conversationId, state);
     }
@@ -42,26 +53,39 @@ export function createServer(dataDir: string) {
     async (args) => handleRenderA2ui(args, getState),
   );
 
-  return { server, catalogs, store, getState };
+  return { server, catalogs, store, getState, conversationStates };
 }
 
-async function run() {
+export async function run() {
   const dataDir = process.env.A2UI_PANE_DATA || process.env.PLUGIN_DATA;
   if (!dataDir) {
-    console.error(
-      '[a2ui-pane] Fatal: Neither A2UI_PANE_DATA nor PLUGIN_DATA environment variable is defined.',
-    );
-    process.exit(1);
+    throw new Error('Neither A2UI_PANE_DATA nor PLUGIN_DATA environment variable is defined.');
   }
 
   const { server } = createServer(dataDir);
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error('[a2ui-pane] MCP server connected over stdio');
+  return server;
+}
+
+/**
+ * Checks whether the current module was launched as the CLI entrypoint,
+ * properly resolving symlinks and percent-encoded paths.
+ */
+export function isMainModule(): boolean {
+  if (!process.argv[1]) return false;
+  try {
+    const realArgv = realpathSync(process.argv[1]);
+    const realUrlPath = fileURLToPath(import.meta.url);
+    return realArgv === realUrlPath;
+  } catch {
+    return false;
+  }
 }
 
 // Auto-run if executed directly as entrypoint
-if (process.argv[1] && import.meta.url.endsWith(process.argv[1])) {
+if (isMainModule()) {
   run().catch((err) => {
     console.error('[a2ui-pane] Fatal server error:', err);
     process.exit(1);

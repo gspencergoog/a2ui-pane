@@ -3,18 +3,19 @@ import type { Catalog } from '@a2ui/web_core/catalog';
 
 /**
  * Registry holding available A2UI component catalogs for validation and instructions.
- * Also registers alias catalog proxies so MessageProcessor can match short IDs like "basic".
+ * Supports canonical catalog registration and alias mappings so MessageProcessor matches
+ * short IDs (e.g. "basic") while instructions output only primary catalogs.
  */
 export class CatalogRegistry {
-  private readonly catalogs = new Map<string, Catalog<any>>();
+  private readonly primaryCatalogs = new Map<string, Catalog<any>>();
+  private readonly allCatalogs = new Map<string, Catalog<any>>();
   private readonly defaultCatalogId: string;
 
   constructor() {
     this.defaultCatalogId = basicCatalog.id || 'basic';
     this.register(basicCatalog as unknown as Catalog<any>);
 
-    // Create alias catalog proxies that share the same component implementations
-    // but report the alias id so MessageProcessor.processMessages matches createSurface.catalogId
+    // Register standard aliases mapping to basicCatalog
     this.registerAlias(basicCatalog as unknown as Catalog<any>, 'basic');
     this.registerAlias(basicCatalog as unknown as Catalog<any>, 'v0_9/basic');
     this.registerAlias(
@@ -24,57 +25,51 @@ export class CatalogRegistry {
   }
 
   /**
-   * Registers a catalog alias proxy with a distinct ID.
-   */
-  private registerAlias(original: Catalog<any>, aliasId: string): void {
-    const aliasProxy = Object.create(original);
-    aliasProxy.id = aliasId;
-    this.catalogs.set(aliasId, aliasProxy);
-  }
-
-  /**
-   * Registers a catalog in the registry.
+   * Registers a primary catalog.
    */
   register(catalog: Catalog<any>): void {
     const id = catalog.id || 'custom-catalog';
-    this.catalogs.set(id, catalog);
+    this.primaryCatalogs.set(id, catalog);
+    this.allCatalogs.set(id, catalog);
   }
 
   /**
-   * Retrieves a catalog by ID or alias.
+   * Registers an alias pointing to a primary catalog.
+   * Creates a dedicated wrapper object preserving component maps but reporting the alias ID.
+   */
+  registerAlias(targetCatalog: Catalog<any>, aliasId: string): void {
+    const aliasCatalog = Object.create(targetCatalog) as Catalog<any>;
+    aliasCatalog.id = aliasId;
+    this.allCatalogs.set(aliasId, aliasCatalog);
+  }
+
+  /**
+   * Retrieves a catalog by canonical ID or alias.
    */
   get(id: string): Catalog<any> | undefined {
-    return this.catalogs.get(id);
+    return this.allCatalogs.get(id);
   }
 
   /**
    * Returns the default basic catalog.
    */
   getDefaultCatalog(): Catalog<any> {
-    return this.catalogs.get(this.defaultCatalogId) || (basicCatalog as unknown as Catalog<any>);
+    return (
+      this.primaryCatalogs.get(this.defaultCatalogId) || (basicCatalog as unknown as Catalog<any>)
+    );
   }
 
   /**
-   * Lists all catalogs registered (including alias proxies) so MessageProcessor can resolve any alias.
+   * Lists all catalogs registered (including alias wrappers) so MessageProcessor resolves any alias.
    */
   list(): Catalog<any>[] {
-    return Array.from(this.catalogs.values());
+    return Array.from(this.allCatalogs.values());
   }
 
   /**
-   * Lists primary unique catalogs (ignoring alias proxies) for human-facing prompt generation.
+   * Lists primary unique catalogs (excluding aliases) for human-facing prompt generation.
    */
   listPrimary(): Catalog<any>[] {
-    const unique = new Map<string, Catalog<any>>();
-    for (const cat of this.catalogs.values()) {
-      // Pick canonical catalog instance (e.g. basicCatalog with its URL id)
-      if (cat.id && cat.id.startsWith('https://')) {
-        unique.set(cat.id, cat);
-      }
-    }
-    if (unique.size === 0) {
-      unique.set('basic', basicCatalog as unknown as Catalog<any>);
-    }
-    return Array.from(unique.values());
+    return Array.from(this.primaryCatalogs.values());
   }
 }

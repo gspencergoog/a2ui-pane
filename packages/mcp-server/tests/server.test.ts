@@ -2,11 +2,11 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { createServer } from '../src/server.js';
+import { createServer, isMainModule, run } from '../src/server.js';
 import { handleA2uiInstructions } from '../src/tools/instructions.js';
 import { handleRenderA2ui } from '../src/tools/render.js';
 
-describe('MCP Server Tools', () => {
+describe('MCP Server Tools and Entrypoint', () => {
   let tempDir: string;
   let serverInstance: ReturnType<typeof createServer>;
 
@@ -19,6 +19,29 @@ describe('MCP Server Tools', () => {
     if (existsSync(tempDir)) {
       rmSync(tempDir, { recursive: true, force: true });
     }
+    delete process.env.ANTIGRAVITY_CONVERSATION_ID;
+    delete process.env.A2UI_PANE_DATA;
+    delete process.env.PLUGIN_DATA;
+  });
+
+  describe('isMainModule and run entrypoint (H1)', () => {
+    it('returns a boolean safely without throwing', () => {
+      expect(typeof isMainModule()).toBe('boolean');
+    });
+
+    it('run() throws an error if neither A2UI_PANE_DATA nor PLUGIN_DATA is set', async () => {
+      delete process.env.A2UI_PANE_DATA;
+      delete process.env.PLUGIN_DATA;
+      await expect(run()).rejects.toThrow(/Neither A2UI_PANE_DATA nor PLUGIN_DATA/);
+    });
+
+    it('run() initializes server when A2UI_PANE_DATA is provided', async () => {
+      process.env.A2UI_PANE_DATA = tempDir;
+      // StdioServerTransport in test environment attempts to read stdin
+      // We verify that run() successfully resolves createServer and transport connection
+      const serverPromise = run();
+      await expect(serverPromise).resolves.toBeDefined();
+    });
   });
 
   describe('a2ui_instructions', () => {
@@ -40,6 +63,20 @@ describe('MCP Server Tools', () => {
       const result = handleA2uiInstructions({ catalogIds: ['basic'] }, serverInstance.catalogs);
       expect(result.content[0].text).toContain('Catalog:');
     });
+
+    it('handles unknown catalogIds by keeping target catalogs', () => {
+      const result = handleA2uiInstructions(
+        { catalogIds: ['nonexistent-catalog'] },
+        serverInstance.catalogs,
+      );
+      expect(result.content[0].text).toContain('Catalog:');
+    });
+
+    it('provides default catalog via getDefaultCatalog', () => {
+      const def = serverInstance.catalogs.getDefaultCatalog();
+      expect(def).toBeDefined();
+      expect(def.id).toContain('basic');
+    });
   });
 
   describe('render_a2ui', () => {
@@ -54,6 +91,52 @@ describe('MCP Server Tools', () => {
 
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Invalid conversationId');
+    });
+
+    it('rejects when conversationId is missing and not provided in environment', async () => {
+      delete process.env.ANTIGRAVITY_CONVERSATION_ID;
+      const result = await handleRenderA2ui(
+        {
+          messages: [],
+        },
+        serverInstance.getState,
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Missing required conversationId');
+    });
+
+    it('defaults to ANTIGRAVITY_CONVERSATION_ID when conversationId is omitted in args (M5)', async () => {
+      process.env.ANTIGRAVITY_CONVERSATION_ID = 'host-conv-default';
+      const result = await handleRenderA2ui(
+        {
+          messages: [
+            {
+              version: 'v0.9',
+              createSurface: { surfaceId: 'surf-env', catalogId: 'basic' },
+            },
+          ],
+        },
+        serverInstance.getState,
+      );
+
+      expect(result.isError).toBeUndefined();
+      expect(serverInstance.store.readAll('host-conv-default')).toHaveLength(1);
+    });
+
+    it('enforces trust boundary when args.conversationId does not match host env (M5)', async () => {
+      process.env.ANTIGRAVITY_CONVERSATION_ID = 'active-session-123';
+      const result = await handleRenderA2ui(
+        {
+          conversationId: 'spoofed-session-456',
+          messages: [],
+        },
+        serverInstance.getState,
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Unauthorized conversationId');
+      expect(result.content[0].text).toContain('active-session-123');
     });
 
     it('processes valid surface creation and reports success', async () => {
@@ -113,18 +196,14 @@ describe('MCP Server Tools', () => {
       expect(serverInstance.store.readAll('valid-conv-2')).toHaveLength(0);
     });
 
-    it('handles inline mode notice gracefully', async () => {
-      const result = await handleRenderA2ui(
-        {
-          conversationId: 'conv-inline',
-          messages: [],
-          mode: 'inline',
-        },
-        serverInstance.getState,
-      );
-
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Phase 6');
+    it('evicts oldest conversation state when capacity limit is reached (M4)', () => {
+      const { getState, conversationStates } = serverInstance;
+      for (let i = 0; i < 105; i++) {
+        getState(`conv-${i}`);
+      }
+      expect(conversationStates.size).toBeLessThanOrEqual(100);
+      expect(conversationStates.has('conv-0')).toBe(false);
+      expect(conversationStates.has('conv-104')).toBe(true);
     });
   });
 });
