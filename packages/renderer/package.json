@@ -1,0 +1,29 @@
+{
+  "name": "@a2ui-pane/renderer",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "dependencies": {
+    "@a2ui-pane/protocol": "workspace:*",
+    "@a2ui-pane/theme": "workspace:*",
+    "@a2ui/lit": "^0.12.0",
+    "@a2ui/markdown-it": "^0.1.0",
+    "@a2ui/web_core": "^0.12.0",
+    "@lit-labs/signals": "^0.3.0",
+    "@lit/context": "^1.1.6",
+    "lit": "^3.3.3"
+  },
+  "devDependencies": {
+    "happy-dom": "^17.4.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.5"
+  }
+}

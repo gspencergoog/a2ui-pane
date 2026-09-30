@@ -1,0 +1,25 @@
+{
+  "name": "@a2ui-pane/pane-app",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "dependencies": {
+    "@a2ui-pane/protocol": "workspace:*",
+    "@a2ui-pane/renderer": "workspace:*",
+    "@a2ui-pane/theme": "workspace:*",
+    "lit": "^3.3.3"
+  },
+  "devDependencies": {
+    "happy-dom": "^17.4.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.1.0",
+    "vitest": "^3.0.5"
+  }
+}
