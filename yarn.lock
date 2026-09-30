@@ -59,6 +59,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@a2ui-pane/sidecar@workspace:packages/sidecar":
+  version: 0.0.0-use.local
+  resolution: "@a2ui-pane/sidecar@workspace:packages/sidecar"
+  dependencies:
+    "@a2ui-pane/protocol": "workspace:*"
+    esbuild: "npm:^0.25.0"
+    typescript: "npm:^5.7.0"
+    vitest: "npm:^3.0.5"
+  languageName: unknown
+  linkType: soft
+
 "@a2ui-pane/theme@workspace:*, @a2ui-pane/theme@workspace:packages/theme":
   version: 0.0.0-use.local
   resolution: "@a2ui-pane/theme@workspace:packages/theme"
