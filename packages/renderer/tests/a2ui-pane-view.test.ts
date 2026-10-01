@@ -147,4 +147,28 @@ describe('A2uiPaneView', () => {
     expect(element.surfaceIds).toEqual([]);
     expect(element.shadowRoot!.querySelector('.a2ui-empty-state')).not.toBeNull();
   });
+
+  it('renders data-busy and data-pending-components when pendingComponents is non-empty (M4)', async () => {
+    const processor = createProcessor();
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: { surfaceId: 'surfBusy', catalogId: 'basic' },
+      },
+    ]);
+
+    element.processor = processor;
+    element.pendingComponents = new Set(['btnSubmit', 'btnCancel']);
+    await element.updateComplete;
+
+    const surfacesDiv = element.shadowRoot!.querySelector('.a2ui-surfaces');
+    expect(surfacesDiv).not.toBeNull();
+    expect(surfacesDiv!.hasAttribute('data-busy')).toBe(true);
+    expect(surfacesDiv!.getAttribute('data-pending-components')).toBe('btnSubmit,btnCancel');
+
+    element.pendingComponents = new Set();
+    await element.updateComplete;
+    expect(surfacesDiv!.hasAttribute('data-busy')).toBe(false);
+    expect(surfacesDiv!.hasAttribute('data-pending-components')).toBe(false);
+  });
 });

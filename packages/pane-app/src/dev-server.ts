@@ -97,7 +97,7 @@ export function a2uiDevPlugin(options: DevServerOptions = {}): Plugin {
               const defaultLines = [
                 {
                   seq: 1,
-                  timestamp: new Date().toISOString(),
+                  ts: new Date().toISOString(),
                   callId: 'dev_init',
                   message: {
                     version: 'v0.9',
@@ -109,7 +109,7 @@ export function a2uiDevPlugin(options: DevServerOptions = {}): Plugin {
                 },
                 {
                   seq: 2,
-                  timestamp: new Date().toISOString(),
+                  ts: new Date().toISOString(),
                   callId: 'dev_init',
                   message: {
                     version: 'v0.9',

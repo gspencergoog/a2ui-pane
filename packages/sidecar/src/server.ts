@@ -108,6 +108,16 @@ export function createSidecarServer(
         return;
       }
 
+      if (env.conversationId && convId !== env.conversationId) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            error: `Forbidden conversationId '${convId}'. Restricted to '${env.conversationId}'.`,
+          }),
+        );
+        return;
+      }
+
       handleStream(req, res, convId, storeReader, notifier, {
         keepaliveIntervalMs: injectedDeps?.keepaliveIntervalMs,
       });
@@ -124,6 +134,7 @@ export function createSidecarServer(
 
       handleSendMessage(req, res, {
         agentapiExe: env.agentapiExe,
+        expectedConversationId: env.conversationId,
         execFileFn: injectedDeps?.execFileFn,
       });
       return;

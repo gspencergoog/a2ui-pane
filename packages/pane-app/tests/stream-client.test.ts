@@ -233,4 +233,31 @@ describe('StreamClient', () => {
     expect(() => es.triggerError()).not.toThrow();
     expect(client.getStatus()).toBe('reconnecting');
   });
+
+  it('schedules reconnect timer when EventSource enters fatal CLOSED state (M7)', () => {
+    vi.useFakeTimers();
+    MockEventSource.instances = [];
+    const applier = new LineApplier();
+
+    const client = new StreamClient({
+      conversationId: 'fatal_closed_conv',
+      applier,
+      reconnectDelayMs: 500,
+      eventSourceFactory: (url) => new MockEventSource(url) as any,
+    });
+
+    client.connect();
+    expect(MockEventSource.instances).toHaveLength(1);
+    const es = MockEventSource.instances[0] as any;
+    es.readyState = 2; // EventSource.CLOSED
+
+    es.triggerError();
+    expect(client.getStatus()).toBe('reconnecting');
+
+    vi.advanceTimersByTime(500);
+    expect(MockEventSource.instances).toHaveLength(2);
+
+    client.disconnect();
+    vi.useRealTimers();
+  });
 });

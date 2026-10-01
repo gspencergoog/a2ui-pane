@@ -277,6 +277,30 @@ describe('MCP Server Tools and Entrypoint', () => {
       expect(result.content[0].text).toContain('A2UI Inline Validation Failed at Message #1');
     });
 
+    it('rejects invalid surfaceId with path traversal in inline mode (H1)', async () => {
+      const result = await handleRenderA2ui(
+        {
+          conversationId: 'inline-conv-bad-surf',
+          mode: 'inline',
+          messages: [
+            {
+              version: 'v0.9',
+              createSurface: {
+                surfaceId: '../../../tmp/evil',
+                catalogId: 'basic',
+              },
+            },
+          ],
+        },
+        serverInstance.getState,
+        serverInstance.catalogs,
+        tempDir,
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Invalid surfaceId');
+    });
+
     it('handles inline mode without surfaceId gracefully', async () => {
       const result = await handleRenderA2ui(
         {

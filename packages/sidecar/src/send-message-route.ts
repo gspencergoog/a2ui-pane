@@ -6,10 +6,12 @@ export type ExecFileFn = typeof execFile;
 
 export interface SendMessageOptions {
   agentapiExe?: string;
+  expectedConversationId?: string;
   execFileFn?: ExecFileFn;
 }
 
-const MAX_BODY_BYTES = 1024 * 1024; // 1 MB
+const MAX_BODY_BYTES = 120 * 1024; // 120 KB (below Linux MAX_ARG_STRLEN 128 KB)
+const EXEC_TIMEOUT_MS = 30_000;
 
 /**
  * Handles POST /_sidecar/send-message requests from the pane frontend.
@@ -20,23 +22,35 @@ export function handleSendMessage(
   res: ServerResponse,
   options: SendMessageOptions = {},
 ): void {
-  let body = '';
+  const contentType = req.headers['content-type'] || '';
+  if (!contentType.toLowerCase().includes('application/json')) {
+    res.writeHead(415, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Unsupported Media Type: Expected application/json' }));
+    return;
+  }
+
+  const chunks: Buffer[] = [];
   let bytesReceived = 0;
+  let oversized = false;
 
   req.on('data', (chunk: Buffer) => {
-    bytesReceived += chunk.length;
+    if (oversized) return;
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    bytesReceived += buf.length;
     if (bytesReceived > MAX_BODY_BYTES) {
+      oversized = true;
       res.writeHead(413, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Payload Too Large: Maximum size 1MB' }));
+      res.end(JSON.stringify({ error: 'Payload Too Large: Maximum size 120KB' }));
       req.destroy();
       return;
     }
-    body += chunk.toString('utf-8');
+    chunks.push(buf);
   });
 
   req.on('end', () => {
-    if (res.writableEnded) return;
+    if (oversized || res.writableEnded) return;
 
+    const body = Buffer.concat(chunks).toString('utf-8');
     let parsed: any;
     try {
       parsed = JSON.parse(body);
@@ -60,6 +74,16 @@ export function handleSendMessage(
       return;
     }
 
+    if (options.expectedConversationId && conversationId !== options.expectedConversationId) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          error: `Forbidden conversationId '${conversationId}'. Restricted to '${options.expectedConversationId}'.`,
+        }),
+      );
+      return;
+    }
+
     if (typeof message !== 'string' || !message.trim()) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: "Missing required 'message' string content" }));
@@ -67,11 +91,10 @@ export function handleSendMessage(
     }
 
     const execFn = options.execFileFn ?? execFile;
-    const [file, args] = options.agentapiExe
-      ? [options.agentapiExe, ['agentapi', 'send-message', conversationId, message]]
-      : ['agentapi', ['send-message', conversationId, message]];
+    const file = options.agentapiExe || 'agentapi';
+    const args = ['send-message', conversationId, message];
 
-    execFn(file, args, { shell: false }, (err, stdout, stderr) => {
+    execFn(file, args, { shell: false, timeout: EXEC_TIMEOUT_MS }, (err, stdout, stderr) => {
       if (err) {
         console.error('[send-message] Failed to execute agentapi:', err, stderr);
         res.writeHead(500, { 'Content-Type': 'application/json' });

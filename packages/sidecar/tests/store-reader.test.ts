@@ -193,6 +193,82 @@ describe('StoreReader', () => {
     warnSpy.mockRestore();
   });
 
+  it('notifies all concurrent subscribers independently when file is truncated (H4)', () => {
+    const convId = 'conv_multi_sub';
+    const filePath = path.join(convDir, `${convId}.jsonl`);
+    const subA = Symbol('subA');
+    const subB = Symbol('subB');
+
+    const line1: StoreLine = {
+      seq: 1,
+      ts: new Date().toISOString(),
+      callId: 'c1',
+      message: { version: 'v0.9', createSurface: { surfaceId: 's1', catalogId: 'basic' } },
+    };
+    const line2: StoreLine = {
+      seq: 2,
+      ts: new Date().toISOString(),
+      callId: 'c1',
+      message: { version: 'v0.9', updateDataModel: { surfaceId: 's1', path: '/a', value: 1 } },
+    };
+    fs.writeFileSync(filePath, serializeStoreLine(line1) + '\n' + serializeStoreLine(line2) + '\n');
+
+    expect(reader.read(convId, 0, subA).lines).toHaveLength(2);
+    expect(reader.read(convId, 0, subB).lines).toHaveLength(2);
+
+    // Truncate file and write a single new line
+    const freshLine: StoreLine = {
+      seq: 1,
+      ts: new Date().toISOString(),
+      callId: 'c_fresh',
+      message: { version: 'v0.9', createSurface: { surfaceId: 's_fresh', catalogId: 'basic' } },
+    };
+    fs.writeFileSync(filePath, serializeStoreLine(freshLine) + '\n');
+
+    // Both subA and subB must independently observe reset: true and receive the replayed line
+    const resA = reader.read(convId, 2, subA);
+    expect(resA.reset).toBe(true);
+    expect(resA.lines).toHaveLength(1);
+
+    const resB = reader.read(convId, 2, subB);
+    expect(resB.reset).toBe(true);
+    expect(resB.lines).toHaveLength(1);
+
+    // Subsequent reads without further truncation have reset: false
+    expect(reader.read(convId, 1, subA).reset).toBe(false);
+    expect(reader.read(convId, 1, subB).reset).toBe(false);
+
+    reader.removeSubscriber(convId, subA);
+    reader.removeSubscriber(convId, subB);
+  });
+
+  it('decodes multi-byte UTF-8 characters split across partial writes without corruption (M10)', () => {
+    const convId = 'conv_utf8_split';
+    const filePath = path.join(convDir, `${convId}.jsonl`);
+
+    const line: StoreLine = {
+      seq: 1,
+      ts: new Date().toISOString(),
+      callId: 'c_utf8',
+      message: {
+        version: 'v0.9',
+        updateDataModel: { surfaceId: 's1', path: '/emoji', value: 'Hello 🚀🌍 World' },
+      },
+    };
+    const fullBytes = Buffer.from(serializeStoreLine(line) + '\n', 'utf-8');
+    // Find the 4-byte rocket emoji (0xF0 0x9F 0x9A 0x80) and split right in the middle of it
+    const rocketIdx = fullBytes.indexOf(Buffer.from('🚀', 'utf-8'));
+    const splitPoint = rocketIdx + 2;
+
+    fs.writeFileSync(filePath, fullBytes.subarray(0, splitPoint));
+    expect(reader.read(convId, 0).lines).toHaveLength(0);
+
+    fs.appendFileSync(filePath, fullBytes.subarray(splitPoint));
+    const res = reader.read(convId, 0);
+    expect(res.lines).toHaveLength(1);
+    expect((res.lines[0].message as any).updateDataModel.value).toBe('Hello 🚀🌍 World');
+  });
+
   it('clears conversation state', () => {
     const convId = 'conv_clear';
     const filePath = path.join(convDir, `${convId}.jsonl`);

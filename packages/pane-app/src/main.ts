@@ -158,7 +158,7 @@ export async function initPaneApp(options: InitOptions = {}): Promise<PaneAppIns
     sendMessageFn: options.sendMessageFn,
     onPendingChange: (pending) => {
       if (paneView) {
-        (paneView as any).pendingComponents = pending;
+        paneView.pendingComponents = pending;
       }
     },
   });
@@ -217,6 +217,7 @@ export async function initPaneApp(options: InitOptions = {}): Promise<PaneAppIns
   return {
     applier,
     client,
+    actionSender,
     updateStatus,
     updateErrors,
   };

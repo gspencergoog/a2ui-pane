@@ -1,15 +1,27 @@
 import { IncomingMessage } from 'node:http';
 import crypto from 'node:crypto';
 
+export interface CheckTokenOptions {
+  allowUnauthenticated?: boolean;
+}
+
 /**
  * Validates request authentication against the expected sidecar UI token using constant-time comparison.
  * Extracts token from either query parameter (?token=...) or HTTP headers.
- * If no expected token is configured (e.g. standalone local development), allows all requests.
+ * Fails closed when no expected token is configured unless explicitly allowed for local development.
  */
-export function checkToken(req: IncomingMessage, url: URL, expectedToken?: string): boolean {
+export function checkToken(
+  req: IncomingMessage,
+  url: URL,
+  expectedToken?: string,
+  options: CheckTokenOptions = {},
+): boolean {
   if (!expectedToken) {
-    // Development mode without configured token
-    return true;
+    return (
+      options.allowUnauthenticated === true ||
+      process.env.A2UI_PANE_ALLOW_NO_TOKEN === '1' ||
+      process.env.NODE_ENV === 'development'
+    );
   }
 
   // 1. Check query parameter ?token=...

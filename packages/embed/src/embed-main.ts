@@ -7,12 +7,14 @@ export interface ActionConfig {
   port: number;
   key: string;
   surfaceId: string;
+  targetOrigin?: string;
 }
 
 export interface InitEmbedOptions {
   container?: HTMLElement;
   messagesJson?: string;
   actionConfig?: ActionConfig;
+  targetOrigin?: string;
   postMessageFn?: (data: any, targetOrigin: string) => void;
   fetchFn?: typeof fetch;
   resizeObserverFactory?: (
@@ -109,6 +111,8 @@ export function initEmbed(options: InitEmbedOptions = {}): EmbedInstance | null 
     footerNote.textContent = 'Submitting fills in the chat box.';
   }
 
+  const promptTargetOrigin = actionConfig?.targetOrigin || options.targetOrigin || '*';
+
   const onAction = async (action: A2uiActionDetails, dataModel?: Record<string, unknown>) => {
     const promptText = formatActionText(action, {
       label: typeof action.context?.label === 'string' ? action.context.label : undefined,
@@ -120,6 +124,10 @@ export function initEmbed(options: InitEmbedOptions = {}): EmbedInstance | null 
       if (fetchFn) {
         try {
           const endpointUrl = `http://127.0.0.1:${actionConfig.port}/action`;
+          const timeoutSignal =
+            typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+              ? AbortSignal.timeout(3000)
+              : undefined;
           const resp = await fetchFn(endpointUrl, {
             method: 'POST',
             headers: {
@@ -127,10 +135,10 @@ export function initEmbed(options: InitEmbedOptions = {}): EmbedInstance | null 
               'X-A2UI-Key': actionConfig.key,
             },
             body: JSON.stringify({
-              key: actionConfig.key,
               action,
               dataModel,
             }),
+            signal: timeoutSignal,
           });
           if (resp.ok) {
             footerNote.textContent = 'Action sent directly to agent.';
@@ -146,7 +154,7 @@ export function initEmbed(options: InitEmbedOptions = {}): EmbedInstance | null 
     }
 
     // Default or fallback: post PROMPT to parent frame
-    postMsg({ type: 'PROMPT', prompt: promptText }, '*');
+    postMsg({ type: 'PROMPT', prompt: promptText }, promptTargetOrigin);
   };
 
   const applier = new LineApplier(undefined, onAction);

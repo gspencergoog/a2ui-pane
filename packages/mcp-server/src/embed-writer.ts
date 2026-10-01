@@ -12,6 +12,7 @@ export interface EmbedWriterOptions {
     port: number;
     key: string;
     surfaceId: string;
+    targetOrigin?: string;
   };
 }
 
@@ -41,6 +42,19 @@ export function loadEmbedBundle(customPath?: string): string {
   return 'console.warn("[a2ui-embed] Embed IIFE bundle not found.");';
 }
 
+function escapeJsonForScript(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
+}
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 /**
  * Generates an isolated, self-contained HTML page embedding the A2UI IIFE runtime,
  * host theme CSS, and sanitized initial layout messages.
@@ -57,6 +71,12 @@ export function writeEmbed(
     throw new Error(`Invalid conversationId: ${conversationId}`);
   }
 
+  for (const sid of surfaceIds) {
+    if (!isValidId(sid)) {
+      throw new Error(`Invalid surfaceId: ${sid}`);
+    }
+  }
+
   const embedDir = path.join(dataDir, 'embeds', conversationId);
   fs.mkdirSync(embedDir, { recursive: true, mode: 0o700 });
 
@@ -70,16 +90,17 @@ export function writeEmbed(
     (options.embedBundlePath ? loadEmbedBundle(options.embedBundlePath) : loadEmbedBundle());
 
   // Escape < and > to prevent script tag injection breakout
-  const sanitizedMessagesJson = JSON.stringify(messages)
-    .replace(/</g, '\\u003c')
-    .replace(/>/g, '\\u003e');
+  const sanitizedMessagesJson = escapeJsonForScript(messages);
+  const sanitizedActionConfigJson = options.actionConfig
+    ? escapeJsonForScript(options.actionConfig)
+    : null;
 
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>A2UI Embed - ${primarySurface}</title>
+  <title>A2UI Embed - ${escapeHtml(primarySurface)}</title>
   <style>
 ${HOST_THEME_CSS}
   </style>
@@ -107,9 +128,9 @@ ${HOST_THEME_CSS}
 ${sanitizedMessagesJson}
   </script>
 ${
-  options.actionConfig
+  sanitizedActionConfigJson
     ? `  <script id="a2ui-action-config" type="application/json">
-${JSON.stringify(options.actionConfig)}
+${sanitizedActionConfigJson}
   </script>\n`
     : ''
 }  <script>

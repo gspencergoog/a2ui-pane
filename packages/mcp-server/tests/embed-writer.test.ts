@@ -62,8 +62,25 @@ describe('embed-writer', () => {
     );
   });
 
-  it('rejects invalid conversationId with directory traversal', () => {
+  it('rejects invalid conversationId or surfaceId with directory traversal (H1)', () => {
     expect(() => writeEmbed(tmpDir, '../bad_conv', ['s1'], [])).toThrow('Invalid conversationId');
+    expect(() => writeEmbed(tmpDir, 'valid_conv', ['../bad_surf'], [])).toThrow(
+      'Invalid surfaceId',
+    );
+  });
+
+  it('escapes < and > in actionConfig to prevent script breakout (H1)', () => {
+    const filePath = writeEmbed(tmpDir, 'conv_cfg', ['surf1'], [], {
+      actionConfig: {
+        port: 12345,
+        key: 'k1',
+        surfaceId: 'surf1',
+        targetOrigin: '</script><script>evil()</script>',
+      },
+    });
+    const html = fs.readFileSync(filePath, 'utf-8');
+    expect(html).not.toContain('</script><script>evil()</script>');
+    expect(html).toContain('\\u003c/script\\u003e');
   });
 
   it('loads embed bundle from custom path or returns fallback stub', () => {

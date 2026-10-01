@@ -286,7 +286,7 @@ describe('initEmbed', () => {
           'Content-Type': 'application/json',
           'X-A2UI-Key': 'secret-embed-token',
         }),
-        body: expect.stringContaining('"key":"secret-embed-token"'),
+        body: expect.not.stringContaining('secret-embed-token'),
       }),
     );
 
@@ -294,6 +294,30 @@ describe('initEmbed', () => {
       'Action sent directly to agent.',
     );
     expect(postedEvents.some((e) => e.type === 'PROMPT')).toBe(false);
+
+    instance?.destroy();
+  });
+
+  it('uses configured targetOrigin when posting PROMPT messages (M5)', () => {
+    const calls: Array<{ data: any; origin: string }> = [];
+    const instance = initEmbed({
+      container,
+      targetOrigin: 'https://host.example.com',
+      messagesJson: JSON.stringify([
+        {
+          version: 'v0.9',
+          createSurface: { surfaceId: 'originSurf', catalogId: 'basic' },
+        },
+      ]),
+      postMessageFn: (data, origin) => calls.push({ data, origin }),
+    });
+
+    const surface = instance?.applier.getProcessor().getSurface('originSurf');
+    surface?.dispatchAction({ name: 'submitOrigin' });
+
+    const promptCall = calls.find((c) => c.data.type === 'PROMPT');
+    expect(promptCall).toBeDefined();
+    expect(promptCall?.origin).toBe('https://host.example.com');
 
     instance?.destroy();
   });

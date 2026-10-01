@@ -18,10 +18,12 @@ export interface SurfaceChangedDetail {
 export class A2uiPaneView extends LitElement {
   static override properties = {
     processor: { type: Object },
+    pendingComponents: { type: Object },
     surfaceIds: { state: true },
   };
 
   declare processor?: MessageProcessor<any>;
+  declare pendingComponents: ReadonlySet<string>;
   declare surfaceIds: string[];
 
   private unsubscribeCreated?: { unsubscribe: () => void };
@@ -30,6 +32,7 @@ export class A2uiPaneView extends LitElement {
   constructor() {
     super();
     this.surfaceIds = [];
+    this.pendingComponents = new Set();
     // Provide markdown renderer context to descendant components (e.g. Text)
     new ContextProvider(this, {
       context: Context.markdown,
@@ -56,6 +59,11 @@ export class A2uiPaneView extends LitElement {
       gap: 16px;
       padding: 16px;
       box-sizing: border-box;
+    }
+
+    .a2ui-surfaces[data-busy] {
+      opacity: 0.75;
+      pointer-events: none;
     }
 
     .a2ui-surface-wrapper {
@@ -140,8 +148,15 @@ export class A2uiPaneView extends LitElement {
       `;
     }
 
+    const pendingList = this.pendingComponents ? Array.from(this.pendingComponents) : [];
+    const isBusy = pendingList.length > 0;
+
     return html`
-      <div class="a2ui-surfaces">
+      <div
+        class="a2ui-surfaces"
+        ?data-busy=${isBusy}
+        data-pending-components=${isBusy ? pendingList.join(',') : nothing}
+      >
         ${this.surfaceIds.map((id) => {
           const surface = this.processor?.getSurface(id);
           if (!surface) return nothing;

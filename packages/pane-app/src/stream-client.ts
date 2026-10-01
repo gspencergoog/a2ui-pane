@@ -8,6 +8,7 @@ export interface StreamClientOptions {
   token?: string;
   baseUrl?: string;
   applier: LineApplier;
+  reconnectDelayMs?: number;
   onStatusChange?: (status: ConnectionStatus) => void;
   onError?: (error: Event | Error) => void;
   eventSourceFactory?: (url: string) => EventSource;
@@ -21,6 +22,7 @@ export class StreamClient {
   private eventSource: EventSource | null = null;
   private status: ConnectionStatus = 'disconnected';
   private closedExplicitly = false;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private readonly options: StreamClientOptions) {}
 
@@ -40,8 +42,16 @@ export class StreamClient {
     this.openStream();
   }
 
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
   private openStream(): void {
     if (this.closedExplicitly) return;
+    this.clearReconnectTimer();
 
     if (this.eventSource) {
       this.eventSource.close();
@@ -70,6 +80,16 @@ export class StreamClient {
       if (this.closedExplicitly) return;
       this.setStatus('reconnecting');
       this.options.onError?.(evt);
+      // EventSource.CLOSED === 2: browser halted automatic retries
+      if ((es as any).readyState === 2 && !this.reconnectTimer) {
+        const delay = this.options.reconnectDelayMs ?? 3000;
+        this.reconnectTimer = setTimeout(() => {
+          this.reconnectTimer = null;
+          if (!this.closedExplicitly) {
+            this.openStream();
+          }
+        }, delay);
+      }
     };
 
     es.addEventListener('line', (event: MessageEvent) => {
@@ -93,6 +113,7 @@ export class StreamClient {
 
   disconnect(): void {
     this.closedExplicitly = true;
+    this.clearReconnectTimer();
     if (this.eventSource) {
       this.eventSource.close();
       this.eventSource = null;

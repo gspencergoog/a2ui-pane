@@ -53,16 +53,22 @@ export function injectHostTheme(target?: Document | ShadowRoot | null): HTMLStyl
     return null;
   }
   const resolvedTarget = target ?? document;
+  const container = (resolvedTarget as Document).head || resolvedTarget;
+  if (typeof (container as ParentNode).querySelector === 'function') {
+    const existing = (container as ParentNode).querySelector(
+      'style[data-a2ui-theme="host"]',
+    ) as HTMLStyleElement | null;
+    if (existing) {
+      return existing;
+    }
+  }
+
   const doc = (resolvedTarget as Document).head
     ? (resolvedTarget as Document)
     : (resolvedTarget as ShadowRoot).ownerDocument || document;
   const style = doc.createElement('style');
   style.setAttribute('data-a2ui-theme', 'host');
   style.textContent = HOST_THEME_CSS;
-  if ((resolvedTarget as Document).head) {
-    (resolvedTarget as Document).head.appendChild(style);
-  } else {
-    resolvedTarget.appendChild(style);
-  }
+  container.appendChild(style);
   return style;
 }

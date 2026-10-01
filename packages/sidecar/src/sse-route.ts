@@ -40,41 +40,30 @@ export function handleStream(
   }
 
   let currentSeq = afterSeq;
+  const subscriberId = Symbol('sse-subscriber');
 
   // 1. Initial replay of existing committed lines
-  const initial = storeReader.read(conversationId, afterSeq);
+  const initial = storeReader.read(conversationId, afterSeq, subscriberId);
   if (initial.reset) {
     res.write(formatSseEvent({ type: 'reset' }));
     currentSeq = 0;
-    const replay = storeReader.read(conversationId, 0);
-    for (const line of replay.lines) {
-      res.write(formatSseEvent({ type: 'line', line }, line.seq));
-      currentSeq = Math.max(currentSeq, line.seq);
-    }
-  } else {
-    for (const line of initial.lines) {
-      res.write(formatSseEvent({ type: 'line', line }, line.seq));
-      currentSeq = Math.max(currentSeq, line.seq);
-    }
+  }
+  for (const line of initial.lines) {
+    res.write(formatSseEvent({ type: 'line', line }, line.seq));
+    currentSeq = Math.max(currentSeq, line.seq);
   }
 
   // 2. Subscribe to file modification notifications
   const unsubscribe = notifier.subscribe(conversationId, () => {
     try {
-      const update = storeReader.read(conversationId, currentSeq);
+      const update = storeReader.read(conversationId, currentSeq, subscriberId);
       if (update.reset) {
         res.write(formatSseEvent({ type: 'reset' }));
         currentSeq = 0;
-        const replay = storeReader.read(conversationId, 0);
-        for (const line of replay.lines) {
-          res.write(formatSseEvent({ type: 'line', line }, line.seq));
-          currentSeq = Math.max(currentSeq, line.seq);
-        }
-      } else {
-        for (const line of update.lines) {
-          res.write(formatSseEvent({ type: 'line', line }, line.seq));
-          currentSeq = Math.max(currentSeq, line.seq);
-        }
+      }
+      for (const line of update.lines) {
+        res.write(formatSseEvent({ type: 'line', line }, line.seq));
+        currentSeq = Math.max(currentSeq, line.seq);
       }
     } catch (err) {
       console.error(`[sse-route] Error processing update for ${conversationId}:`, err);
@@ -96,6 +85,7 @@ export function handleStream(
       clearInterval(keepaliveTimer);
       keepaliveTimer = null;
     }
+    storeReader.removeSubscriber(conversationId, subscriberId);
     unsubscribe();
   });
 }

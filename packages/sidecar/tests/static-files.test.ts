@@ -86,11 +86,29 @@ describe('serveStaticFile', () => {
     expect(getOutput().body.toString('utf-8')).toBe('Forbidden');
   });
 
-  it('falls back to index.html for SPA sub-routes', () => {
+  it('falls back to index.html for SPA sub-routes and serves from cache on repeat calls', () => {
     const { res, getOutput } = createMockResponse();
     const served = serveStaticFile(tmpDir, '/surfaces/s1', res);
     expect(served).toBe(true);
     expect(getOutput().statusCode).toBe(200);
     expect(getOutput().body.toString('utf-8')).toBe('<html>Index</html>');
+
+    // Second request hits in-memory asset cache
+    const { res: resCached, getOutput: getOutCached } = createMockResponse();
+    expect(serveStaticFile(tmpDir, '/', resCached)).toBe(true);
+    expect(getOutCached().body.toString('utf-8')).toBe('<html>Index</html>');
+  });
+
+  it('returns false for API routes and missing assets with file extensions', () => {
+    const { res } = createMockResponse();
+    expect(serveStaticFile(tmpDir, '/api/health', res)).toBe(false);
+    expect(serveStaticFile(tmpDir, '/_sidecar/send-message', res)).toBe(false);
+    expect(serveStaticFile(tmpDir, '/missing-file.js', res)).toBe(false);
+
+    // Unknown file extension uses application/octet-stream
+    fs.writeFileSync(path.join(tmpDir, 'data.bin'), 'binary-data');
+    const { res: resBin, getOutput: getOutBin } = createMockResponse();
+    expect(serveStaticFile(tmpDir, '/data.bin', resBin)).toBe(true);
+    expect(getOutBin().headers['Content-Type']).toBe('application/octet-stream');
   });
 });

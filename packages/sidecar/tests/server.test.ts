@@ -72,12 +72,17 @@ describe('SidecarServer', () => {
       body?: string;
     } = {},
   ): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }> => {
+    const method = options.method || 'GET';
+    const headers: Record<string, string> = { ...(options.headers || {}) };
+    if (method === 'POST' && !headers['Content-Type'] && !headers['content-type']) {
+      headers['Content-Type'] = 'application/json';
+    }
     return new Promise((resolve, reject) => {
       const req = http.request(
         `http://127.0.0.1:${port}${urlPath}`,
         {
-          method: options.method || 'GET',
-          headers: options.headers || {},
+          method,
+          headers,
         },
         (res) => {
           let data = '';
@@ -146,8 +151,14 @@ describe('SidecarServer', () => {
       expect(res.body).toContain('Invalid or missing conversationId');
     });
 
+    it('returns 403 when conversationId mismatches host-configured env.conversationId (M3)', async () => {
+      const res = await request('/api/stream?token=test-secret-token&conversationId=other-conv');
+      expect(res.status).toBe(403);
+      expect(res.body).toContain('Forbidden conversationId');
+    });
+
     it('connects to SSE stream and streams existing lines and keepalives', async () => {
-      const convId = 'stream-test-conv';
+      const convId = 'default-conv-id';
       const convFile = path.join(convDir, `${convId}.jsonl`);
 
       const line1: StoreLine = {
@@ -190,9 +201,19 @@ describe('SidecarServer', () => {
     it('returns 401 when token is missing or invalid', async () => {
       const res = await request('/_sidecar/send-message', {
         method: 'POST',
-        body: JSON.stringify({ conversationId: 'c1', message: 'hello' }),
+        body: JSON.stringify({ conversationId: 'default-conv-id', message: 'hello' }),
       });
       expect(res.status).toBe(401);
+    });
+
+    it('returns 415 when Content-Type is not application/json (M2)', async () => {
+      const res = await request('/_sidecar/send-message?token=test-secret-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ conversationId: 'default-conv-id', message: 'hello' }),
+      });
+      expect(res.status).toBe(415);
+      expect(res.body).toContain('Unsupported Media Type');
     });
 
     it('returns 400 when payload is malformed JSON', async () => {
@@ -219,19 +240,28 @@ describe('SidecarServer', () => {
       expect(res2.body).toContain('Invalid conversationId');
     });
 
+    it('returns 403 when conversationId mismatches env.conversationId (M3)', async () => {
+      const res = await request('/_sidecar/send-message?token=test-secret-token', {
+        method: 'POST',
+        body: JSON.stringify({ conversationId: 'wrong_conv', message: 'hello' }),
+      });
+      expect(res.status).toBe(403);
+      expect(res.body).toContain('Forbidden conversationId');
+    });
+
     it('returns 400 when message is empty or missing', async () => {
       const res = await request('/_sidecar/send-message?token=test-secret-token', {
         method: 'POST',
-        body: JSON.stringify({ conversationId: 'valid_id', message: '   ' }),
+        body: JSON.stringify({ conversationId: 'default-conv-id', message: '   ' }),
       });
       expect(res.status).toBe(400);
       expect(res.body).toContain("Missing required 'message'");
     });
 
-    it('successfully invokes agentapi and returns JSON result', async () => {
+    it('successfully invokes agentapi without redundant argv element and returns JSON result (H3, L8)', async () => {
       const mockExecFile = vi.fn((file: any, args: any, _options: any, callback: any) => {
         expect(file).toBe('/bin/fake-agentapi');
-        expect(args).toEqual(['agentapi', 'send-message', 'conv_target', 'clicked button']);
+        expect(args).toEqual(['send-message', 'default-conv-id', 'clicked button']);
         callback(null, JSON.stringify({ status: 'sent', messageId: 'm123' }), '');
       });
 
@@ -265,7 +295,7 @@ describe('SidecarServer', () => {
         );
         req.write(
           JSON.stringify({
-            conversationId: 'conv_target',
+            conversationId: 'default-conv-id',
             message: 'clicked button',
           }),
         );
@@ -315,7 +345,7 @@ describe('SidecarServer', () => {
         );
         req.write(
           JSON.stringify({
-            conversationId: 'conv_fail',
+            conversationId: 'default-conv-id',
             message: 'failing message',
           }),
         );
@@ -330,10 +360,10 @@ describe('SidecarServer', () => {
       await new Promise<void>((resolve) => customServer.close(() => resolve()));
     });
 
-    it('returns 413 when payload exceeds 1MB', async () => {
+    it('returns 413 when payload exceeds 120KB (M1)', async () => {
       const hugeBody = JSON.stringify({
-        conversationId: 'valid_id',
-        message: 'x'.repeat(1024 * 1024 + 100),
+        conversationId: 'default-conv-id',
+        message: 'x'.repeat(120 * 1024 + 100),
       });
 
       const res = await request('/_sidecar/send-message?token=test-secret-token', {
@@ -381,7 +411,7 @@ describe('SidecarServer', () => {
         );
         req.write(
           JSON.stringify({
-            conversationId: 'conv_text_out',
+            conversationId: 'default-conv-id',
             message: 'hello',
           }),
         );
@@ -396,7 +426,7 @@ describe('SidecarServer', () => {
     });
 
     it('invokes agentapi with fallback command when agentapiExe is not configured', async () => {
-      const envNoExe = { ...env, agentapiExe: undefined };
+      const envNoExe = { ...env, agentapiExe: undefined, conversationId: undefined };
       const mockExec = vi.fn((file, args, _opts, cb) => {
         expect(file).toBe('agentapi');
         expect(args).toEqual(['send-message', 'c_no_exe', 'msg']);
@@ -460,7 +490,7 @@ describe('SidecarServer', () => {
             r.on('end', () => resolve({ status: r.statusCode, body: d }));
           },
         );
-        req.write(JSON.stringify({ conversationId: 'c_empty', message: 'hello' }));
+        req.write(JSON.stringify({ conversationId: 'default-conv-id', message: 'hello' }));
         req.end();
       });
       expect(res.status).toBe(200);
@@ -471,7 +501,7 @@ describe('SidecarServer', () => {
     it('returns 400 when message is not a string or body is null', async () => {
       const res1 = await request('/_sidecar/send-message?token=test-secret-token', {
         method: 'POST',
-        body: JSON.stringify({ conversationId: 'valid_id', message: 123 }),
+        body: JSON.stringify({ conversationId: 'default-conv-id', message: 123 }),
       });
       expect(res1.status).toBe(400);
 

@@ -94,10 +94,24 @@ export async function handleRenderA2ui(
     for (let i = 0; i < args.messages.length; i++) {
       const msg = args.messages[i] as Record<string, unknown>;
       const sid =
-        (msg.createSurface as any)?.surfaceId ||
-        (msg.updateComponents as any)?.surfaceId ||
-        (msg.updateDataModel as any)?.surfaceId;
-      if (sid) surfaceIds.add(sid);
+        (msg.createSurface as any)?.surfaceId ??
+        (msg.updateComponents as any)?.surfaceId ??
+        (msg.updateDataModel as any)?.surfaceId ??
+        (msg.deleteSurface as any)?.surfaceId;
+      if (sid !== undefined) {
+        if (typeof sid !== 'string' || !isValidId(sid)) {
+          return {
+            isError: true,
+            content: [
+              {
+                type: 'text' as const,
+                text: `Invalid surfaceId '${String(sid)}'. ID must match ^[A-Za-z0-9_-]{1,128}$.`,
+              },
+            ],
+          };
+        }
+        surfaceIds.add(sid);
+      }
 
       try {
         const versionedMsg = !msg.version ? { version: 'v0.9', ...msg } : msg;

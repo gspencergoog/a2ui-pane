@@ -14,10 +14,24 @@ function createMockRequest(
 }
 
 describe('checkToken', () => {
-  it('allows all requests when no expected token is configured', () => {
+  it('fails closed when no expected token is configured unless explicitly allowed (M2)', () => {
     const { req, url } = createMockRequest('/api/stream');
+    expect(checkToken(req, url, undefined)).toBe(false);
+    expect(checkToken(req, url, '')).toBe(false);
+
+    // Allowed when allowUnauthenticated option is true
+    expect(checkToken(req, url, undefined, { allowUnauthenticated: true })).toBe(true);
+
+    // Allowed when A2UI_PANE_ALLOW_NO_TOKEN=1
+    process.env.A2UI_PANE_ALLOW_NO_TOKEN = '1';
     expect(checkToken(req, url, undefined)).toBe(true);
-    expect(checkToken(req, url, '')).toBe(true);
+    delete process.env.A2UI_PANE_ALLOW_NO_TOKEN;
+
+    // Allowed when NODE_ENV=development
+    const prevEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'development';
+    expect(checkToken(req, url, undefined)).toBe(true);
+    process.env.NODE_ENV = prevEnv;
   });
 
   it('validates matching token from query parameter', () => {

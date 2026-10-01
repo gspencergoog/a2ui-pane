@@ -15,8 +15,26 @@ const MIME_TYPES: Record<string, string> = {
   '.ico': 'image/x-icon',
 };
 
+interface CachedAsset {
+  content: Buffer;
+  mtimeMs: number;
+  contentType: string;
+}
+
+const staticAssetCache = new Map<string, CachedAsset>();
+
+function readAssetCached(filePath: string, mtimeMs: number, contentType: string): Buffer {
+  const cached = staticAssetCache.get(filePath);
+  if (cached && cached.mtimeMs === mtimeMs) {
+    return cached.content;
+  }
+  const content = fs.readFileSync(filePath);
+  staticAssetCache.set(filePath, { content, mtimeMs, contentType });
+  return content;
+}
+
 /**
- * Serves static web assets from the pane-app dist directory.
+ * Serves static web assets from the pane-app dist directory with in-memory caching.
  * Defends against directory traversal attacks and correctly assigns MIME content-types.
  */
 export function serveStaticFile(staticDir: string, pathname: string, res: ServerResponse): boolean {
@@ -45,14 +63,21 @@ export function serveStaticFile(staticDir: string, pathname: string, res: Server
     return true;
   }
 
-  if (!fs.existsSync(absoluteTarget) || !fs.statSync(absoluteTarget).isFile()) {
+  const stat = fs.existsSync(absoluteTarget) ? fs.statSync(absoluteTarget) : null;
+  if (!stat || !stat.isFile()) {
     // Only fall back to index.html for SPA page navigation routes without extensions
     const isPageRoute = !path.extname(relPath);
     if (isPageRoute) {
       const indexFallback = path.resolve(staticDir, 'index.html');
       if (fs.existsSync(indexFallback)) {
+        const fallbackStat = fs.statSync(indexFallback);
+        const content = readAssetCached(
+          indexFallback,
+          fallbackStat.mtimeMs,
+          'text/html; charset=utf-8',
+        );
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(fs.readFileSync(indexFallback));
+        res.end(content);
         return true;
       }
     }
@@ -61,8 +86,8 @@ export function serveStaticFile(staticDir: string, pathname: string, res: Server
 
   const ext = path.extname(absoluteTarget).toLowerCase();
   const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+  const content = readAssetCached(absoluteTarget, stat.mtimeMs, contentType);
 
-  const content = fs.readFileSync(absoluteTarget);
   res.writeHead(200, {
     'Content-Type': contentType,
     'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=31536000, immutable',

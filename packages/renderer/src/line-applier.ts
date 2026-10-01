@@ -9,6 +9,8 @@ export interface LineApplyError {
 
 export type ResetListener = (newProcessor: MessageProcessor<any>) => void;
 
+const MAX_ERRORS = 50;
+
 /**
  * Sequentially applies JSONL StoreLine updates to a live MessageProcessor.
  * Isolates line failures to prevent cascading crashes, enforces sequence monotonicity,
@@ -63,9 +65,11 @@ export class LineApplier {
   apply(lines: StoreLine[]): void {
     if (!Array.isArray(lines) || lines.length === 0) return;
 
-    for (const line of lines) {
-      if (!line || typeof line !== 'object') continue;
+    const sortedLines = lines
+      .filter((line): line is StoreLine => Boolean(line && typeof line === 'object'))
+      .sort((a, b) => a.seq - b.seq);
 
+    for (const line of sortedLines) {
       if (line.seq <= this.lastAppliedSeq) {
         // Drop duplicate or already-applied sequence numbers
         continue;
@@ -80,6 +84,9 @@ export class LineApplier {
         this.lastAppliedSeq = line.seq;
       } catch (err: any) {
         const errorMsg = err?.message || String(err);
+        if (this.errors.length >= MAX_ERRORS) {
+          this.errors.shift();
+        }
         this.errors.push({
           seq: line.seq,
           error: errorMsg,

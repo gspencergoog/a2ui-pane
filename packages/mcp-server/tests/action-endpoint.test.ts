@@ -37,6 +37,9 @@ describe('ActionEndpoint', () => {
     expect(existsSync(portFile)).toBe(true);
     expect(readFileSync(portFile, 'utf-8')).toBe(String(port));
 
+    // Calling start() again returns the existing port
+    expect(await endpoint.start()).toBe(port);
+
     // OPTIONS preflight
     const optRes = await fetch(`http://127.0.0.1:${port}/action`, {
       method: 'OPTIONS',
@@ -247,5 +250,64 @@ describe('ActionEndpoint', () => {
     const body = await res.json();
     expect(body.error).toContain('Internal error');
     consoleSpy.mockRestore();
+  });
+
+  it('authenticates via X-A2UI-Key header without key in body and prunes expired keys (M9, L2)', async () => {
+    endpoint = new ActionEndpoint({ dataDir: tempDir });
+    const port = await endpoint.start();
+
+    // Register an already-expired key (-100ms TTL)
+    const expiredKey = endpoint.registerEmbed('conv_exp', 'surf_exp', undefined, -100);
+    const expiredRes = await fetch(`http://127.0.0.1:${port}/action`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-A2UI-Key': expiredKey,
+      },
+      body: JSON.stringify({ action: { name: 'test' } }),
+    });
+    expect(expiredRes.status).toBe(403);
+
+    // Register another expired key and then a fresh key to trigger sweep in registerEmbed
+    endpoint.registerEmbed('conv_exp2', 'surf_exp2', undefined, -100);
+    const validKey = endpoint.registerEmbed('conv_hdr', 'surf_hdr');
+
+    const waitPromise = endpoint.awaitAction('conv_hdr', 'surf_hdr', 5);
+    const validRes = await fetch(`http://127.0.0.1:${port}/action`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-A2UI-Key': validKey,
+      },
+      body: JSON.stringify({
+        action: { name: 'headerAuthenticatedAction' },
+      }),
+    });
+    expect(validRes.status).toBe(200);
+    const actionRes = await waitPromise;
+    expect(actionRes.action?.name).toBe('headerAuthenticatedAction');
+  });
+
+  it('returns 413 when request body exceeds 120KB (M1, M10)', async () => {
+    endpoint = new ActionEndpoint({ dataDir: tempDir });
+    const port = await endpoint.start();
+    const key = endpoint.registerEmbed('conv_big', 'surf_big');
+
+    const oversizedBody = JSON.stringify({
+      action: { name: 'huge' },
+      dataModel: { blob: 'a'.repeat(130 * 1024) },
+    });
+
+    const res = await fetch(`http://127.0.0.1:${port}/action`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-A2UI-Key': key,
+      },
+      body: oversizedBody,
+    });
+    expect(res.status).toBe(413);
+    const body = await res.json();
+    expect(body.error).toContain('Payload Too Large');
   });
 });

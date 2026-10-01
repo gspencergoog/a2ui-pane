@@ -69,6 +69,7 @@ describe('initPaneApp', () => {
     });
 
     expect(instance).toBeDefined();
+    expect(instance?.actionSender).toBeDefined();
     expect(FakeEventSource.instances).toHaveLength(1);
     expect(FakeEventSource.instances[0].url).toContain('conversationId=test-conv-1');
 

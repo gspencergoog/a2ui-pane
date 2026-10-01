@@ -224,4 +224,58 @@ describe('LineApplier', () => {
     const applierWithDirect = new LineApplier(directProcessor);
     expect(applierWithDirect.getProcessor()).toBe(directProcessor);
   });
+
+  it('sorts out-of-order batch lines by seq before applying (M8)', () => {
+    const applier = new LineApplier();
+
+    const outOfOrder: StoreLine[] = [
+      {
+        seq: 2,
+        ts: new Date().toISOString(),
+        callId: 'c1',
+        message: {
+          version: 'v0.9',
+          updateDataModel: { surfaceId: 's_sorted', path: '/val', value: 99 },
+        },
+      },
+      {
+        seq: 1,
+        ts: new Date().toISOString(),
+        callId: 'c1',
+        message: {
+          version: 'v0.9',
+          createSurface: { surfaceId: 's_sorted', catalogId: 'basic' },
+        },
+      },
+    ];
+
+    applier.apply(outOfOrder);
+
+    expect(applier.getLastAppliedSeq()).toBe(2);
+    expect(applier.getErrors()).toHaveLength(0);
+    expect(applier.getProcessor().getSurface('s_sorted')?.dataModel.get('/val')).toBe(99);
+  });
+
+  it('caps errors array at 50 entries (L4)', () => {
+    const applier = new LineApplier();
+    const failingLines: StoreLine[] = [];
+    for (let i = 1; i <= 60; i++) {
+      failingLines.push({
+        seq: i,
+        ts: new Date().toISOString(),
+        callId: `c_${i}`,
+        message: {
+          version: 'v0.9',
+          updateDataModel: { surfaceId: 'missing_surf', path: '/x', value: i },
+        },
+      });
+    }
+
+    applier.apply(failingLines);
+
+    const errors = applier.getErrors();
+    expect(errors).toHaveLength(50);
+    expect(errors[0].seq).toBe(11);
+    expect(errors[49].seq).toBe(60);
+  });
 });

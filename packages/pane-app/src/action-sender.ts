@@ -18,7 +18,7 @@ export class ActionSender {
   constructor(private readonly options: ActionSenderOptions = {}) {}
 
   getPendingComponents(): ReadonlySet<string> {
-    return this.pendingComponents;
+    return new Set(this.pendingComponents);
   }
 
   isPending(componentId: string): boolean {
@@ -38,7 +38,7 @@ export class ActionSender {
 
     if (sourceId) {
       this.pendingComponents.add(sourceId);
-      this.options.onPendingChange?.(this.pendingComponents);
+      this.options.onPendingChange?.(new Set(this.pendingComponents));
     }
 
     const text = formatActionText(action, {
@@ -80,7 +80,7 @@ export class ActionSender {
   private releaseComponent(sourceId?: string): void {
     if (sourceId && this.pendingComponents.has(sourceId)) {
       this.pendingComponents.delete(sourceId);
-      this.options.onPendingChange?.(this.pendingComponents);
+      this.options.onPendingChange?.(new Set(this.pendingComponents));
     }
   }
 }

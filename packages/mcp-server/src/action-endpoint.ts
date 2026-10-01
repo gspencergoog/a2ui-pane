@@ -32,7 +32,8 @@ interface PendingAwait {
   timer: NodeJS.Timeout;
 }
 
-const MAX_BODY_BYTES = 1024 * 1024; // 1 MB limit
+const MAX_BODY_BYTES = 120 * 1024; // 120 KB limit (below Linux MAX_ARG_STRLEN 128 KB)
+const AGENTAPI_TIMEOUT_MS = 30_000;
 
 /**
  * Loopback HTTP server on 127.0.0.1 providing a direct side-channel for inline <agent-embed> cards
@@ -67,12 +68,19 @@ export class ActionEndpoint {
     allowedActions?: string[],
     ttlMs = 3600000,
   ): string {
+    const now = Date.now();
+    for (const [k, entry] of this.activeEmbeds.entries()) {
+      if (entry.expiresAt < now) {
+        this.activeEmbeds.delete(k);
+      }
+    }
+
     const key = crypto.randomBytes(32).toString('hex');
     this.activeEmbeds.set(key, {
       conversationId,
       surfaceId,
       allowedActions,
-      expiresAt: Date.now() + ttlMs,
+      expiresAt: now + ttlMs,
     });
     return key;
   }
@@ -167,19 +175,32 @@ export class ActionEndpoint {
 
     // 2. Action submission
     if (method === 'POST' && url === '/action') {
-      let bodyData = '';
+      const chunks: Buffer[] = [];
       let bytesReceived = 0;
+      let oversized = false;
 
-      req.on('data', (chunk) => {
-        bytesReceived += chunk.length;
+      req.on('data', (chunk: Buffer) => {
+        if (oversized) return;
+        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        bytesReceived += buf.length;
         if (bytesReceived > MAX_BODY_BYTES) {
-          req.destroy(new Error('Payload too large'));
+          oversized = true;
+          res.writeHead(413, {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Private-Network': 'true',
+          });
+          res.end(JSON.stringify({ error: 'Payload Too Large: Maximum size 120KB' }));
+          req.destroy();
           return;
         }
-        bodyData += chunk.toString('utf-8');
+        chunks.push(buf);
       });
 
       req.on('end', async () => {
+        if (oversized || res.writableEnded) return;
+
+        const bodyData = Buffer.concat(chunks).toString('utf-8');
         let payload: any;
         try {
           payload = JSON.parse(bodyData);
@@ -194,7 +215,7 @@ export class ActionEndpoint {
         }
 
         try {
-          await this.processAction(payload, res);
+          await this.processAction(payload, req, res);
         } catch (err: any) {
           if (!res.headersSent) {
             res.writeHead(500, {
@@ -217,13 +238,22 @@ export class ActionEndpoint {
     res.end(JSON.stringify({ error: 'Not found' }));
   }
 
-  private async processAction(payload: any, res: http.ServerResponse): Promise<void> {
-    const key = typeof payload?.key === 'string' ? payload.key : '';
+  private async processAction(
+    payload: any,
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    const headerKey =
+      typeof req.headers['x-a2ui-key'] === 'string' ? req.headers['x-a2ui-key'] : '';
+    const key = headerKey || (typeof payload?.key === 'string' ? payload.key : '');
     const action = payload?.action;
     const dataModel = payload?.dataModel;
 
     const embed = this.activeEmbeds.get(key);
     if (!embed || embed.expiresAt < Date.now()) {
+      if (embed) {
+        this.activeEmbeds.delete(key);
+      }
       res.writeHead(403, {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
@@ -299,14 +329,19 @@ export class ActionEndpoint {
     return new Promise((resolve, reject) => {
       const exe = this.options.agentapiExe || process.env.ANTIGRAVITY_AGENTAPI_EXE || 'agentapi';
 
-      execFile(exe, ['send-message', conversationId, message], (err, stdout, stderr) => {
-        if (err) {
-          console.error('[ActionEndpoint] Failed invoking agentapi:', err, stderr);
-          reject(err);
-          return;
-        }
-        resolve();
-      });
+      execFile(
+        exe,
+        ['send-message', conversationId, message],
+        { timeout: AGENTAPI_TIMEOUT_MS },
+        (err, stdout, stderr) => {
+          if (err) {
+            console.error('[ActionEndpoint] Failed invoking agentapi:', err, stderr);
+            reject(err);
+            return;
+          }
+          resolve();
+        },
+      );
     });
   }
 
