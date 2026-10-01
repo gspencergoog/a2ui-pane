@@ -53,12 +53,15 @@ mv "${tmp_json}" "${REPO_ROOT}/plugin/sidecars/a2ui-pane/sidecar.json"
 TARGET_PLUGIN_DIR="${HOME}/.gemini/config/plugins/a2ui-pane"
 mkdir -p "$(dirname "${TARGET_PLUGIN_DIR}")"
 
-if [ -L "${TARGET_PLUGIN_DIR}" ]; then
-  rm "${TARGET_PLUGIN_DIR}"
-elif [ -d "${TARGET_PLUGIN_DIR}" ]; then
-  echo "Backing up existing non-symlink plugin directory..."
-  mv "${TARGET_PLUGIN_DIR}" "${TARGET_PLUGIN_DIR}.bak.$(date +%s)"
+if [ -L "${TARGET_PLUGIN_DIR}" ] && [ "$(readlink "${TARGET_PLUGIN_DIR}")" = "${REPO_ROOT}/plugin" ]; then
+  echo "✨ Updated a2ui-pane plugin in-place at ${TARGET_PLUGIN_DIR}"
+else
+  if [ -L "${TARGET_PLUGIN_DIR}" ]; then
+    rm "${TARGET_PLUGIN_DIR}"
+  elif [ -d "${TARGET_PLUGIN_DIR}" ]; then
+    echo "Backing up existing non-symlink plugin directory..."
+    mv "${TARGET_PLUGIN_DIR}" "${TARGET_PLUGIN_DIR}.bak.$(date +%s)"
+  fi
+  ln -s "${REPO_ROOT}/plugin" "${TARGET_PLUGIN_DIR}"
+  echo "✨ Successfully installed a2ui-pane plugin to ${TARGET_PLUGIN_DIR}"
 fi
-
-ln -s "${REPO_ROOT}/plugin" "${TARGET_PLUGIN_DIR}"
-echo "✨ Successfully installed a2ui-pane plugin to ${TARGET_PLUGIN_DIR}"
