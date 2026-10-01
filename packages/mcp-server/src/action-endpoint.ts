@@ -327,21 +327,20 @@ export class ActionEndpoint {
 
   private dispatchAgentapi(conversationId: string, message: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      const exe = this.options.agentapiExe || process.env.ANTIGRAVITY_AGENTAPI_EXE || 'agentapi';
+      const customExe = this.options.agentapiExe || process.env.ANTIGRAVITY_AGENTAPI_EXE;
+      const file = customExe || 'agentapi';
+      const args = customExe
+        ? ['agentapi', 'send-message', conversationId, message]
+        : ['send-message', conversationId, message];
 
-      execFile(
-        exe,
-        ['send-message', conversationId, message],
-        { timeout: AGENTAPI_TIMEOUT_MS },
-        (err, stdout, stderr) => {
-          if (err) {
-            console.error('[ActionEndpoint] Failed invoking agentapi:', err, stderr);
-            reject(err);
-            return;
-          }
-          resolve();
-        },
-      );
+      execFile(file, args, { timeout: AGENTAPI_TIMEOUT_MS }, (err, _stdout, stderr) => {
+        if (err) {
+          console.error('[ActionEndpoint] Failed invoking agentapi:', err, stderr);
+          reject(err);
+          return;
+        }
+        resolve();
+      });
     });
   }
 

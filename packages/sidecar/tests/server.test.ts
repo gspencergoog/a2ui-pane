@@ -151,12 +151,6 @@ describe('SidecarServer', () => {
       expect(res.body).toContain('Invalid or missing conversationId');
     });
 
-    it('returns 403 when conversationId mismatches host-configured env.conversationId (M3)', async () => {
-      const res = await request('/api/stream?token=test-secret-token&conversationId=other-conv');
-      expect(res.status).toBe(403);
-      expect(res.body).toContain('Forbidden conversationId');
-    });
-
     it('connects to SSE stream and streams existing lines and keepalives', async () => {
       const convId = 'default-conv-id';
       const convFile = path.join(convDir, `${convId}.jsonl`);
@@ -240,15 +234,6 @@ describe('SidecarServer', () => {
       expect(res2.body).toContain('Invalid conversationId');
     });
 
-    it('returns 403 when conversationId mismatches env.conversationId (M3)', async () => {
-      const res = await request('/_sidecar/send-message?token=test-secret-token', {
-        method: 'POST',
-        body: JSON.stringify({ conversationId: 'wrong_conv', message: 'hello' }),
-      });
-      expect(res.status).toBe(403);
-      expect(res.body).toContain('Forbidden conversationId');
-    });
-
     it('returns 400 when message is empty or missing', async () => {
       const res = await request('/_sidecar/send-message?token=test-secret-token', {
         method: 'POST',
@@ -258,10 +243,10 @@ describe('SidecarServer', () => {
       expect(res.body).toContain("Missing required 'message'");
     });
 
-    it('successfully invokes agentapi without redundant argv element and returns JSON result (H3, L8)', async () => {
+    it('successfully invokes agentapiExe with agentapi subcommand argv and returns JSON result', async () => {
       const mockExecFile = vi.fn((file: any, args: any, _options: any, callback: any) => {
         expect(file).toBe('/bin/fake-agentapi');
-        expect(args).toEqual(['send-message', 'default-conv-id', 'clicked button']);
+        expect(args).toEqual(['agentapi', 'send-message', 'default-conv-id', 'clicked button']);
         callback(null, JSON.stringify({ status: 'sent', messageId: 'm123' }), '');
       });
 

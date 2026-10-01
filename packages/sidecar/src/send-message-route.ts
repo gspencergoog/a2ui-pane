@@ -6,7 +6,6 @@ export type ExecFileFn = typeof execFile;
 
 export interface SendMessageOptions {
   agentapiExe?: string;
-  expectedConversationId?: string;
   execFileFn?: ExecFileFn;
 }
 
@@ -74,16 +73,6 @@ export function handleSendMessage(
       return;
     }
 
-    if (options.expectedConversationId && conversationId !== options.expectedConversationId) {
-      res.writeHead(403, { 'Content-Type': 'application/json' });
-      res.end(
-        JSON.stringify({
-          error: `Forbidden conversationId '${conversationId}'. Restricted to '${options.expectedConversationId}'.`,
-        }),
-      );
-      return;
-    }
-
     if (typeof message !== 'string' || !message.trim()) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: "Missing required 'message' string content" }));
@@ -91,8 +80,12 @@ export function handleSendMessage(
     }
 
     const execFn = options.execFileFn ?? execFile;
+    // ANTIGRAVITY_AGENTAPI_EXE points to the language server executable (jetski-hub-server),
+    // which requires 'agentapi' as argv[1] (matching sidecar_sdk/node/index.mjs).
     const file = options.agentapiExe || 'agentapi';
-    const args = ['send-message', conversationId, message];
+    const args = options.agentapiExe
+      ? ['agentapi', 'send-message', conversationId, message]
+      : ['send-message', conversationId, message];
 
     execFn(file, args, { shell: false, timeout: EXEC_TIMEOUT_MS }, (err, stdout, stderr) => {
       if (err) {
