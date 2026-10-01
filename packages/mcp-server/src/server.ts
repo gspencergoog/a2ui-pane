@@ -5,18 +5,25 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CatalogRegistry } from './catalog-registry.js';
 import { StoreWriter } from './store-writer.js';
 import { ConversationState } from './conversation-state.js';
+import { ActionEndpoint } from './action-endpoint.js';
 import { handleA2uiInstructions, a2uiInstructionsSchema } from './tools/instructions.js';
 import { handleRenderA2ui, renderA2uiSchema } from './tools/render.js';
+import { handleAwaitA2uiAction, awaitA2uiActionSchema } from './tools/await-action.js';
 
 const MAX_CONVERSATION_STATES = 100;
+
+export interface ServerOptions {
+  actionEndpoint?: ActionEndpoint;
+}
 
 /**
  * Creates and configures an MCP server instance with registered A2UI tools and state.
  */
-export function createServer(dataDir: string) {
+export function createServer(dataDir: string, options: ServerOptions = {}) {
   const catalogs = new CatalogRegistry();
   const store = new StoreWriter(dataDir);
   const conversationStates = new Map<string, ConversationState>();
+  const actionEndpoint = options.actionEndpoint;
 
   const getState = (conversationId: string): ConversationState => {
     let state = conversationStates.get(conversationId);
@@ -50,10 +57,17 @@ export function createServer(dataDir: string) {
     'render_a2ui',
     'Renders and incrementally updates A2UI surfaces in the user interface.',
     renderA2uiSchema,
-    async (args) => handleRenderA2ui(args, getState, catalogs, dataDir),
+    async (args) => handleRenderA2ui(args, getState, catalogs, dataDir, actionEndpoint),
   );
 
-  return { server, catalogs, store, getState, conversationStates };
+  server.tool(
+    'await_a2ui_action',
+    'Awaits a user action triggered from an active A2UI surface. Use after rendering an interactive surface to pause execution until the user interacts.',
+    awaitA2uiActionSchema,
+    async (args) => handleAwaitA2uiAction(args, actionEndpoint),
+  );
+
+  return { server, catalogs, store, getState, conversationStates, actionEndpoint };
 }
 
 export async function run() {
@@ -62,7 +76,23 @@ export async function run() {
     throw new Error('Neither A2UI_PANE_DATA nor PLUGIN_DATA environment variable is defined.');
   }
 
-  const { server } = createServer(dataDir);
+  const enableSideChannel =
+    process.env.A2UI_PANE_EXPERIMENTAL === '1' || process.env.A2UI_PANE_SIDE_CHANNEL === '1';
+
+  let actionEndpoint: ActionEndpoint | undefined;
+  if (enableSideChannel) {
+    actionEndpoint = new ActionEndpoint({ dataDir });
+    try {
+      await actionEndpoint.start();
+      console.error(
+        `[a2ui-pane] Experimental action side channel listening on port ${actionEndpoint.getPort()}`,
+      );
+    } catch (err) {
+      console.error('[a2ui-pane] Failed starting action side channel:', err);
+    }
+  }
+
+  const { server } = createServer(dataDir, { actionEndpoint });
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error('[a2ui-pane] MCP server connected over stdio');

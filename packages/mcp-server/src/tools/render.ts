@@ -4,6 +4,7 @@ import { MessageProcessor } from '@a2ui/web_core/v0_9';
 import { ConversationState } from '../conversation-state.js';
 import { CatalogRegistry } from '../catalog-registry.js';
 import { writeEmbed } from '../embed-writer.js';
+import type { ActionEndpoint } from '../action-endpoint.js';
 
 export const renderA2uiSchema = {
   conversationId: z
@@ -35,6 +36,7 @@ export async function handleRenderA2ui(
   getState: ConversationStateFactory,
   catalogs?: CatalogRegistry,
   dataDir?: string,
+  actionEndpoint?: ActionEndpoint,
 ) {
   const hostConvId = process.env.ANTIGRAVITY_CONVERSATION_ID;
   const conversationId = args.conversationId || hostConvId || '';
@@ -116,7 +118,28 @@ export async function handleRenderA2ui(
     const effectiveDataDir =
       dataDir || process.env.A2UI_PANE_DATA || process.env.PLUGIN_DATA || '/tmp';
     const surfaceIdList = Array.from(surfaceIds);
-    const embedPath = writeEmbed(effectiveDataDir, conversationId, surfaceIdList, args.messages);
+
+    let actionConfig:
+      | {
+          port: number;
+          key: string;
+          surfaceId: string;
+        }
+      | undefined;
+
+    if (actionEndpoint && actionEndpoint.getPort() > 0 && surfaceIdList.length > 0) {
+      const primarySurface = surfaceIdList[0];
+      const key = actionEndpoint.registerEmbed(conversationId, primarySurface);
+      actionConfig = {
+        port: actionEndpoint.getPort(),
+        key,
+        surfaceId: primarySurface,
+      };
+    }
+
+    const embedPath = writeEmbed(effectiveDataDir, conversationId, surfaceIdList, args.messages, {
+      actionConfig,
+    });
 
     const surfacesText =
       surfaceIdList.length > 0 ? `surface(s) [${surfaceIdList.join(', ')}]` : 'surfaces';

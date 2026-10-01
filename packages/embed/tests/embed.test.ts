@@ -245,4 +245,138 @@ describe('initEmbed', () => {
       });
     }
   });
+
+  it('dispatches action via fetch when actionConfig is present and fetch succeeds', async () => {
+    const postedEvents: any[] = [];
+    const mockPostMessage = vi.fn((data: any) => postedEvents.push(data));
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+
+    const instance = initEmbed({
+      container,
+      messagesJson: JSON.stringify([
+        {
+          version: 'v0.9',
+          createSurface: { surfaceId: 'surfSide', catalogId: 'basic' },
+        },
+      ]),
+      actionConfig: {
+        port: 54321,
+        key: 'secret-embed-token',
+        surfaceId: 'surfSide',
+      },
+      postMessageFn: mockPostMessage,
+      fetchFn: mockFetch as any,
+    });
+
+    expect(container.querySelector('.a2ui-embed-footer')?.textContent).toBe(
+      'Submitting triggers the agent directly.',
+    );
+
+    const surface = instance?.applier.getProcessor().getSurface('surfSide');
+    await surface?.dispatchAction({
+      name: 'directClick',
+      context: { label: 'Direct Button' },
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:54321/action',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json',
+          'X-A2UI-Key': 'secret-embed-token',
+        }),
+        body: expect.stringContaining('"key":"secret-embed-token"'),
+      }),
+    );
+
+    expect(container.querySelector('.a2ui-embed-footer')?.textContent).toBe(
+      'Action sent directly to agent.',
+    );
+    expect(postedEvents.some((e) => e.type === 'PROMPT')).toBe(false);
+
+    instance?.destroy();
+  });
+
+  it('falls back to PROMPT postMessage when side-channel fetch fails or returns HTTP error', async () => {
+    const postedEvents: any[] = [];
+    const mockPostMessage = vi.fn((data: any) => postedEvents.push(data));
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 500 })
+      .mockRejectedValueOnce(new Error('PNA / Local network access blocked'));
+
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const instance = initEmbed({
+      container,
+      messagesJson: JSON.stringify([
+        {
+          version: 'v0.9',
+          createSurface: { surfaceId: 'surfFail', catalogId: 'basic' },
+        },
+      ]),
+      actionConfig: {
+        port: 54321,
+        key: 'test-key',
+        surfaceId: 'surfFail',
+      },
+      postMessageFn: mockPostMessage,
+      fetchFn: mockFetch as any,
+    });
+
+    const surface = instance?.applier.getProcessor().getSurface('surfFail');
+
+    // 1. Non-ok response falls back to PROMPT
+    await surface?.dispatchAction({ name: 'action1' });
+    expect(postedEvents.some((e) => e.type === 'PROMPT')).toBe(true);
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Side channel returned HTTP 500'),
+    );
+
+    // 2. Network error / rejection falls back to PROMPT
+    postedEvents.length = 0;
+    await surface?.dispatchAction({ name: 'action2' });
+    expect(postedEvents.some((e) => e.type === 'PROMPT')).toBe(true);
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Side channel fetch failed'),
+      expect.any(Error),
+    );
+
+    consoleWarnSpy.mockRestore();
+    instance?.destroy();
+  });
+
+  it('reads actionConfig from #a2ui-action-config and handles malformed JSON', () => {
+    const configScript = document.createElement('script');
+    configScript.id = 'a2ui-action-config';
+    configScript.type = 'application/json';
+    configScript.textContent = JSON.stringify({
+      port: 1234,
+      key: 'dom-key',
+      surfaceId: 'dom-surf',
+    });
+    document.body.appendChild(configScript);
+
+    const instance1 = initEmbed({ container });
+    expect(container.querySelector('.a2ui-embed-footer')?.textContent).toBe(
+      'Submitting triggers the agent directly.',
+    );
+    instance1?.destroy();
+    configScript.remove();
+
+    // Malformed JSON
+    const badScript = document.createElement('script');
+    badScript.id = 'a2ui-action-config';
+    badScript.type = 'application/json';
+    badScript.textContent = '{invalid-json';
+    document.body.appendChild(badScript);
+
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const instance2 = initEmbed({ container });
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    instance2?.destroy();
+    badScript.remove();
+    consoleErrorSpy.mockRestore();
+  });
 });

@@ -3,10 +3,18 @@ import { formatActionText, A2uiActionDetails, StoreLine } from '@a2ui-pane/proto
 import { LineApplier, A2uiPaneView } from '@a2ui-pane/renderer';
 import { SurfaceResizeObserver } from './surface-resize-observer.js';
 
+export interface ActionConfig {
+  port: number;
+  key: string;
+  surfaceId: string;
+}
+
 export interface InitEmbedOptions {
   container?: HTMLElement;
   messagesJson?: string;
+  actionConfig?: ActionConfig;
   postMessageFn?: (data: any, targetOrigin: string) => void;
+  fetchFn?: typeof fetch;
   resizeObserverFactory?: (
     cb: (dims: { height: number; width: number }) => void,
   ) => SurfaceResizeObserver;
@@ -47,6 +55,18 @@ export function initEmbed(options: InitEmbedOptions = {}): EmbedInstance | null 
     }
   }
 
+  let actionConfig: ActionConfig | undefined = options.actionConfig;
+  if (!actionConfig) {
+    const configEl = document.getElementById('a2ui-action-config');
+    if (configEl && configEl.textContent) {
+      try {
+        actionConfig = JSON.parse(configEl.textContent);
+      } catch (err) {
+        console.error('[a2ui-embed] Failed to parse #a2ui-action-config:', err);
+      }
+    }
+  }
+
   const container =
     options.container || document.getElementById('a2ui-embed-root') || document.body;
 
@@ -73,20 +93,6 @@ export function initEmbed(options: InitEmbedOptions = {}): EmbedInstance | null 
       }
     });
 
-  const onAction = (action: A2uiActionDetails, dataModel?: Record<string, unknown>) => {
-    const promptText = formatActionText(action, {
-      label: typeof action.context?.label === 'string' ? action.context.label : undefined,
-      dataModel,
-    });
-
-    postMsg({ type: 'PROMPT', prompt: promptText }, '*');
-  };
-
-  const applier = new LineApplier(undefined, onAction);
-  const paneView = document.createElement('a2ui-pane-view') as A2uiPaneView;
-  paneView.processor = applier.getProcessor();
-  wrapper.appendChild(paneView);
-
   // Informative note under embed forms
   const footerNote = document.createElement('div');
   footerNote.className = 'a2ui-embed-footer';
@@ -97,7 +103,56 @@ export function initEmbed(options: InitEmbedOptions = {}): EmbedInstance | null 
     text-align: right;
     user-select: none;
   `;
-  footerNote.textContent = 'Submitting fills in the chat box.';
+  if (actionConfig?.port && actionConfig?.key) {
+    footerNote.textContent = 'Submitting triggers the agent directly.';
+  } else {
+    footerNote.textContent = 'Submitting fills in the chat box.';
+  }
+
+  const onAction = async (action: A2uiActionDetails, dataModel?: Record<string, unknown>) => {
+    const promptText = formatActionText(action, {
+      label: typeof action.context?.label === 'string' ? action.context.label : undefined,
+      dataModel,
+    });
+
+    if (actionConfig && actionConfig.port && actionConfig.key) {
+      const fetchFn = options.fetchFn ?? (typeof fetch !== 'undefined' ? fetch : undefined);
+      if (fetchFn) {
+        try {
+          const endpointUrl = `http://127.0.0.1:${actionConfig.port}/action`;
+          const resp = await fetchFn(endpointUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-A2UI-Key': actionConfig.key,
+            },
+            body: JSON.stringify({
+              key: actionConfig.key,
+              action,
+              dataModel,
+            }),
+          });
+          if (resp.ok) {
+            footerNote.textContent = 'Action sent directly to agent.';
+            return;
+          }
+          console.warn(
+            `[a2ui-embed] Side channel returned HTTP ${resp.status}, falling back to PROMPT.`,
+          );
+        } catch (err) {
+          console.warn('[a2ui-embed] Side channel fetch failed, falling back to PROMPT:', err);
+        }
+      }
+    }
+
+    // Default or fallback: post PROMPT to parent frame
+    postMsg({ type: 'PROMPT', prompt: promptText }, '*');
+  };
+
+  const applier = new LineApplier(undefined, onAction);
+  const paneView = document.createElement('a2ui-pane-view') as A2uiPaneView;
+  paneView.processor = applier.getProcessor();
+  wrapper.appendChild(paneView);
   wrapper.appendChild(footerNote);
 
   // Apply parsed messages

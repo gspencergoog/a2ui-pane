@@ -8,6 +8,11 @@ import { HOST_THEME_CSS } from '@a2ui-pane/theme';
 export interface EmbedWriterOptions {
   embedBundleJs?: string;
   embedBundlePath?: string;
+  actionConfig?: {
+    port: number;
+    key: string;
+    surfaceId: string;
+  };
 }
 
 let cachedBundleContent: string | null = null;
@@ -101,7 +106,13 @@ ${HOST_THEME_CSS}
   <script id="a2ui-messages" type="application/json">
 ${sanitizedMessagesJson}
   </script>
-  <script>
+${
+  options.actionConfig
+    ? `  <script id="a2ui-action-config" type="application/json">
+${JSON.stringify(options.actionConfig)}
+  </script>\n`
+    : ''
+}  <script>
 ${bundleJs}
   </script>
 </body>

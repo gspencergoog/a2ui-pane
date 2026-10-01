@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createServer, isMainModule, run } from '../src/server.js';
 import { CatalogRegistry } from '../src/catalog-registry.js';
+import { ActionEndpoint } from '../src/action-endpoint.js';
 import { buildPrompt } from '../src/prompt/build-prompt.js';
 import { handleA2uiInstructions } from '../src/tools/instructions.js';
 import { handleRenderA2ui } from '../src/tools/render.js';
@@ -406,6 +407,43 @@ describe('MCP Server Tools and Entrypoint', () => {
       } finally {
         process.argv[1] = originalArgv1;
       }
+    });
+
+    it('configures actionConfig in inline mode when actionEndpoint is active', async () => {
+      const ep = new ActionEndpoint({ dataDir: tempDir });
+      await ep.start();
+
+      const result = await handleRenderA2ui(
+        {
+          conversationId: 'inline-with-endpoint',
+          mode: 'inline',
+          messages: [
+            {
+              version: 'v0.9',
+              createSurface: { surfaceId: 'surfConfig', catalogId: 'basic' },
+            },
+          ],
+        },
+        serverInstance.getState,
+        serverInstance.catalogs,
+        tempDir,
+        ep,
+      );
+
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0].text).toContain('<agent-embed src="file://');
+
+      await ep.close();
+    });
+
+    it('initializes and starts ActionEndpoint in run() when A2UI_PANE_EXPERIMENTAL=1', async () => {
+      process.env.A2UI_PANE_DATA = tempDir;
+      process.env.A2UI_PANE_EXPERIMENTAL = '1';
+
+      const s = await run();
+      expect(s).toBeDefined();
+
+      delete process.env.A2UI_PANE_EXPERIMENTAL;
     });
   });
 });
