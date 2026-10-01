@@ -186,6 +186,50 @@ describe('MCP Server Tools and Entrypoint', () => {
       expect(stored[1].seq).toBe(2);
     });
 
+    it('accepts a JSON-serialized messages string for call_mcp_tool compatibility', async () => {
+      const validStr = await handleRenderA2ui(
+        {
+          conversationId: 'valid-conv-json-str',
+          messages: JSON.stringify([
+            {
+              version: 'v0.9',
+              createSurface: { surfaceId: 'ui-str', catalogId: 'basic' },
+            },
+            {
+              version: 'v0.9',
+              updateComponents: {
+                surfaceId: 'ui-str',
+                components: [{ id: 'root', component: 'Text', text: 'From JSON String' }],
+              },
+            },
+          ]),
+        },
+        serverInstance.getState,
+      );
+      expect(validStr.isError).toBeUndefined();
+      expect(validStr.content[0].text).toContain('[ui-str]');
+
+      const nonArrayStr = await handleRenderA2ui(
+        {
+          conversationId: 'valid-conv-json-str',
+          messages: '{"not":"an array"}',
+        },
+        serverInstance.getState,
+      );
+      expect(nonArrayStr.isError).toBe(true);
+      expect(nonArrayStr.content[0].text).toContain('JSON must decode to an array');
+
+      const badJsonStr = await handleRenderA2ui(
+        {
+          conversationId: 'valid-conv-json-str',
+          messages: '{bad json',
+        },
+        serverInstance.getState,
+      );
+      expect(badJsonStr.isError).toBe(true);
+      expect(badJsonStr.content[0].text).toContain('Malformed messages JSON string');
+    });
+
     it('returns structured validation errors on schema failures', async () => {
       const result = await handleRenderA2ui(
         {

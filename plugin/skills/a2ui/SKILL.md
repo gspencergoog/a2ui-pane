@@ -17,11 +17,11 @@ Use this skill when you want to render interactive UI components (dashboards, fo
 
 ### `render_a2ui`
 
-| Parameter        | Type                 | Required | Description                                                                                                                         |
-| :--------------- | :------------------- | :------- | :---------------------------------------------------------------------------------------------------------------------------------- |
-| `conversationId` | `string`             | No       | Conversation ID to associate the layout with. Defaults to `ANTIGRAVITY_CONVERSATION_ID` when running inside an active host session. |
-| `messages`       | `object[]`           | Yes      | Array of A2UI v0.9 server-to-client operations (`createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`).           |
-| `mode`           | `"pane" \| "inline"` | No       | Rendering destination: `"pane"` (default, live AuxPane side panel) or `"inline"` (self-contained `<agent-embed>` card in chat).     |
+| Parameter        | Type                 | Required | Description                                                                                                                                                                    |
+| :--------------- | :------------------- | :------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `conversationId` | `string`             | No       | Conversation ID to associate the layout with. Defaults to `ANTIGRAVITY_CONVERSATION_ID` when running inside an active host session.                                            |
+| `messages`       | `object[] \| string` | Yes      | Array of A2UI v0.9 server-to-client operations (`createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`), or a JSON-serialized array string (`call_mcp_tool`). |
+| `mode`           | `"pane" \| "inline"` | No       | Rendering destination: `"pane"` (default, live AuxPane side panel) or `"inline"` (self-contained `<agent-embed>` card in chat).                                                |
 
 ### `await_a2ui_action`
 

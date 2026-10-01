@@ -14,8 +14,13 @@ export const renderA2uiSchema = {
       'The conversation ID to associate this layout with. Defaults to the active host conversation if omitted.',
     ),
   messages: z
-    .array(z.record(z.unknown()))
-    .describe('Array of A2UI v0.9 server-to-client layout operations.'),
+    .union([
+      z.array(z.record(z.unknown())),
+      z.string().describe('JSON-serialized array of A2UI v0.9 server-to-client layout operations.'),
+    ])
+    .describe(
+      'Array of A2UI v0.9 server-to-client layout operations (or a JSON-encoded string of that array when calling via call_mcp_tool).',
+    ),
   mode: z
     .enum(['pane', 'inline'])
     .optional()
@@ -30,7 +35,7 @@ export type ConversationStateFactory = (conversationId: string) => ConversationS
 export async function handleRenderA2ui(
   args: {
     conversationId?: string;
-    messages: unknown[];
+    messages: unknown[] | string;
     mode?: 'pane' | 'inline';
   },
   getState: ConversationStateFactory,
@@ -38,6 +43,37 @@ export async function handleRenderA2ui(
   dataDir?: string,
   actionEndpoint?: ActionEndpoint,
 ) {
+  let parsedMessages: unknown[];
+  if (typeof args.messages === 'string') {
+    try {
+      const parsed = JSON.parse(args.messages);
+      if (!Array.isArray(parsed)) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: 'text' as const,
+              text: 'Invalid messages string: JSON must decode to an array of A2UI messages.',
+            },
+          ],
+        };
+      }
+      parsedMessages = parsed;
+    } catch (err: any) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text' as const,
+            text: `Malformed messages JSON string: ${err?.message || err}`,
+          },
+        ],
+      };
+    }
+  } else {
+    parsedMessages = args.messages;
+  }
+
   const hostConvId = process.env.ANTIGRAVITY_CONVERSATION_ID;
   const conversationId = args.conversationId || hostConvId || '';
 
@@ -91,8 +127,8 @@ export async function handleRenderA2ui(
     });
 
     const surfaceIds = new Set<string>();
-    for (let i = 0; i < args.messages.length; i++) {
-      const msg = args.messages[i] as Record<string, unknown>;
+    for (let i = 0; i < parsedMessages.length; i++) {
+      const msg = parsedMessages[i] as Record<string, unknown>;
       const sid =
         (msg.createSurface as any)?.surfaceId ??
         (msg.updateComponents as any)?.surfaceId ??
@@ -151,7 +187,7 @@ export async function handleRenderA2ui(
       };
     }
 
-    const embedPath = writeEmbed(effectiveDataDir, conversationId, surfaceIdList, args.messages, {
+    const embedPath = writeEmbed(effectiveDataDir, conversationId, surfaceIdList, parsedMessages, {
       actionConfig,
     });
 
@@ -162,7 +198,7 @@ export async function handleRenderA2ui(
       content: [
         {
           type: 'text' as const,
-          text: `Rendered inline A2UI card with ${args.messages.length} message(s) to ${surfacesText}.\n<agent-embed src="file://${embedPath}"></agent-embed>`,
+          text: `Rendered inline A2UI card with ${parsedMessages.length} message(s) to ${surfacesText}.\n<agent-embed src="file://${embedPath}"></agent-embed>`,
         },
       ],
     };
@@ -172,7 +208,7 @@ export async function handleRenderA2ui(
   const callId = `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const state = getState(conversationId);
 
-  const result = await state.apply(args.messages, callId);
+  const result = await state.apply(parsedMessages, callId);
 
   if (!result.ok) {
     const errorLines = result.issues.map(
@@ -196,7 +232,7 @@ export async function handleRenderA2ui(
     content: [
       {
         type: 'text' as const,
-        text: `Rendered ${args.messages.length} message(s) to ${surfacesText} in the A2UI pane.\nThe live surface is visible in the A2UI side panel.`,
+        text: `Rendered ${parsedMessages.length} message(s) to ${surfacesText} in the A2UI pane.\nThe live surface is visible in the A2UI side panel.`,
       },
     ],
   };

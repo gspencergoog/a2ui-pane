@@ -42,12 +42,20 @@ Each operation object must declare `"version": "v0.9"` and contain exactly one o
           "variant": "h2"
         },
         {
+          "id": "submit-label",
+          "component": "Text",
+          "text": "Register"
+        },
+        {
           "id": "submit-btn",
           "component": "Button",
-          "label": "Register",
+          "child": "submit-label",
+          "variant": "primary",
           "action": {
-            "name": "submitRegistration",
-            "context": { "source": "main-form" }
+            "event": {
+              "name": "submitRegistration",
+              "context": { "source": "main-form" }
+            }
           }
         }
       ]
