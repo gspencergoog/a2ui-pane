@@ -106,11 +106,20 @@ describe('SidecarServer', () => {
     });
   };
 
-  it('handles OPTIONS preflight with 204 and CORS headers', async () => {
+  it('handles OPTIONS preflight with 204 and CORS headers including echoed Origin', async () => {
     const res = await request('/api/config', { method: 'OPTIONS' });
     expect(res.status).toBe(204);
     expect(res.headers['access-control-allow-origin']).toBe('*');
+    expect(res.headers['access-control-allow-credentials']).toBe('true');
     expect(res.headers['access-control-allow-methods']).toContain('GET, POST, OPTIONS');
+
+    const resNullOrigin = await request('/_sidecar/send-message', {
+      method: 'OPTIONS',
+      headers: { Origin: 'null' },
+    });
+    expect(resNullOrigin.status).toBe(204);
+    expect(resNullOrigin.headers['access-control-allow-origin']).toBe('null');
+    expect(resNullOrigin.headers['vary']).toBe('Origin');
   });
 
   it('serves GET /api/health with status ok', async () => {
@@ -200,10 +209,10 @@ describe('SidecarServer', () => {
       expect(res.status).toBe(401);
     });
 
-    it('returns 415 when Content-Type is not application/json (M2)', async () => {
+    it('returns 415 when Content-Type is not application/json or text/plain (M2)', async () => {
       const res = await request('/_sidecar/send-message?token=test-secret-token', {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: JSON.stringify({ conversationId: 'default-conv-id', message: 'hello' }),
       });
       expect(res.status).toBe(415);
@@ -386,12 +395,12 @@ describe('SidecarServer', () => {
           `http://127.0.0.1:${customPort}/_sidecar/send-message?token=test-secret-token`,
           {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'text/plain;charset=UTF-8', Origin: 'null' },
           },
           (r) => {
             let data = '';
             r.on('data', (c) => (data += c));
-            r.on('end', () => resolve({ status: r.statusCode, body: data }));
+            r.on('end', () => resolve({ status: r.statusCode, headers: r.headers, body: data }));
           },
         );
         req.write(
@@ -404,6 +413,8 @@ describe('SidecarServer', () => {
       });
 
       expect(res.status).toBe(200);
+      expect(res.headers['access-control-allow-origin']).toBe('null');
+      expect(res.headers['access-control-allow-credentials']).toBe('true');
       const parsed = JSON.parse(res.body);
       expect(parsed).toEqual({ ok: true, output: 'Plain text confirmation' });
 

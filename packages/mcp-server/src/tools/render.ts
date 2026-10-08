@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { z } from 'zod';
 import { isValidId } from '@a2ui-pane/protocol';
 import { MessageProcessor } from '@a2ui/web_core/v0_9';
@@ -5,6 +7,34 @@ import { ConversationState } from '../conversation-state.js';
 import { CatalogRegistry } from '../catalog-registry.js';
 import { writeEmbed } from '../embed-writer.js';
 import type { ActionEndpoint } from '../action-endpoint.js';
+
+export function readSidecarSendMessageUrl(dataDir: string): string | undefined {
+  try {
+    const endpointFile = path.join(dataDir, 'sidecar-endpoint.json');
+    if (!fs.existsSync(endpointFile)) return undefined;
+    const raw = fs.readFileSync(endpointFile, 'utf-8');
+    const parsed = JSON.parse(raw) as {
+      port?: number;
+      uiToken?: string;
+      baseUrl?: string;
+    };
+    if (parsed.baseUrl) {
+      const url = new URL(parsed.baseUrl);
+      url.pathname = '/_sidecar/send-message';
+      if (parsed.uiToken && !url.searchParams.has('token')) {
+        url.searchParams.set('token', parsed.uiToken);
+      }
+      return url.toString();
+    }
+    if (typeof parsed.port === 'number' && parsed.port > 0) {
+      const tokenParam = parsed.uiToken ? `?token=${encodeURIComponent(parsed.uiToken)}` : '';
+      return `http://127.0.0.1:${parsed.port}/_sidecar/send-message${tokenParam}`;
+    }
+  } catch {
+    // Ignore malformed or unreadable sidecar-endpoint.json
+  }
+  return undefined;
+}
 
 export const renderA2uiSchema = {
   conversationId: z
@@ -171,20 +201,30 @@ export async function handleRenderA2ui(
 
     let actionConfig:
       | {
-          port: number;
-          key: string;
+          port?: number;
+          key?: string;
           surfaceId: string;
+          conversationId?: string;
+          sidecarUrl?: string;
         }
       | undefined;
 
-    if (actionEndpoint && actionEndpoint.getPort() > 0 && surfaceIdList.length > 0) {
+    if (surfaceIdList.length > 0) {
       const primarySurface = surfaceIdList[0];
-      const key = actionEndpoint.registerEmbed(conversationId, primarySurface);
-      actionConfig = {
-        port: actionEndpoint.getPort(),
-        key,
-        surfaceId: primarySurface,
-      };
+      const sidecarUrl = readSidecarSendMessageUrl(effectiveDataDir);
+      const hasActionEndpoint = Boolean(actionEndpoint && actionEndpoint.getPort() > 0);
+      if (hasActionEndpoint || sidecarUrl) {
+        const key = hasActionEndpoint
+          ? actionEndpoint!.registerEmbed(conversationId, primarySurface)
+          : undefined;
+        actionConfig = {
+          port: hasActionEndpoint ? actionEndpoint!.getPort() : undefined,
+          key,
+          surfaceId: primarySurface,
+          conversationId: sidecarUrl ? conversationId : undefined,
+          sidecarUrl,
+        };
+      }
     }
 
     const embedPath = writeEmbed(effectiveDataDir, conversationId, surfaceIdList, parsedMessages, {

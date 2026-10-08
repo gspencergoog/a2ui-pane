@@ -50,8 +50,14 @@ export function createSidecarServer(
     const host = req.headers.host || 'localhost';
     const url = new URL(req.url ?? '/', `http://${host}`);
 
-    // Standard CORS headers for local sidecar communication
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    // Standard CORS headers for local and PEN-proxied sidecar communication
+    const reqOrigin = req.headers.origin;
+    res.setHeader('Access-Control-Allow-Origin', reqOrigin || '*');
+    if (reqOrigin) {
+      res.setHeader('Vary', 'Origin');
+    }
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Private-Network', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader(
       'Access-Control-Allow-Headers',

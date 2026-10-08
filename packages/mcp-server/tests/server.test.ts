@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createServer, isMainModule, run } from '../src/server.js';
@@ -479,9 +479,19 @@ describe('MCP Server Tools and Entrypoint', () => {
       }
     });
 
-    it('configures actionConfig in inline mode when actionEndpoint is active', async () => {
+    it('configures actionConfig in inline mode when actionEndpoint or sidecar-endpoint.json is active', async () => {
       const ep = new ActionEndpoint({ dataDir: tempDir });
       await ep.start();
+
+      // 1. With both actionEndpoint and sidecar-endpoint.json (with baseUrl)
+      writeFileSync(
+        join(tempDir, 'sidecar-endpoint.json'),
+        JSON.stringify({
+          port: 39027,
+          uiToken: 'ui-tok-123',
+          baseUrl: 'https://test.proxy.googlers.com?token=ui-tok-123',
+        }),
+      );
 
       const result = await handleRenderA2ui(
         {
@@ -502,8 +512,44 @@ describe('MCP Server Tools and Entrypoint', () => {
 
       expect(result.isError).toBeUndefined();
       expect(result.content[0].text).toContain('<agent-embed src="file://');
+      const embedMatch = result.content[0].text.match(/src="file:\/\/([^"]+)"/);
+      expect(embedMatch).not.toBeNull();
+      const html = readFileSync(embedMatch![1], 'utf-8');
+      expect(html).toContain(
+        'https://test.proxy.googlers.com/_sidecar/send-message?token=ui-tok-123',
+      );
 
       await ep.close();
+
+      // 2. With sidecar-endpoint.json (port + uiToken only, no baseUrl) and no actionEndpoint
+      writeFileSync(
+        join(tempDir, 'sidecar-endpoint.json'),
+        JSON.stringify({
+          port: 39027,
+          uiToken: 'ui-tok-456',
+        }),
+      );
+
+      const resultSidecarOnly = await handleRenderA2ui(
+        {
+          conversationId: 'inline-sidecar-only',
+          mode: 'inline',
+          messages: [
+            {
+              version: 'v0.9',
+              createSurface: { surfaceId: 'surfSidecarOnly', catalogId: 'basic' },
+            },
+          ],
+        },
+        serverInstance.getState,
+        serverInstance.catalogs,
+        tempDir,
+        undefined,
+      );
+      expect(resultSidecarOnly.isError).toBeUndefined();
+      const match2 = resultSidecarOnly.content[0].text.match(/src="file:\/\/([^"]+)"/);
+      const html2 = readFileSync(match2![1], 'utf-8');
+      expect(html2).toContain('http://127.0.0.1:39027/_sidecar/send-message?token=ui-tok-456');
     });
 
     it('disables ActionEndpoint in run() when A2UI_PANE_SIDE_CHANNEL=0', async () => {

@@ -21,10 +21,14 @@ export function handleSendMessage(
   res: ServerResponse,
   options: SendMessageOptions = {},
 ): void {
-  const contentType = req.headers['content-type'] || '';
-  if (!contentType.toLowerCase().includes('application/json')) {
+  const contentType = (req.headers['content-type'] || '').toLowerCase();
+  if (!contentType.includes('application/json') && !contentType.includes('text/plain')) {
     res.writeHead(415, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Unsupported Media Type: Expected application/json' }));
+    res.end(
+      JSON.stringify({
+        error: 'Unsupported Media Type: Expected application/json or text/plain',
+      }),
+    );
     return;
   }
 

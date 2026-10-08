@@ -65,3 +65,6 @@ else
   ln -s "${REPO_ROOT}/plugin" "${TARGET_PLUGIN_DIR}"
   echo "✨ Successfully installed a2ui-pane plugin to ${TARGET_PLUGIN_DIR}"
 fi
+
+# Terminate stale MCP server processes so the host spawns the updated bundle on next tool call
+pkill -f "a2ui-pane/mcp/dist/server.mjs" 2>/dev/null || true

@@ -1,12 +1,70 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as SidecarIndex from '../src/index.js';
-import { isMainModule, run } from '../src/main.js';
+import { isMainModule, resolveSidecarBaseUrl, run } from '../src/main.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
 describe('sidecar index and main', () => {
+  it('resolves sidecar baseUrl from LanguageServerService/GetSidecars', async () => {
+    expect(
+      await resolveSidecarBaseUrl({
+        port: 39027,
+        dataDir: '/tmp',
+      }),
+    ).toBeUndefined();
+
+    const mockFetchOk = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        sidecars: [
+          {
+            sidecarId: 'a2ui-pane/a2ui-pane',
+            webPort: 39027,
+            baseUrl: 'https://test.proxy.googlers.com?token=abc',
+          },
+        ],
+      }),
+    });
+
+    const url = await resolveSidecarBaseUrl(
+      {
+        port: 39027,
+        lsAddress: 'localhost:5387',
+        csrfToken: 'csrf-tok',
+        dataDir: '/tmp',
+      },
+      mockFetchOk as any,
+    );
+    expect(url).toBe('https://test.proxy.googlers.com?token=abc');
+
+    const mockFetchNotOk = vi.fn().mockResolvedValue({ ok: false });
+    expect(
+      await resolveSidecarBaseUrl(
+        {
+          port: 39027,
+          lsAddress: 'localhost:5387',
+          csrfToken: 'csrf-tok',
+          dataDir: '/tmp',
+        },
+        mockFetchNotOk as any,
+      ),
+    ).toBeUndefined();
+
+    const mockFetchErr = vi.fn().mockRejectedValue(new Error('net fail'));
+    expect(
+      await resolveSidecarBaseUrl(
+        {
+          port: 39027,
+          lsAddress: 'localhost:5387',
+          csrfToken: 'csrf-tok',
+          dataDir: '/tmp',
+        },
+        mockFetchErr as any,
+      ),
+    ).toBeUndefined();
+  });
   it('exports public functions and classes from index.ts', () => {
     expect(SidecarIndex.createSidecarServer).toBeDefined();
     expect(SidecarIndex.readSidecarEnv).toBeDefined();

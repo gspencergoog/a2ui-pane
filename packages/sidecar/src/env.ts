@@ -4,6 +4,8 @@ export interface SidecarEnv {
   conversationId?: string;
   projectId?: string;
   agentapiExe?: string;
+  lsAddress?: string;
+  csrfToken?: string;
   dataDir: string;
 }
 
@@ -33,6 +35,8 @@ export function readSidecarEnv(env: Record<string, string | undefined> = process
     conversationId: env.ANTIGRAVITY_CONVERSATION_ID || undefined,
     projectId: env.ANTIGRAVITY_PROJECT_ID || undefined,
     agentapiExe: env.ANTIGRAVITY_AGENTAPI_EXE || undefined,
+    lsAddress: env.ANTIGRAVITY_LS_ADDRESS || undefined,
+    csrfToken: env.ANTIGRAVITY_CSRF_TOKEN || undefined,
     dataDir,
   };
 }

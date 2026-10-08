@@ -4,9 +4,11 @@ import { LineApplier, A2uiPaneView } from '@a2ui-pane/renderer';
 import { SurfaceResizeObserver } from './surface-resize-observer.js';
 
 export interface ActionConfig {
-  port: number;
-  key: string;
+  port?: number;
+  key?: string;
   surfaceId: string;
+  conversationId?: string;
+  sidecarUrl?: string;
   targetOrigin?: string;
 }
 
@@ -72,30 +74,61 @@ export function applySubmittedState(
   footerNote.appendChild(resubmitBtn);
 }
 
-async function dispatchViaSideChannel(
-  actionConfig: ActionConfig,
+function createTimeoutSignal(): AbortSignal | undefined {
+  return typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+    ? AbortSignal.timeout(3000)
+    : undefined;
+}
+
+async function trySidecarDispatch(
+  sidecarUrl: string,
+  conversationId: string,
+  promptText: string,
+  fetchFn: typeof fetch,
+): Promise<boolean> {
+  try {
+    const resp = await fetchFn(sidecarUrl, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'text/plain;charset=UTF-8',
+      },
+      body: JSON.stringify({
+        conversationId,
+        message: promptText,
+      }),
+      signal: createTimeoutSignal(),
+    });
+    if (resp.ok) {
+      return true;
+    }
+    console.warn(`[a2ui-embed] Sidecar endpoint returned HTTP ${resp.status}.`);
+  } catch (err) {
+    console.warn('[a2ui-embed] Sidecar endpoint fetch failed:', err);
+  }
+  return false;
+}
+
+async function tryLoopbackDispatch(
+  port: number,
+  key: string,
   action: A2uiActionDetails,
   dataModel: Record<string, unknown> | undefined,
-  fetchFn?: typeof fetch,
+  fetchFn: typeof fetch,
 ): Promise<boolean> {
-  if (!fetchFn) return false;
   try {
-    const endpointUrl = `http://127.0.0.1:${actionConfig.port}/action`;
-    const timeoutSignal =
-      typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
-        ? AbortSignal.timeout(3000)
-        : undefined;
+    const endpointUrl = `http://127.0.0.1:${port}/action`;
     const resp = await fetchFn(endpointUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-A2UI-Key': actionConfig.key,
+        'X-A2UI-Key': key,
       },
       body: JSON.stringify({
         action,
         dataModel,
       }),
-      signal: timeoutSignal,
+      signal: createTimeoutSignal(),
     });
     if (resp.ok) {
       return true;
@@ -103,6 +136,29 @@ async function dispatchViaSideChannel(
     console.warn(`[a2ui-embed] Side channel returned HTTP ${resp.status}, falling back to PROMPT.`);
   } catch (err) {
     console.warn('[a2ui-embed] Side channel fetch failed, falling back to PROMPT:', err);
+  }
+  return false;
+}
+
+async function dispatchViaSideChannel(
+  actionConfig: ActionConfig,
+  action: A2uiActionDetails,
+  dataModel: Record<string, unknown> | undefined,
+  promptText: string,
+  fetchFn?: typeof fetch,
+): Promise<boolean> {
+  if (!fetchFn) return false;
+  if (actionConfig.sidecarUrl && actionConfig.conversationId) {
+    const ok = await trySidecarDispatch(
+      actionConfig.sidecarUrl,
+      actionConfig.conversationId,
+      promptText,
+      fetchFn,
+    );
+    if (ok) return true;
+  }
+  if (actionConfig.port && actionConfig.key) {
+    return tryLoopbackDispatch(actionConfig.port, actionConfig.key, action, dataModel, fetchFn);
   }
   return false;
 }
@@ -183,7 +239,10 @@ export function initEmbed(options: InitEmbedOptions = {}): EmbedInstance | null 
     text-align: right;
     user-select: none;
   `;
-  const hasDirectEndpoint = Boolean(actionConfig?.port && actionConfig?.key);
+  const hasDirectEndpoint = Boolean(
+    (actionConfig?.sidecarUrl && actionConfig?.conversationId) ||
+    (actionConfig?.port && actionConfig?.key),
+  );
   if (hasDirectEndpoint) {
     footerNote.textContent = 'Submitting triggers the agent directly.';
   } else {
@@ -216,6 +275,7 @@ export function initEmbed(options: InitEmbedOptions = {}): EmbedInstance | null 
         actionConfig,
         action,
         dataModel,
+        promptText,
         options.fetchFn ?? (typeof fetch !== 'undefined' ? fetch : undefined),
       );
       isSubmitting = false;

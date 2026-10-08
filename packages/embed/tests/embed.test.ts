@@ -328,6 +328,71 @@ describe('initEmbed', () => {
     instance?.destroy();
   });
 
+  it('dispatches via sidecarUrl (with text/plain and credentials: include) and falls back to loopback port if sidecarUrl fails', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, status: 200 })
+      .mockResolvedValueOnce({ ok: false, status: 502 })
+      .mockResolvedValueOnce({ ok: true, status: 200 });
+
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const instance = initEmbed({
+      container,
+      messagesJson: JSON.stringify([
+        {
+          version: 'v0.9',
+          createSurface: { surfaceId: 'surfSidecarUrl', catalogId: 'basic' },
+        },
+      ]),
+      actionConfig: {
+        port: 54321,
+        key: 'loopback-key',
+        surfaceId: 'surfSidecarUrl',
+        conversationId: 'conv-pen-1',
+        sidecarUrl: 'https://pen.proxy.googlers.com/_sidecar/send-message?token=tok1',
+      },
+      fetchFn: mockFetch as any,
+    });
+
+    const surface = instance?.applier.getProcessor().getSurface('surfSidecarUrl');
+
+    // 1. Primary path: sidecarUrl succeeds
+    await surface?.dispatchAction({
+      name: 'penClick',
+      context: { label: 'PEN Button' },
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      'https://pen.proxy.googlers.com/_sidecar/send-message?token=tok1',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      }),
+    );
+    expect(instance?.isSubmitted()).toBe(true);
+
+    // Unlock and test fallback from sidecarUrl (502) to loopback port (200)
+    instance?.setSubmittedState(false);
+    await surface?.dispatchAction({
+      name: 'fallbackLoopbackClick',
+      context: { label: 'Loopback Fallback' },
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      'http://127.0.0.1:54321/action',
+      expect.objectContaining({
+        method: 'POST',
+      }),
+    );
+    expect(instance?.isSubmitted()).toBe(true);
+
+    consoleWarnSpy.mockRestore();
+    instance?.destroy();
+  });
+
   it('ignores concurrent action clicks while side-channel fetch is in flight', async () => {
     let resolveFetch!: (val: any) => void;
     const mockFetch = vi.fn(

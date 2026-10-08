@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { cleanupOldFiles } from './cleanup.js';
-import { readSidecarEnv } from './env.js';
+import { readSidecarEnv, SidecarEnv } from './env.js';
 import { createSidecarServer } from './server.js';
 
 export function isMainModule(): boolean {
@@ -17,16 +17,52 @@ export function isMainModule(): boolean {
   }
 }
 
-function writeSidecarEndpointFile(dataDir: string, port: number, uiToken?: string): void {
+export function writeSidecarEndpointFile(
+  dataDir: string,
+  port: number,
+  uiToken?: string,
+  baseUrl?: string,
+): void {
   try {
     fs.mkdirSync(dataDir, { recursive: true, mode: 0o700 });
     fs.writeFileSync(
       path.join(dataDir, 'sidecar-endpoint.json'),
-      JSON.stringify({ port, uiToken }),
+      JSON.stringify({ port, uiToken, baseUrl }),
       { mode: 0o600 },
     );
   } catch {
     // Ignore file write errors if dataDir is unavailable
+  }
+}
+
+export async function resolveSidecarBaseUrl(
+  env: SidecarEnv,
+  fetchFn: typeof fetch = fetch,
+): Promise<string | undefined> {
+  if (!env.lsAddress || !env.csrfToken) return undefined;
+  try {
+    const resp = await fetchFn(
+      `http://${env.lsAddress}/exa.language_server_pb.LanguageServerService/GetSidecars`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-codeium-csrf-token': env.csrfToken,
+        },
+        body: '{}',
+        signal: AbortSignal.timeout(3000),
+      },
+    );
+    if (!resp.ok) return undefined;
+    const data = (await resp.json()) as {
+      sidecars?: Array<{ sidecarId?: string; webPort?: number; baseUrl?: string }>;
+    };
+    const match = data.sidecars?.find(
+      (s) => s.webPort === env.port || s.sidecarId === 'a2ui-pane/a2ui-pane',
+    );
+    return match?.baseUrl || undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -55,6 +91,11 @@ export function run(): void {
 
     server.listen(env.port, '127.0.0.1', () => {
       writeSidecarEndpointFile(env.dataDir, env.port, env.uiToken);
+      void resolveSidecarBaseUrl(env).then((baseUrl) => {
+        if (baseUrl) {
+          writeSidecarEndpointFile(env.dataDir, env.port, env.uiToken, baseUrl);
+        }
+      });
       console.log(
         `[a2ui-pane-sidecar] Listening on http://127.0.0.1:${env.port} (data: ${env.dataDir})`,
       );

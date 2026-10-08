@@ -9,21 +9,22 @@ export interface EmbedWriterOptions {
   embedBundleJs?: string;
   embedBundlePath?: string;
   actionConfig?: {
-    port: number;
-    key: string;
+    port?: number;
+    key?: string;
     surfaceId: string;
+    conversationId?: string;
+    sidecarUrl?: string;
     targetOrigin?: string;
   };
 }
 
 let cachedBundleContent: string | null = null;
+let cachedBundleMtimeMs = 0;
 
 export function loadEmbedBundle(customPath?: string): string {
   if (customPath && fs.existsSync(customPath)) {
     return fs.readFileSync(customPath, 'utf-8');
   }
-
-  if (cachedBundleContent) return cachedBundleContent;
 
   const here = path.dirname(fileURLToPath(import.meta.url));
   const candidatePaths = [
@@ -34,7 +35,12 @@ export function loadEmbedBundle(customPath?: string): string {
 
   for (const cand of candidatePaths) {
     if (fs.existsSync(cand)) {
+      const mtimeMs = fs.statSync(cand).mtimeMs;
+      if (cachedBundleContent && mtimeMs === cachedBundleMtimeMs) {
+        return cachedBundleContent;
+      }
       cachedBundleContent = fs.readFileSync(cand, 'utf-8');
+      cachedBundleMtimeMs = mtimeMs;
       return cachedBundleContent;
     }
   }
