@@ -290,10 +290,78 @@ describe('initEmbed', () => {
       }),
     );
 
-    expect(container.querySelector('.a2ui-embed-footer')?.textContent).toBe(
-      'Action sent directly to agent.',
+    expect(container.querySelector('.a2ui-embed-footer')?.textContent).toContain(
+      '✓ Submitted to agent.',
     );
+    expect(instance?.isSubmitted()).toBe(true);
+    expect(instance?.paneView.style.pointerEvents).toBe('none');
+    expect(instance?.paneView.style.opacity).toBe('0.72');
     expect(postedEvents.some((e) => e.type === 'PROMPT')).toBe(false);
+
+    // Duplicate click while locked is ignored
+    await surface?.dispatchAction({
+      name: 'duplicateClick',
+      context: { label: 'Duplicate Button' },
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    // Clicking "Edit / Resubmit" unlocks the card and restores footer text
+    const resubmitBtn = container.querySelector('.a2ui-embed-resubmit-btn') as HTMLButtonElement;
+    expect(resubmitBtn).not.toBeNull();
+    resubmitBtn.click();
+
+    expect(instance?.isSubmitted()).toBe(false);
+    expect(instance?.paneView.style.pointerEvents).toBe('');
+    expect(instance?.paneView.style.opacity).toBe('1');
+    expect(container.querySelector('.a2ui-embed-footer')?.textContent).toBe(
+      'Submitting triggers the agent directly.',
+    );
+
+    // Resubmission now succeeds
+    await surface?.dispatchAction({
+      name: 'resubmitClick',
+      context: { label: 'Resubmit Button' },
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(instance?.isSubmitted()).toBe(true);
+
+    instance?.destroy();
+  });
+
+  it('ignores concurrent action clicks while side-channel fetch is in flight', async () => {
+    let resolveFetch!: (val: any) => void;
+    const mockFetch = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
+
+    const instance = initEmbed({
+      container,
+      messagesJson: JSON.stringify([
+        {
+          version: 'v0.9',
+          createSurface: { surfaceId: 'surfInFlight', catalogId: 'basic' },
+        },
+      ]),
+      actionConfig: {
+        port: 54321,
+        key: 'inflight-key',
+        surfaceId: 'surfInFlight',
+      },
+      fetchFn: mockFetch as any,
+    });
+
+    const surface = instance?.applier.getProcessor().getSurface('surfInFlight');
+    surface?.dispatchAction({ name: 'click1' });
+    // Trigger second click while first is still pending
+    surface?.dispatchAction({ name: 'click2' });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    resolveFetch({ ok: true, status: 200 });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(instance?.isSubmitted()).toBe(true);
 
     instance?.destroy();
   });
@@ -351,21 +419,38 @@ describe('initEmbed', () => {
 
     const surface = instance?.applier.getProcessor().getSurface('surfFail');
 
-    // 1. Non-ok response falls back to PROMPT
+    // 1. Non-ok response falls back to PROMPT and leaves card unlocked
     await surface?.dispatchAction({ name: 'action1' });
     expect(postedEvents.some((e) => e.type === 'PROMPT')).toBe(true);
+    expect(instance?.isSubmitted()).toBe(false);
+    expect(instance?.paneView.style.pointerEvents).toBe('');
     expect(consoleWarnSpy).toHaveBeenCalledWith(
       expect.stringContaining('Side channel returned HTTP 500'),
     );
 
-    // 2. Network error / rejection falls back to PROMPT
+    // 2. Network error / rejection falls back to PROMPT and leaves card unlocked
     postedEvents.length = 0;
     await surface?.dispatchAction({ name: 'action2' });
     expect(postedEvents.some((e) => e.type === 'PROMPT')).toBe(true);
+    expect(instance?.isSubmitted()).toBe(false);
+    expect(instance?.paneView.style.pointerEvents).toBe('');
     expect(consoleWarnSpy).toHaveBeenCalledWith(
       expect.stringContaining('Side channel fetch failed'),
       expect.any(Error),
     );
+
+    // 3. setSubmittedState(false) on non-direct embed resets to chat box message
+    const fallbackInstance = initEmbed({
+      container,
+      messagesJson: JSON.stringify([
+        {
+          version: 'v0.9',
+          createSurface: { surfaceId: 'surfNoEndpoint', catalogId: 'basic' },
+        },
+      ]),
+    });
+    fallbackInstance?.setSubmittedState(false);
+    fallbackInstance?.destroy();
 
     consoleWarnSpy.mockRestore();
     instance?.destroy();

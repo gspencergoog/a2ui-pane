@@ -4,7 +4,8 @@
       "command": "@NODE@",
       "args": ["@PLUGIN_DIR@/mcp/dist/server.mjs"],
       "env": {
-        "A2UI_PANE_DATA": "${PLUGIN_DATA}"
+        "A2UI_PANE_DATA": "${PLUGIN_DATA}",
+        "A2UI_PANE_SIDE_CHANNEL": "1"
       }
     }
   }

@@ -70,14 +70,14 @@ export function createServer(dataDir: string, options: ServerOptions = {}) {
   return { server, catalogs, store, getState, conversationStates, actionEndpoint };
 }
 
-export async function run() {
+export async function run(): Promise<McpServer & { actionEndpoint?: ActionEndpoint }> {
   const dataDir = process.env.A2UI_PANE_DATA || process.env.PLUGIN_DATA;
   if (!dataDir) {
     throw new Error('Neither A2UI_PANE_DATA nor PLUGIN_DATA environment variable is defined.');
   }
 
   const enableSideChannel =
-    process.env.A2UI_PANE_EXPERIMENTAL === '1' || process.env.A2UI_PANE_SIDE_CHANNEL === '1';
+    process.env.A2UI_PANE_SIDE_CHANNEL !== '0' && process.env.A2UI_PANE_EXPERIMENTAL !== '0';
 
   let actionEndpoint: ActionEndpoint | undefined;
   if (enableSideChannel) {
@@ -85,7 +85,7 @@ export async function run() {
     try {
       await actionEndpoint.start();
       console.error(
-        `[a2ui-pane] Experimental action side channel listening on port ${actionEndpoint.getPort()}`,
+        `[a2ui-pane] Action side channel listening on port ${actionEndpoint.getPort()}`,
       );
     } catch (err) {
       console.error('[a2ui-pane] Failed starting action side channel:', err);
@@ -96,7 +96,7 @@ export async function run() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error('[a2ui-pane] MCP server connected over stdio');
-  return server;
+  return Object.assign(server, { actionEndpoint });
 }
 
 /**

@@ -38,12 +38,14 @@ describe('MCP Server Tools and Entrypoint', () => {
       await expect(run()).rejects.toThrow(/Neither A2UI_PANE_DATA nor PLUGIN_DATA/);
     });
 
-    it('run() initializes server when A2UI_PANE_DATA is provided', async () => {
+    it('run() initializes server and starts ActionEndpoint by default when A2UI_PANE_DATA is provided', async () => {
       process.env.A2UI_PANE_DATA = tempDir;
-      // StdioServerTransport in test environment attempts to read stdin
-      // We verify that run() successfully resolves createServer and transport connection
-      const serverPromise = run();
-      await expect(serverPromise).resolves.toBeDefined();
+      delete process.env.A2UI_PANE_SIDE_CHANNEL;
+      delete process.env.A2UI_PANE_EXPERIMENTAL;
+      const s = await run();
+      expect(s).toBeDefined();
+      expect(s.actionEndpoint?.getPort()).toBeGreaterThan(0);
+      await s.actionEndpoint?.close();
     });
   });
 
@@ -504,14 +506,15 @@ describe('MCP Server Tools and Entrypoint', () => {
       await ep.close();
     });
 
-    it('initializes and starts ActionEndpoint in run() when A2UI_PANE_EXPERIMENTAL=1', async () => {
+    it('disables ActionEndpoint in run() when A2UI_PANE_SIDE_CHANNEL=0', async () => {
       process.env.A2UI_PANE_DATA = tempDir;
-      process.env.A2UI_PANE_EXPERIMENTAL = '1';
+      process.env.A2UI_PANE_SIDE_CHANNEL = '0';
 
       const s = await run();
       expect(s).toBeDefined();
+      expect(s.actionEndpoint).toBeUndefined();
 
-      delete process.env.A2UI_PANE_EXPERIMENTAL;
+      delete process.env.A2UI_PANE_SIDE_CHANNEL;
     });
   });
 });

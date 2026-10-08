@@ -38,8 +38,8 @@ To create or update an A2UI interface:
 1. **Get Schema & Rules**: If you have not called `a2ui_instructions` in this session, call `a2ui_instructions` first to receive the active protocol rules, component schemas, and property guidelines.
 2. **Obtain Conversation ID**: Get your current conversation ID from the environment or system prompt context. Pass this ID as `conversationId` in `render_a2ui` tool calls.
 3. **Choose Rendering Mode**:
-   - Use `mode: "pane"` (default) for persistent multi-surface dashboards, live streaming updates, and continuous two-way data binding in the AuxPane.
-   - Use `mode: "inline"` when returning a self-contained interactive card inline in your chat response via the returned `<agent-embed src="file://..."></agent-embed>` tag.
+   - Use `mode: "pane"` (default) for persistent multi-surface dashboards, live streaming updates, and continuous two-way data binding in the AuxPane. You may optionally call `await_a2ui_action` after rendering a `"pane"` surface to pause execution until the user interacts.
+   - Use `mode: "inline"` when returning a self-contained interactive card inline in your chat response via the returned `<agent-embed src="file://..."></agent-embed>` tag. Emit the `<agent-embed>` tag in your chat response and **end your turn** (do not call `await_a2ui_action` before the `<agent-embed>` message is rendered); the loopback side-channel will automatically submit the user's action and wake your conversation when they click a button.
 4. **Progressive Construction**:
    - For simple cards: send `createSurface` and initial components in a single `render_a2ui` call.
    - For larger interfaces in `"pane"` mode: first send `createSurface` with a loading card or container skeleton, then send one or more subsequent `render_a2ui` calls with `updateComponents` or `updateDataModel` to populate the view.

@@ -26,7 +26,85 @@ export interface EmbedInstance {
   applier: LineApplier;
   paneView: A2uiPaneView;
   resizeObserver: SurfaceResizeObserver;
+  isSubmitted: () => boolean;
+  setSubmittedState: (submitted: boolean) => void;
   destroy: () => void;
+}
+
+export function applySubmittedState(
+  paneView: HTMLElement,
+  footerNote: HTMLElement,
+  submitted: boolean,
+  hasDirectEndpoint: boolean,
+  onUnlock: () => void,
+): void {
+  if (!submitted) {
+    paneView.style.pointerEvents = '';
+    paneView.style.opacity = '1';
+    footerNote.textContent = hasDirectEndpoint
+      ? 'Submitting triggers the agent directly.'
+      : 'Submitting fills in the chat box.';
+    return;
+  }
+
+  paneView.style.pointerEvents = 'none';
+  paneView.style.opacity = '0.72';
+  footerNote.textContent = '';
+
+  const statusSpan = document.createElement('span');
+  statusSpan.textContent = '✓ Submitted to agent. ';
+  footerNote.appendChild(statusSpan);
+
+  const resubmitBtn = document.createElement('button');
+  resubmitBtn.type = 'button';
+  resubmitBtn.className = 'a2ui-embed-resubmit-btn';
+  resubmitBtn.textContent = 'Edit / Resubmit';
+  resubmitBtn.style.cssText = `
+    background: transparent;
+    border: 1px solid var(--a2ui-color-border, #6a737d);
+    border-radius: 4px;
+    color: inherit;
+    cursor: pointer;
+    font-size: 11px;
+    padding: 1px 6px;
+  `;
+  resubmitBtn.addEventListener('click', onUnlock);
+  footerNote.appendChild(resubmitBtn);
+}
+
+async function dispatchViaSideChannel(
+  actionConfig: ActionConfig,
+  action: A2uiActionDetails,
+  dataModel: Record<string, unknown> | undefined,
+  fetchFn?: typeof fetch,
+): Promise<boolean> {
+  if (!fetchFn) return false;
+  try {
+    const endpointUrl = `http://127.0.0.1:${actionConfig.port}/action`;
+    const timeoutSignal =
+      typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+        ? AbortSignal.timeout(3000)
+        : undefined;
+    const resp = await fetchFn(endpointUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-A2UI-Key': actionConfig.key,
+      },
+      body: JSON.stringify({
+        action,
+        dataModel,
+      }),
+      signal: timeoutSignal,
+    });
+    if (resp.ok) {
+      return true;
+    }
+    console.warn(`[a2ui-embed] Side channel returned HTTP ${resp.status}, falling back to PROMPT.`);
+  } catch (err) {
+    console.warn('[a2ui-embed] Side channel fetch failed, falling back to PROMPT:', err);
+  }
+  return false;
 }
 
 /**
@@ -105,51 +183,45 @@ export function initEmbed(options: InitEmbedOptions = {}): EmbedInstance | null 
     text-align: right;
     user-select: none;
   `;
-  if (actionConfig?.port && actionConfig?.key) {
+  const hasDirectEndpoint = Boolean(actionConfig?.port && actionConfig?.key);
+  if (hasDirectEndpoint) {
     footerNote.textContent = 'Submitting triggers the agent directly.';
   } else {
     footerNote.textContent = 'Submitting fills in the chat box.';
   }
 
   const promptTargetOrigin = actionConfig?.targetOrigin || options.targetOrigin || '*';
+  let isSubmitting = false;
+  let submittedState = false;
+
+  const paneView = document.createElement('a2ui-pane-view') as A2uiPaneView;
+  const setSubmittedState = (next: boolean) => {
+    submittedState = next;
+    applySubmittedState(paneView, footerNote, next, hasDirectEndpoint, () => {
+      setSubmittedState(false);
+    });
+  };
 
   const onAction = async (action: A2uiActionDetails, dataModel?: Record<string, unknown>) => {
+    if (isSubmitting || submittedState) return;
+
     const promptText = formatActionText(action, {
       label: typeof action.context?.label === 'string' ? action.context.label : undefined,
       dataModel,
     });
 
-    if (actionConfig && actionConfig.port && actionConfig.key) {
-      const fetchFn = options.fetchFn ?? (typeof fetch !== 'undefined' ? fetch : undefined);
-      if (fetchFn) {
-        try {
-          const endpointUrl = `http://127.0.0.1:${actionConfig.port}/action`;
-          const timeoutSignal =
-            typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
-              ? AbortSignal.timeout(3000)
-              : undefined;
-          const resp = await fetchFn(endpointUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-A2UI-Key': actionConfig.key,
-            },
-            body: JSON.stringify({
-              action,
-              dataModel,
-            }),
-            signal: timeoutSignal,
-          });
-          if (resp.ok) {
-            footerNote.textContent = 'Action sent directly to agent.';
-            return;
-          }
-          console.warn(
-            `[a2ui-embed] Side channel returned HTTP ${resp.status}, falling back to PROMPT.`,
-          );
-        } catch (err) {
-          console.warn('[a2ui-embed] Side channel fetch failed, falling back to PROMPT:', err);
-        }
+    if (actionConfig && hasDirectEndpoint) {
+      isSubmitting = true;
+      const sent = await dispatchViaSideChannel(
+        actionConfig,
+        action,
+        dataModel,
+        options.fetchFn ?? (typeof fetch !== 'undefined' ? fetch : undefined),
+      );
+      isSubmitting = false;
+      if (sent) {
+        setSubmittedState(true);
+        return;
       }
     }
 
@@ -158,7 +230,6 @@ export function initEmbed(options: InitEmbedOptions = {}): EmbedInstance | null 
   };
 
   const applier = new LineApplier(undefined, onAction);
-  const paneView = document.createElement('a2ui-pane-view') as A2uiPaneView;
   paneView.processor = applier.getProcessor();
   wrapper.appendChild(paneView);
   wrapper.appendChild(footerNote);
@@ -192,6 +263,8 @@ export function initEmbed(options: InitEmbedOptions = {}): EmbedInstance | null 
     applier,
     paneView,
     resizeObserver,
+    isSubmitted: () => submittedState,
+    setSubmittedState,
     destroy: () => {
       resizeObserver.destroy();
       wrapper.remove();

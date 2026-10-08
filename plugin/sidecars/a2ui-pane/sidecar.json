@@ -1,8 +1,6 @@
 {
   "command": "node",
-  "args": [
-    "dist/main.mjs"
-  ],
+  "args": ["dist/main.mjs"],
   "restart_policy": "always",
   "display_name": "A2UI Pane",
   "description": "Interactive A2UI surfaces sidecar (built 2026-10-01T15:46:39Z)",

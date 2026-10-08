@@ -76,9 +76,13 @@ describe('sidecar index and main', () => {
       expect.stringContaining('[a2ui-pane-sidecar] Cleaned up 1 stale files.'),
     );
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[a2ui-pane-sidecar] Listening'));
+    const endpointFile = path.join(tmpDataDir, 'sidecar-endpoint.json');
+    expect(fs.existsSync(endpointFile)).toBe(true);
+    expect(JSON.parse(fs.readFileSync(endpointFile, 'utf-8'))).toEqual({ port: 0 });
 
     // Trigger SIGTERM listener
     process.emit('SIGTERM');
+    expect(fs.existsSync(endpointFile)).toBe(false);
     expect(closeSpy).toHaveBeenCalled();
     capturedCloseCallback?.();
     expect(exitSpy).toHaveBeenCalledWith(0);

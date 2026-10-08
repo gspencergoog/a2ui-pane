@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import http from 'node:http';
 import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -309,5 +310,90 @@ describe('ActionEndpoint', () => {
     expect(res.status).toBe(413);
     const body = await res.json();
     expect(body.error).toContain('Payload Too Large');
+  });
+
+  it('forwards action to sidecar /_sidecar/send-message when sidecar-endpoint.json exists', async () => {
+    const savedAgentapiExe = process.env.ANTIGRAVITY_AGENTAPI_EXE;
+    const savedLsAddr = process.env.ANTIGRAVITY_LS_ADDRESS;
+    delete process.env.ANTIGRAVITY_AGENTAPI_EXE;
+    delete process.env.ANTIGRAVITY_LS_ADDRESS;
+
+    const receivedRequests: Array<{ token?: string; body: any }> = [];
+    let shouldFail = false;
+
+    const mockSidecar = http.createServer((req, res) => {
+      if (req.method === 'POST' && req.url === '/_sidecar/send-message') {
+        const chunks: Buffer[] = [];
+        req.on('data', (c) => chunks.push(c));
+        req.on('end', () => {
+          receivedRequests.push({
+            token: req.headers['x-sidecar-token'] as string | undefined,
+            body: JSON.parse(Buffer.concat(chunks).toString('utf-8')),
+          });
+          if (shouldFail) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'sidecar failure' }));
+          } else {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true }));
+          }
+        });
+        return;
+      }
+      res.writeHead(404);
+      res.end();
+    });
+
+    await new Promise<void>((resolve) => mockSidecar.listen(0, '127.0.0.1', () => resolve()));
+    const sidecarPort = (mockSidecar.address() as any).port;
+
+    try {
+      writeFileSync(
+        join(tempDir, 'sidecar-endpoint.json'),
+        JSON.stringify({ port: sidecarPort, uiToken: 'sidecar-secret-token' }),
+      );
+
+      endpoint = new ActionEndpoint({ dataDir: tempDir });
+      const port = await endpoint.start();
+      const key = endpoint.registerEmbed('conv_bridged', 'surf_bridged');
+
+      const res = await fetch(`http://127.0.0.1:${port}/action`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-A2UI-Key': key,
+        },
+        body: JSON.stringify({
+          action: { name: 'submitGrillMe', context: { label: 'Submit Answers' } },
+          dataModel: { questions: { q1: { value: 250 } } },
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      expect(receivedRequests).toHaveLength(1);
+      expect(receivedRequests[0].token).toBe('sidecar-secret-token');
+      expect(receivedRequests[0].body.conversationId).toBe('conv_bridged');
+      expect(receivedRequests[0].body.message).toContain('submitGrillMe');
+
+      // Verify error propagation when sidecar returns 500
+      shouldFail = true;
+      const failRes = await fetch(`http://127.0.0.1:${port}/action`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-A2UI-Key': key,
+        },
+        body: JSON.stringify({
+          action: { name: 'submitGrillMe' },
+        }),
+      });
+      expect(failRes.status).toBe(500);
+      const failBody = await failRes.json();
+      expect(failBody.error).toContain('Sidecar send-message failed (500)');
+    } finally {
+      await new Promise<void>((resolve) => mockSidecar.close(() => resolve()));
+      if (savedAgentapiExe !== undefined) process.env.ANTIGRAVITY_AGENTAPI_EXE = savedAgentapiExe;
+      if (savedLsAddr !== undefined) process.env.ANTIGRAVITY_LS_ADDRESS = savedLsAddr;
+    }
   });
 });

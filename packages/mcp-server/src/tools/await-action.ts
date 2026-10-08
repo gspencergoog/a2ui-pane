@@ -59,7 +59,7 @@ export async function handleAwaitA2uiAction(
             {
               status: 'unavailable',
               message:
-                'A2UI action side-channel is not enabled. Set A2UI_PANE_EXPERIMENTAL=1 to enable await_a2ui_action.',
+                'A2UI action side-channel is not enabled (disabled via A2UI_PANE_SIDE_CHANNEL=0).',
             },
             null,
             2,

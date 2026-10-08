@@ -325,7 +325,18 @@ export class ActionEndpoint {
     res.end(JSON.stringify({ ok: true, routedTo: 'agentapi' }));
   }
 
-  private dispatchAgentapi(conversationId: string, message: string): Promise<void> {
+  private async dispatchAgentapi(conversationId: string, message: string): Promise<void> {
+    const endpointFile = path.join(this.options.dataDir, 'sidecar-endpoint.json');
+    if (
+      !this.options.agentapiExe &&
+      !process.env.ANTIGRAVITY_AGENTAPI_EXE &&
+      !process.env.ANTIGRAVITY_LS_ADDRESS &&
+      fs.existsSync(endpointFile)
+    ) {
+      await this.dispatchViaSidecar(endpointFile, conversationId, message);
+      return;
+    }
+
     return new Promise((resolve, reject) => {
       const customExe = this.options.agentapiExe || process.env.ANTIGRAVITY_AGENTAPI_EXE;
       const file = customExe || 'agentapi';
@@ -342,6 +353,29 @@ export class ActionEndpoint {
         resolve();
       });
     });
+  }
+
+  private async dispatchViaSidecar(
+    endpointFile: string,
+    conversationId: string,
+    message: string,
+  ): Promise<void> {
+    const raw = fs.readFileSync(endpointFile, 'utf-8');
+    const { port, uiToken } = JSON.parse(raw) as { port: number; uiToken?: string };
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (uiToken) {
+      headers['x-sidecar-token'] = uiToken;
+    }
+    const resp = await fetch(`http://127.0.0.1:${port}/_sidecar/send-message`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ conversationId, message }),
+      signal: AbortSignal.timeout(AGENTAPI_TIMEOUT_MS),
+    });
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`Sidecar send-message failed (${resp.status}): ${errText}`);
+    }
   }
 
   /**
