@@ -235,7 +235,7 @@ export function initEmbed(options: InitEmbedOptions = {}): EmbedInstance | null 
   footerNote.style.cssText = `
     font-size: 11px;
     color: var(--a2ui-color-border, #6a737d);
-    padding: 8px 16px 12px 16px;
+    padding: 2px 8px 4px 8px;
     text-align: right;
     user-select: none;
   `;

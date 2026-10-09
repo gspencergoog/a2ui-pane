@@ -9,6 +9,8 @@ describe('Theme module', () => {
     expect(HOST_THEME_CSS).toContain('--a2ui-text-color-text:');
     expect(HOST_THEME_CSS).toContain('--a2ui-color-on-primary:');
     expect(HOST_THEME_CSS).toContain('--a2ui-spacing-m:');
+    expect(HOST_THEME_CSS).toContain('--a2ui-choicepicker-chip-font-size: 13px;');
+    expect(HOST_THEME_CSS).toContain('#a2ui-embed-root');
     expect(HOST_THEME_CSS).toContain('@media (prefers-color-scheme: dark)');
   });
 

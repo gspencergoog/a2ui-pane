@@ -41,9 +41,15 @@ class FakeEventSource {
 
 describe('initPaneApp', () => {
   let container: HTMLElement;
+  let originalFetch: typeof fetch;
 
   beforeEach(() => {
     (window as any).__A2UI_DISABLE_AUTO_INIT__ = true;
+    originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true }),
+    }) as any;
     FakeEventSource.instances = [];
     container = document.createElement('div');
     container.id = 'app';
@@ -51,6 +57,7 @@ describe('initPaneApp', () => {
   });
 
   afterEach(() => {
+    globalThis.fetch = originalFetch;
     if (container.parentElement) {
       document.body.removeChild(container);
     }
@@ -312,5 +319,112 @@ describe('initPaneApp', () => {
       value: 'complete',
       configurable: true,
     });
+  });
+
+  it('reports pane visibility on init, resize across 0x0, and SSE reconnect', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+    Object.defineProperty(window, 'innerWidth', { value: 420, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: 600, configurable: true });
+
+    await initPaneApp({
+      container,
+      search: '?conversationId=conv_vis&token=tok_vis',
+      fetchFn: mockFetch as any,
+      eventSourceFactory: (url) => new FakeEventSource(url) as any,
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      './api/visibility',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Sidecar-Token': 'tok_vis',
+        },
+        body: JSON.stringify({ conversationId: 'conv_vis', visible: true }),
+      }),
+    );
+
+    // Resize to 0x0 (AuxPane hidden)
+    Object.defineProperty(window, 'innerWidth', { value: 0, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: 0, configurable: true });
+    window.dispatchEvent(new Event('resize'));
+
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      './api/visibility',
+      expect.objectContaining({
+        body: JSON.stringify({ conversationId: 'conv_vis', visible: false }),
+      }),
+    );
+
+    // Restore size and trigger SSE open to verify reannounce
+    Object.defineProperty(window, 'innerWidth', { value: 420, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: 600, configurable: true });
+    FakeEventSource.instances[0].triggerOpen();
+
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      './api/visibility',
+      expect.objectContaining({
+        body: JSON.stringify({ conversationId: 'conv_vis', visible: true }),
+      }),
+    );
+  });
+
+  it('locks surface after action submission, calls toggleAuxPane({ open: false }), and unlocks on Edit/Resubmit or new lines', async () => {
+    const toggleSpy = vi.fn();
+    (window as any).sidecar = { ui: { toggleAuxPane: toggleSpy } };
+
+    const instance = await initPaneApp({
+      container,
+      search: '?conversationId=conv_submit_lock',
+      sendMessageFn: async () => ({ ok: true }),
+      eventSourceFactory: (url) => new FakeEventSource(url) as any,
+    });
+
+    instance!.applier.apply([
+      {
+        seq: 1,
+        ts: new Date().toISOString(),
+        callId: 'c1',
+        message: {
+          version: 'v0.9',
+          createSurface: { surfaceId: 'surfLock', catalogId: 'basic' },
+        },
+      },
+    ]);
+
+    const surface = instance!.applier.getProcessor().getSurface('surfLock');
+    surface?.dispatchAction({ name: 'submit_alignment' });
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(instance!.isSubmitted()).toBe(true);
+    expect(toggleSpy).toHaveBeenCalledWith({ open: false });
+
+    const submittedBanner = container.querySelector('#submitted-banner') as HTMLElement;
+    const resubmitBtn = container.querySelector('#resubmit-pane-btn') as HTMLButtonElement;
+    expect(submittedBanner.style.display).toBe('flex');
+
+    // Clicking Edit / Resubmit unlocks the surface
+    resubmitBtn.click();
+    expect(instance!.isSubmitted()).toBe(false);
+    expect(submittedBanner.style.display).toBe('none');
+
+    // Re-lock and verify applying new lines automatically unlocks
+    instance!.setSubmittedState(true);
+    expect(instance!.isSubmitted()).toBe(true);
+    instance!.applier.apply([
+      {
+        seq: 2,
+        ts: new Date().toISOString(),
+        callId: 'c2',
+        message: {
+          version: 'v0.9',
+          createSurface: { surfaceId: 'surfLock2', catalogId: 'basic' },
+        },
+      },
+    ]);
+    expect(instance!.isSubmitted()).toBe(false);
+
+    delete (window as any).sidecar;
   });
 });

@@ -34,6 +34,21 @@ export const PRELOAD_SHIM_JS = `// A2UI Pane Preload Shim
           throw err;
         }
       }
+    },
+    ui: {
+      toggleAuxPane: function(request) {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: 'toggle-aux-pane', payload: request }, '*');
+        }
+      },
+      toggleConversation: function(targetConversationId) {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({
+            type: 'toggle-conversation',
+            payload: { conversationId: targetConversationId }
+          }, '*');
+        }
+      }
     }
   };
 })();

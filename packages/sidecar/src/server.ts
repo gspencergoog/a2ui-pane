@@ -18,6 +18,41 @@ export interface SidecarDeps {
   staticDir: string;
   execFileFn?: ExecFileFn;
   keepaliveIntervalMs?: number;
+  onVisibilityChange?: (conversationId: string, visible: boolean) => void;
+}
+
+function handleVisibility(
+  req: IncomingMessage,
+  res: ServerResponse,
+  onVisibilityChange?: (conversationId: string, visible: boolean) => void,
+): void {
+  let body = '';
+  req.on('data', (chunk) => {
+    body += chunk.toString();
+  });
+  req.on('end', () => {
+    try {
+      const parsed = JSON.parse(body || '{}') as {
+        conversationId?: unknown;
+        visible?: unknown;
+      };
+      if (
+        typeof parsed.conversationId !== 'string' ||
+        !isValidId(parsed.conversationId) ||
+        typeof parsed.visible !== 'boolean'
+      ) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid conversationId or visible flag' }));
+        return;
+      }
+      onVisibilityChange?.(parsed.conversationId, parsed.visible);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Malformed JSON body' }));
+    }
+  });
 }
 
 /**
@@ -45,6 +80,7 @@ export function createSidecarServer(
     }
   }
   const staticDir = injectedDeps?.staticDir ?? defaultStaticDir;
+  const activeStreams = new Map<string, number>();
 
   const server = http.createServer((req: IncomingMessage, res: ServerResponse) => {
     const host = req.headers.host || 'localhost';
@@ -114,9 +150,31 @@ export function createSidecarServer(
         return;
       }
 
+      activeStreams.set(convId, (activeStreams.get(convId) ?? 0) + 1);
+      req.on('close', () => {
+        const remaining = (activeStreams.get(convId) ?? 1) - 1;
+        if (remaining <= 0) {
+          activeStreams.delete(convId);
+          injectedDeps?.onVisibilityChange?.(convId, false);
+        } else {
+          activeStreams.set(convId, remaining);
+        }
+      });
+
       handleStream(req, res, convId, storeReader, notifier, {
         keepaliveIntervalMs: injectedDeps?.keepaliveIntervalMs,
       });
+      return;
+    }
+
+    // Pane visibility reporting endpoint
+    if (url.pathname === '/api/visibility' && req.method === 'POST') {
+      if (!checkToken(req, url, env.uiToken)) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Unauthorized: Invalid token' }));
+        return;
+      }
+      handleVisibility(req, res, injectedDeps?.onVisibilityChange);
       return;
     }
 

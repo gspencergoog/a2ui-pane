@@ -50,6 +50,11 @@ describe('A2uiPaneView', () => {
 
     const surfaceElements = shadowRoot.querySelectorAll('a2ui-surface');
     expect(surfaceElements).toHaveLength(2);
+    const layoutStyle = surfaceElements[0].shadowRoot?.querySelector(
+      'style[data-a2ui-surface-layout]',
+    );
+    expect(layoutStyle).not.toBeNull();
+    expect(layoutStyle?.textContent).toContain('a2ui-basic-row > a2ui-card > .a2ui-card');
   });
 
   it('listens to onSurfaceCreated, updates DOM and dispatches surface-changed event', async () => {

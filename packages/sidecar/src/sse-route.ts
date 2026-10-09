@@ -28,6 +28,7 @@ export function handleStream(
     Connection: 'keep-alive',
     'X-Accel-Buffering': 'no',
   });
+  res.flushHeaders?.();
 
   // Extract starting sequence from Last-Event-ID header or ?after= query parameter
   const rawLastId = req.headers['last-event-id'];

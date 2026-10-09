@@ -24,9 +24,13 @@ export const HOST_THEME_CSS = `:root {
   --a2ui-spacing-s: 8px;
   --a2ui-spacing-m: 16px;
   --a2ui-spacing-l: 24px;
+  --a2ui-font-size-xs: 12px;
   --a2ui-font-size-s: 12px;
   --a2ui-font-size-m: 14px;
   --a2ui-font-size-l: 16px;
+  --a2ui-choicepicker-chip-font-size: 13px;
+  --a2ui-choicepicker-chip-font-weight: 500;
+  --a2ui-choicepicker-chip-padding: 5px 12px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -43,6 +47,35 @@ export const HOST_THEME_CSS = `:root {
     --a2ui-color-on-primary: #041e49;
     --a2ui-color-border: var(--border, #3c4043);
   }
+}
+
+#a2ui-embed-root {
+  --a2ui-spacing-xs: 2px;
+  --a2ui-spacing-s: 4px;
+  --a2ui-spacing-m: 8px;
+  --a2ui-card-margin: 0px;
+  --a2ui-card-padding: 6px 10px;
+  --a2ui-column-gap: 4px;
+  --a2ui-row-gap: 8px;
+  --a2ui-tabs-content-padding: 4px 0 0 0;
+  --a2ui-checkbox-margin: 2px 0;
+  --a2ui-choicepicker-gap: 6px;
+  --a2ui-choicepicker-chip-font-size: 13px;
+  --a2ui-choicepicker-chip-font-weight: 500;
+  --a2ui-choicepicker-chip-padding: 4px 12px;
+  --a2ui-textfield-padding: 4px 8px;
+  --a2ui-textfield-border-radius: 6px;
+  --a2ui-divider-spacing: 3px;
+  --a2ui-button-margin: 0px;
+  --a2ui-button-padding: 4px 12px;
+  --a2ui-font-size: 0.8125rem;
+  --a2ui-font-size-xs: 12px;
+  --a2ui-font-size-s: 12px;
+  --a2ui-font-size-m: 13px;
+  --a2ui-font-size-l: 15px;
+  --a2ui-line-height-body: 1.35;
+  --a2ui-surfaces-padding: 2px 4px;
+  --a2ui-surfaces-gap: 6px;
 }`;
 
 /**

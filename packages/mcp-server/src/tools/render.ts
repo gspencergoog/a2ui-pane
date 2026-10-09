@@ -36,6 +36,19 @@ export function readSidecarSendMessageUrl(dataDir: string): string | undefined {
   return undefined;
 }
 
+export function isPaneVisibleForConversation(dataDir: string, conversationId: string): boolean {
+  try {
+    const endpointFile = path.join(dataDir, 'sidecar-endpoint.json');
+    if (!fs.existsSync(endpointFile)) return false;
+    const parsed = JSON.parse(fs.readFileSync(endpointFile, 'utf-8')) as {
+      visibleConversations?: Record<string, boolean>;
+    };
+    return parsed.visibleConversations?.[conversationId] === true;
+  } catch {
+    return false;
+  }
+}
+
 export const renderA2uiSchema = {
   conversationId: z
     .string()
@@ -267,12 +280,18 @@ export async function handleRenderA2ui(
 
   const surfacesText =
     result.surfaceIds.length > 0 ? `surface(s) [${result.surfaceIds.join(', ')}]` : 'surfaces';
+  const effectiveDataDir =
+    dataDir || process.env.A2UI_PANE_DATA || process.env.PLUGIN_DATA || '/tmp';
+  const isVisible = isPaneVisibleForConversation(effectiveDataDir, conversationId);
+  const visibilityNote = isVisible
+    ? 'The live surface is visible in the open A2UI side panel. Always include [A2UI Pane](sidecar://a2ui-pane/a2ui-pane/) in your response so the user sees an inline button indicating that the pane was updated and can focus it in one click.'
+    : 'The A2UI side panel is currently closed. Always include [A2UI Pane](sidecar://a2ui-pane/a2ui-pane/) in your response so the user sees an inline button indicating that the pane was updated and can open it in one click.';
 
   return {
     content: [
       {
         type: 'text' as const,
-        text: `Rendered ${parsedMessages.length} message(s) to ${surfacesText} in the A2UI pane.\nThe live surface is visible in the A2UI side panel.`,
+        text: `Rendered ${parsedMessages.length} message(s) to ${surfacesText} in the A2UI pane.\n${visibilityNote}`,
       },
     ],
   };

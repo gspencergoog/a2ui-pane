@@ -525,4 +525,85 @@ describe('SidecarServer', () => {
     const res404 = await request('/api/unknown-endpoint');
     expect(res404.status).toBe(404);
   });
+
+  describe('POST /api/visibility and SSE disconnect visibility tracking', () => {
+    it('validates token, payload, and invokes onVisibilityChange across POST /api/visibility and SSE close', async () => {
+      const visibilityEvents: Array<{ convId: string; visible: boolean }> = [];
+      const custom = createSidecarServer(env, {
+        storeReader,
+        notifier,
+        staticDir,
+        onVisibilityChange: (convId, visible) => {
+          visibilityEvents.push({ convId, visible });
+        },
+      });
+
+      let p = 0;
+      await new Promise<void>((resolve) => {
+        custom.listen(0, '127.0.0.1', () => {
+          p = (custom.address() as any).port;
+          resolve();
+        });
+      });
+
+      const postVis = (pathStr: string, body: string) =>
+        new Promise<{ status: number; body: string }>((resolve) => {
+          const req = http.request(
+            `http://127.0.0.1:${p}${pathStr}`,
+            { method: 'POST', headers: { 'Content-Type': 'application/json' } },
+            (r) => {
+              let d = '';
+              r.on('data', (c) => (d += c));
+              r.on('end', () => resolve({ status: r.statusCode ?? 0, body: d }));
+            },
+          );
+          req.write(body);
+          req.end();
+        });
+
+      const unauth = await postVis(
+        '/api/visibility',
+        JSON.stringify({ conversationId: 'conv-vis', visible: true }),
+      );
+      expect(unauth.status).toBe(401);
+
+      const badJson = await postVis('/api/visibility?token=test-secret-token', '{bad');
+      expect(badJson.status).toBe(400);
+
+      const badArgs = await postVis(
+        '/api/visibility?token=test-secret-token',
+        JSON.stringify({ conversationId: '../bad', visible: 'yes' }),
+      );
+      expect(badArgs.status).toBe(400);
+
+      const okTrue = await postVis(
+        '/api/visibility?token=test-secret-token',
+        JSON.stringify({ conversationId: 'conv-vis', visible: true }),
+      );
+      expect(okTrue.status).toBe(200);
+      expect(visibilityEvents).toContainEqual({ convId: 'conv-vis', visible: true });
+
+      // Open two overlapping SSE streams for conv-vis; closing the first must not mark false, closing the second must mark false
+      const openSse = () =>
+        new Promise<http.ClientRequest>((resolve) => {
+          const req = http.get(
+            `http://127.0.0.1:${p}/api/stream?conversationId=conv-vis&token=test-secret-token`,
+            () => resolve(req),
+          );
+        });
+
+      const sse1 = await openSse();
+      const sse2 = await openSse();
+
+      sse1.destroy();
+      await new Promise((r) => setTimeout(r, 30));
+      expect(visibilityEvents.filter((e) => !e.visible)).toHaveLength(0);
+
+      sse2.destroy();
+      await new Promise((r) => setTimeout(r, 30));
+      expect(visibilityEvents).toContainEqual({ convId: 'conv-vis', visible: false });
+
+      await new Promise<void>((resolve) => custom.close(() => resolve()));
+    });
+  });
 });

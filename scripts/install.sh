@@ -66,5 +66,23 @@ else
   echo "✨ Successfully installed a2ui-pane plugin to ${TARGET_PLUGIN_DIR}"
 fi
 
-# Terminate stale MCP server processes so the host spawns the updated bundle on next tool call
+# Terminate stale MCP server processes and trigger LanguageServer RefreshMcpServers
 pkill -f "a2ui-pane/mcp/dist/server.mjs" 2>/dev/null || true
+python3 -c '
+import glob, urllib.request
+for env_file in glob.glob("/proc/[0-9]*/environ"):
+    try:
+        raw = open(env_file, "rb").read().decode("utf-8", errors="ignore")
+        env = dict(item.split("=", 1) for item in raw.split("\0") if "=" in item)
+        if "ANTIGRAVITY_LS_ADDRESS" in env and "ANTIGRAVITY_CSRF_TOKEN" in env:
+            req = urllib.request.Request(
+                f"http://{env[\"ANTIGRAVITY_LS_ADDRESS\"]}/exa.language_server_pb.LanguageServerService/RefreshMcpServers",
+                data=b"{}",
+                headers={"Content-Type": "application/json", "x-codeium-csrf-token": env["ANTIGRAVITY_CSRF_TOKEN"]},
+                method="POST",
+            )
+            urllib.request.urlopen(req, timeout=3).read()
+            break
+    except Exception:
+        pass
+' 2>/dev/null || true

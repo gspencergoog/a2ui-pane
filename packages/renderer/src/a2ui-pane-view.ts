@@ -2,13 +2,54 @@ import { LitElement, html, css, nothing, PropertyValues } from 'lit';
 import { ContextProvider } from '@lit/context';
 import { Context } from '@a2ui/lit/v0_9';
 import '@a2ui/lit/v0_9';
-import { renderMarkdown } from '@a2ui/markdown-it';
+import { renderRichMarkdown } from './markdown-renderer.js';
 import { MessageProcessor } from '@a2ui/web_core/v0_9';
 
 export interface SurfaceChangedDetail {
   surfaceId: string;
   action: 'created' | 'deleted';
 }
+
+const SURFACE_LAYOUT_CSS = `
+  a2ui-basic-row > a2ui-card {
+    display: flex;
+    flex-direction: column;
+  }
+  a2ui-basic-row > a2ui-card > .a2ui-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+  }
+  a2ui-basic-text .a2ui-text {
+    font-size: var(--a2ui-font-size-m, 14px);
+    line-height: var(--a2ui-line-height-body, 1.4);
+  }
+  a2ui-basic-text .a2ui-text ul,
+  a2ui-basic-text .a2ui-text ol {
+    padding-inline-start: 18px;
+    font-size: var(--a2ui-font-size-m, 14px);
+    line-height: var(--a2ui-line-height-body, 1.4);
+  }
+  a2ui-basic-text .a2ui-text li + li {
+    margin-top: 2px;
+  }
+  .a2ui-math-block {
+    margin: 4px 0;
+    overflow-x: auto;
+  }
+  .a2ui-mermaid {
+    margin: 4px 0;
+    overflow-x: auto;
+    text-align: center;
+  }
+  .a2ui-mermaid-svg {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+    height: auto;
+  }
+`;
 
 /**
  * Lit custom element rendering multiple A2UI surfaces in creation order.
@@ -36,7 +77,7 @@ export class A2uiPaneView extends LitElement {
     // Provide markdown renderer context to descendant components (e.g. Text)
     new ContextProvider(this, {
       context: Context.markdown,
-      initialValue: renderMarkdown,
+      initialValue: renderRichMarkdown,
     });
   }
 
@@ -56,9 +97,27 @@ export class A2uiPaneView extends LitElement {
     .a2ui-surfaces {
       display: flex;
       flex-direction: column;
-      gap: 16px;
-      padding: 16px;
+      gap: var(--a2ui-surfaces-gap, 16px);
+      padding: var(--a2ui-surfaces-padding, 16px);
       box-sizing: border-box;
+    }
+
+    .a2ui-math-block {
+      margin: 6px 0;
+      overflow-x: auto;
+    }
+
+    .a2ui-mermaid {
+      margin: 6px 0;
+      overflow-x: auto;
+      text-align: center;
+    }
+
+    .a2ui-mermaid-svg {
+      display: block;
+      margin: 0 auto;
+      max-width: 100%;
+      height: auto;
     }
 
     .a2ui-surfaces[data-busy] {
@@ -120,6 +179,25 @@ export class A2uiPaneView extends LitElement {
       } else {
         this.surfaceIds = [];
       }
+    }
+  }
+
+  override updated(changedProperties: PropertyValues<this>): void {
+    super.updated(changedProperties);
+    this.injectSurfaceStyles();
+  }
+
+  private injectSurfaceStyles(): void {
+    const surfaces = this.renderRoot.querySelectorAll('a2ui-surface');
+    for (const surfaceEl of Array.from(surfaces)) {
+      const sr = surfaceEl.shadowRoot;
+      if (!sr || sr.querySelector('style[data-a2ui-surface-layout]')) {
+        continue;
+      }
+      const style = document.createElement('style');
+      style.setAttribute('data-a2ui-surface-layout', 'true');
+      style.textContent = SURFACE_LAYOUT_CSS;
+      sr.appendChild(style);
     }
   }
 

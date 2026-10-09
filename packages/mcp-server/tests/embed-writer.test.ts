@@ -36,6 +36,9 @@ describe('embed-writer', () => {
     expect(html).toContain('<!DOCTYPE html>');
     expect(html).toContain('<title>A2UI Embed - cardSurface</title>');
     expect(html).toContain('--a2ui-color-surface:');
+    expect(html).toContain('--a2ui-card-margin: 0px;');
+    expect(html).toContain('--a2ui-column-gap: 4px;');
+    expect(html).toContain('--a2ui-choicepicker-chip-font-size: 13px;');
     expect(html).toContain('<div id="a2ui-embed-root"></div>');
     expect(html).toContain('// Custom Bundle Code');
     expect(html).toContain('"surfaceId":"cardSurface"');

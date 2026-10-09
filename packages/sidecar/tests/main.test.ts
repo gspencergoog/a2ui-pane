@@ -136,7 +136,10 @@ describe('sidecar index and main', () => {
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[a2ui-pane-sidecar] Listening'));
     const endpointFile = path.join(tmpDataDir, 'sidecar-endpoint.json');
     expect(fs.existsSync(endpointFile)).toBe(true);
-    expect(JSON.parse(fs.readFileSync(endpointFile, 'utf-8'))).toEqual({ port: 0 });
+    expect(JSON.parse(fs.readFileSync(endpointFile, 'utf-8'))).toEqual({
+      port: 0,
+      visibleConversations: {},
+    });
 
     // Trigger SIGTERM listener
     process.emit('SIGTERM');

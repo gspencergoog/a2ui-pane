@@ -47,13 +47,11 @@ To create or update an A2UI interface:
 
 ## 3. Opening the AuxPane
 
-When you render a surface in `"pane"` mode (the default), provide a convenient navigation hint so the user can toggle the pane view:
+Whenever you render or update a surface in `"pane"` mode (the default), **always** include the inline sidecar pill in your chat response so the user knows the pane has been updated and can open or focus it in one click:
 
 ```markdown
-Rendered in the A2UI Pane. Click the side panel tab to view your interface.
+Updated the A2UI side panel: [A2UI Pane](sidecar://a2ui-pane/a2ui-pane/)
 ```
-
-If the host supports auxiliary pane actions, you can offer to open the pane.
 
 ## 4. Two-Way Data Binding & Actions
 

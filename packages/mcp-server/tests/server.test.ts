@@ -562,5 +562,52 @@ describe('MCP Server Tools and Entrypoint', () => {
 
       delete process.env.A2UI_PANE_SIDE_CHANNEL;
     });
+
+    it('includes [A2UI Pane] pill instruction in pane mode when closed and omits it when visible', async () => {
+      const closedResult = await handleRenderA2ui(
+        {
+          conversationId: 'conv-pane-vis',
+          mode: 'pane',
+          messages: [
+            {
+              version: 'v0.9',
+              createSurface: { surfaceId: 'surfVis', catalogId: 'basic' },
+            },
+          ],
+        },
+        serverInstance.getState,
+        serverInstance.catalogs,
+        tempDir,
+      );
+      expect(closedResult.content[0].text).toContain('[A2UI Pane](sidecar://a2ui-pane/a2ui-pane/)');
+
+      writeFileSync(
+        join(tempDir, 'sidecar-endpoint.json'),
+        JSON.stringify({
+          port: 39027,
+          visibleConversations: { 'conv-pane-vis': true },
+        }),
+      );
+
+      const openResult = await handleRenderA2ui(
+        {
+          conversationId: 'conv-pane-vis',
+          mode: 'pane',
+          messages: [
+            {
+              version: 'v0.9',
+              createSurface: { surfaceId: 'surfVis2', catalogId: 'basic' },
+            },
+          ],
+        },
+        serverInstance.getState,
+        serverInstance.catalogs,
+        tempDir,
+      );
+      expect(openResult.content[0].text).toContain(
+        'The live surface is visible in the open A2UI side panel.',
+      );
+      expect(openResult.content[0].text).toContain('[A2UI Pane](sidecar://a2ui-pane/a2ui-pane/)');
+    });
   });
 });

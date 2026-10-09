@@ -22,12 +22,13 @@ export function writeSidecarEndpointFile(
   port: number,
   uiToken?: string,
   baseUrl?: string,
+  visibleConversations?: Record<string, boolean>,
 ): void {
   try {
     fs.mkdirSync(dataDir, { recursive: true, mode: 0o700 });
     fs.writeFileSync(
       path.join(dataDir, 'sidecar-endpoint.json'),
-      JSON.stringify({ port, uiToken, baseUrl }),
+      JSON.stringify({ port, uiToken, baseUrl, visibleConversations }),
       { mode: 0o600 },
     );
   } catch {
@@ -87,13 +88,32 @@ export function run(): void {
       console.log(`[a2ui-pane-sidecar] Cleaned up ${cleanup.deleted} stale files.`);
     }
 
-    const server = createSidecarServer(env);
+    const visibleConversations: Record<string, boolean> = {};
+    let resolvedBaseUrl: string | undefined;
+
+    const persistEndpoint = () => {
+      writeSidecarEndpointFile(
+        env.dataDir,
+        env.port,
+        env.uiToken,
+        resolvedBaseUrl,
+        visibleConversations,
+      );
+    };
+
+    const server = createSidecarServer(env, {
+      onVisibilityChange: (convId, visible) => {
+        visibleConversations[convId] = visible;
+        persistEndpoint();
+      },
+    });
 
     server.listen(env.port, '127.0.0.1', () => {
-      writeSidecarEndpointFile(env.dataDir, env.port, env.uiToken);
+      persistEndpoint();
       void resolveSidecarBaseUrl(env).then((baseUrl) => {
         if (baseUrl) {
-          writeSidecarEndpointFile(env.dataDir, env.port, env.uiToken, baseUrl);
+          resolvedBaseUrl = baseUrl;
+          persistEndpoint();
         }
       });
       console.log(
