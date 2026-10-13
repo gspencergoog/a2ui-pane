@@ -1,0 +1,29 @@
+// @genui id=contract_workbench surface=inline
+// @summary Live micro-spec editor for an API or schema contract: two validated identifier fields, a chip picker, a bounded slider, two flags, and a reactive preview line.
+// @data /title /contract {route,eventName,wireFormat,timeoutSec,idempotent,includeDataModel} /labels {route,eventName,wireFormat,timeout,idempotent,includeDataModel} /submitLabel
+// @action approve_contract
+// @customize preview_text wire_format_picker timeout_slider submit_btn
+
+$/title = "### API & Schema Contract Workbench"
+$/contract = {route: "/api/example", eventName: "submit_example", wireFormat: ["flat_envelope"], timeoutSec: 120, idempotent: true, includeDataModel: true}
+$/labels = {route: "Route", eventName: "Event name", wireFormat: "Payload format", timeout: "Timeout (seconds)", idempotent: "Require idempotency key", includeDataModel: "Attach data model snapshot"}
+$/submitLabel = "Approve Contract"
+
+root = Card(contract_col)
+contract_col = Column([contract_title, preview_text, contract_top_divider, fields_row, picks_row, flags_row, contract_bottom_divider, contract_footer])
+contract_title = Text($/title)
+preview_text = Text(formatString("**Preview:** `POST ${/contract/route}` | **Event:** `${/contract/eventName}` | **Timeout:** `${/contract/timeoutSec}s`"))
+contract_top_divider = Divider()
+fields_row = Row([route_field, event_field])
+route_field = TextField($/labels/route, $/contract/route, _, _, 1, [?required("Route is required"), ?regex(r"^/[a-z0-9/_-]+$", "Must start with / and use lowercase slug characters")])
+event_field = TextField($/labels/eventName, $/contract/eventName, _, _, 1, [?required("Event name is required"), ?regex(r"^[a-z][a-z0-9_]*$", "Must be a snake_case identifier")])
+picks_row = Row([wire_format_picker, timeout_slider])
+wire_format_picker = ChoicePicker($/labels/wireFormat, "mutuallyExclusive", [{label: "JSON-RPC 2.0", value: "jsonrpc"}, {label: "Flat Action Envelope", value: "flat_envelope"}, {label: "NDJSON Stream", value: "ndjson"}], $/contract/wireFormat, "chips", _, 1)
+timeout_slider = Slider($/labels/timeout, 5, 300, $/contract/timeoutSec, 1)
+flags_row = Row([idempotent_check, include_model_check])
+idempotent_check = CheckBox($/labels/idempotent, $/contract/idempotent, 1)
+include_model_check = CheckBox($/labels/includeDataModel, $/contract/includeDataModel, 1)
+contract_bottom_divider = Divider()
+contract_footer = Row([submit_btn], "end", "center")
+submit_label = Text($/submitLabel)
+submit_btn = Button(submit_label, "primary", Event("approve_contract", {contract: $/contract}), _, [?required($/contract/route, "Route is required"), ?required($/contract/eventName, "Event name is required")])

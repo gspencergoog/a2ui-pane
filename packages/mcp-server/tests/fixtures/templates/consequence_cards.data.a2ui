@@ -1,0 +1,4 @@
+$/question = "**Context**: `OrderRepository` writes only to `legacy_orders`. Which cutover strategy should we use for `orders_v2`?"
+$/options = [{title: "**A: Dual-Write + Shadow Reads (Recommended)**", impact: "Impact: 3 adapter files; zero downtime.", tradeoff: "Tradeoff: temporary shadow-diff logging ($< 2\\text{ms}$ p99)."}, {title: "**B: In-Place Maintenance Cutover**", impact: "Impact: one migration script; 1 file.", tradeoff: "Tradeoff: 15-minute write freeze during deploy."}]
+$/choice = ["dual_write"]
+choice_picker = ChoicePicker("Select cutover strategy", "mutuallyExclusive", [{label: "A: Dual-Write (Recommended)", value: "dual_write"}, {label: "B: In-Place Cutover", value: "cutover"}], $/choice, "chips")

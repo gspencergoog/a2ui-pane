@@ -1,0 +1,10 @@
+$/title = "### Delete 3 merged branches?"
+$/summary = """The following local branches are merged into `main` and will be deleted:
+
+- `feature/express-worker`
+- `fix/slider-padding`
+- `docs/genui-skill`
+
+Remote tracking refs are left untouched."""
+$/confirmLabel = "I understand these branches cannot be recovered from the reflog after 90 days"
+$/confirmButtonLabel = "Delete branches"

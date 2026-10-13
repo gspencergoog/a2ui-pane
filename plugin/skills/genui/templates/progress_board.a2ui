@@ -1,0 +1,25 @@
+// @genui id=progress_board surface=pane
+// @summary Live status board for long-running work: a title, a subtitle, one row per item (status badge, label, detail), and an acknowledge button. Drive it with data-only updates.
+// @data /title /subtitle /items[] {status,label,detail} /ackLabel
+// @action acknowledge_progress
+// @customize ack_btn
+
+$/title = "### Progress"
+$/subtitle = "Updated as work completes."
+$/items = []
+$/ackLabel = "Acknowledge"
+
+root = Card(board_col)
+board_col = Column([board_title, board_subtitle, board_divider, board_rows, board_footer])
+board_title = Text($/title)
+board_subtitle = Text($/subtitle, "caption")
+board_divider = Divider()
+board_rows = Column(_template($/items, board_row))
+board_row = Row([board_row_status, board_row_body], _, "center")
+board_row_status = Text($status)
+board_row_body = Column([board_row_label, board_row_detail], _, _, 1)
+board_row_label = Text($label)
+board_row_detail = Text($detail, "caption")
+board_footer = Row([ack_btn], "end", "center")
+ack_label = Text($/ackLabel)
+ack_btn = Button(ack_label, _, Event("acknowledge_progress"))

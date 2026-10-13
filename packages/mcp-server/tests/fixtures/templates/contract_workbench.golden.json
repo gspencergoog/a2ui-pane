@@ -1,0 +1,305 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "contract_workbench",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+      "sendDataModel": true
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "contract_workbench",
+      "components": [
+        {
+          "id": "root",
+          "component": "Card",
+          "child": "contract_col"
+        },
+        {
+          "id": "contract_col",
+          "component": "Column",
+          "children": [
+            "contract_title",
+            "preview_text",
+            "contract_top_divider",
+            "fields_row",
+            "picks_row",
+            "flags_row",
+            "contract_bottom_divider",
+            "contract_footer"
+          ]
+        },
+        {
+          "id": "contract_title",
+          "component": "Text",
+          "text": {
+            "path": "/title"
+          }
+        },
+        {
+          "id": "preview_text",
+          "component": "Text",
+          "text": {
+            "call": "formatString",
+            "args": {
+              "value": "**Preview:** `POST ${/contract/route}` | **Event:** `${/contract/eventName}` | **Timeout:** `${/contract/timeoutSec}s`"
+            }
+          }
+        },
+        {
+          "id": "contract_top_divider",
+          "component": "Divider"
+        },
+        {
+          "id": "fields_row",
+          "component": "Row",
+          "children": [
+            "route_field",
+            "event_field"
+          ]
+        },
+        {
+          "id": "route_field",
+          "component": "TextField",
+          "label": {
+            "path": "/labels/route"
+          },
+          "value": {
+            "path": "/contract/route"
+          },
+          "weight": 1,
+          "checks": [
+            {
+              "condition": {
+                "call": "required",
+                "args": {
+                  "value": {
+                    "path": "/contract/route"
+                  }
+                }
+              },
+              "message": "Route is required"
+            },
+            {
+              "condition": {
+                "call": "regex",
+                "args": {
+                  "value": {
+                    "path": "/contract/route"
+                  },
+                  "pattern": "^/[a-z0-9/_-]+$"
+                }
+              },
+              "message": "Must start with / and use lowercase slug characters"
+            }
+          ]
+        },
+        {
+          "id": "event_field",
+          "component": "TextField",
+          "label": {
+            "path": "/labels/eventName"
+          },
+          "value": {
+            "path": "/contract/eventName"
+          },
+          "weight": 1,
+          "checks": [
+            {
+              "condition": {
+                "call": "required",
+                "args": {
+                  "value": {
+                    "path": "/contract/eventName"
+                  }
+                }
+              },
+              "message": "Event name is required"
+            },
+            {
+              "condition": {
+                "call": "regex",
+                "args": {
+                  "value": {
+                    "path": "/contract/eventName"
+                  },
+                  "pattern": "^[a-z][a-z0-9_]*$"
+                }
+              },
+              "message": "Must be a snake_case identifier"
+            }
+          ]
+        },
+        {
+          "id": "picks_row",
+          "component": "Row",
+          "children": [
+            "wire_format_picker",
+            "timeout_slider"
+          ]
+        },
+        {
+          "id": "wire_format_picker",
+          "component": "ChoicePicker",
+          "label": {
+            "path": "/labels/wireFormat"
+          },
+          "variant": "mutuallyExclusive",
+          "options": [
+            {
+              "label": "JSON-RPC 2.0",
+              "value": "jsonrpc"
+            },
+            {
+              "label": "Flat Action Envelope",
+              "value": "flat_envelope"
+            },
+            {
+              "label": "NDJSON Stream",
+              "value": "ndjson"
+            }
+          ],
+          "value": {
+            "path": "/contract/wireFormat"
+          },
+          "displayStyle": "chips",
+          "weight": 1
+        },
+        {
+          "id": "timeout_slider",
+          "component": "Slider",
+          "label": {
+            "path": "/labels/timeout"
+          },
+          "min": 5,
+          "max": 300,
+          "value": {
+            "path": "/contract/timeoutSec"
+          },
+          "weight": 1
+        },
+        {
+          "id": "flags_row",
+          "component": "Row",
+          "children": [
+            "idempotent_check",
+            "include_model_check"
+          ]
+        },
+        {
+          "id": "idempotent_check",
+          "component": "CheckBox",
+          "label": {
+            "path": "/labels/idempotent"
+          },
+          "value": {
+            "path": "/contract/idempotent"
+          },
+          "weight": 1
+        },
+        {
+          "id": "include_model_check",
+          "component": "CheckBox",
+          "label": {
+            "path": "/labels/includeDataModel"
+          },
+          "value": {
+            "path": "/contract/includeDataModel"
+          },
+          "weight": 1
+        },
+        {
+          "id": "contract_bottom_divider",
+          "component": "Divider"
+        },
+        {
+          "id": "contract_footer",
+          "component": "Row",
+          "children": [
+            "submit_btn"
+          ],
+          "justify": "end",
+          "align": "center"
+        },
+        {
+          "id": "submit_label",
+          "component": "Text",
+          "text": {
+            "path": "/submitLabel"
+          }
+        },
+        {
+          "id": "submit_btn",
+          "component": "Button",
+          "child": "submit_label",
+          "variant": "primary",
+          "action": {
+            "event": {
+              "name": "approve_contract",
+              "context": {
+                "contract": {
+                  "path": "/contract"
+                }
+              }
+            }
+          },
+          "checks": [
+            {
+              "condition": {
+                "call": "required",
+                "args": {
+                  "value": {
+                    "path": "/contract/route"
+                  }
+                }
+              },
+              "message": "Route is required"
+            },
+            {
+              "condition": {
+                "call": "required",
+                "args": {
+                  "value": {
+                    "path": "/contract/eventName"
+                  }
+                }
+              },
+              "message": "Event name is required"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "contract_workbench",
+      "path": "/",
+      "value": {
+        "title": "### Template 2: API & Schema Contract Workbench",
+        "contract": {
+          "route": "/_sidecar/send-message",
+          "eventName": "submit_alignment",
+          "wireFormat": [
+            "flat_envelope"
+          ],
+          "timeoutSec": 120,
+          "idempotent": true,
+          "includeDataModel": true
+        },
+        "labels": {
+          "route": "Sidecar Endpoint Route",
+          "eventName": "Action Event Name",
+          "wireFormat": "Payload Envelope Format",
+          "timeout": "Await Timeout (seconds)",
+          "idempotent": "Require idempotency key header",
+          "includeDataModel": "Attach full client dataModel snapshot"
+        },
+        "submitLabel": "Approve API Contract"
+      }
+    }
+  }
+]

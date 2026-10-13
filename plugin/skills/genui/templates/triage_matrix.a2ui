@@ -1,0 +1,33 @@
+// @genui id=triage_matrix surface=pane
+// @summary Batch disposition of discovered items: a scrollable list of cards, each with a severity icon, summary, a trace popover, a bucket chip row, and a note field.
+// @data /title /intro /items[] {icon,title,summary,trace,bucket,note} /submitLabel
+// @action submit_triage_matrix
+// @customize bucket_picker submit_btn
+
+$/title = "### Scope & Edge-Case Triage Matrix"
+$/intro = "Classify each item into a delivery bucket and inspect its trace when needed."
+$/items = []
+$/submitLabel = "Lock In Triage"
+
+root = Card(triage_col)
+triage_col = Column([triage_title, triage_intro, triage_list, triage_divider, triage_footer])
+triage_title = Text($/title)
+triage_intro = Text($/intro, "caption")
+triage_list = List(_template($/items, triage_item_card))
+triage_item_card = Card(triage_item_col)
+triage_item_col = Column([triage_item_head, triage_item_summary, bucket_picker, triage_item_note])
+triage_item_head = Row([triage_item_title_group, triage_item_modal], "spaceBetween", "center")
+triage_item_title_group = Row([triage_item_icon, triage_item_title], _, "center", 1)
+triage_item_icon = Icon($icon)
+triage_item_title = Text($title, "h4", 1)
+triage_item_modal = Modal(trace_trigger, trace_body)
+trace_trigger = Button(trace_trigger_label, "borderless", Event("open_trace"))
+trace_trigger_label = Text("🔍 Trace ↗", "caption")
+trace_body = Text($trace)
+triage_item_summary = Text($summary, "caption")
+bucket_picker = ChoicePicker(_, "mutuallyExclusive", [{label: "🎯 Must-Have", value: "p0"}, {label: "⏭️ Fast-Follow", value: "p1"}, {label: "🚫 Out of Scope", value: "out"}], $bucket, "chips")
+triage_item_note = TextField("Caveat or follow-up target", $note)
+triage_divider = Divider()
+triage_footer = Row([submit_btn], "end", "center")
+submit_label = Text($/submitLabel)
+submit_btn = Button(submit_label, "primary", Event("submit_triage_matrix", {items: $/items}))

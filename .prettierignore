@@ -1,0 +1,3 @@
+
+# Generated golden fixtures (written by JSON.stringify in templates.test.ts)
+packages/mcp-server/tests/fixtures/templates/*.golden.json

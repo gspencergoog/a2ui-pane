@@ -1,0 +1,22 @@
+$/title = "### Template 4: Failure-Mode & State-Machine Walkthrough"
+$/diagram = """Verify transition policies and retry bounds:
+
+$$T_{\text{backoff}}(k) = \min\left(T_{\max},\; T_0 \cdot 2^k + \mathcal{U}(0, J)\right)$$
+
+```mermaid
+stateDiagram-v2
+    [*] --> Queued
+    Queued --> Leasing: acquire_lease()
+    Leasing --> Running: lease_granted
+    Running --> Retrying: transient_error (E_NET)
+    Retrying --> Queued: backoff_elapsed
+    Running --> DeadLetter: k >= K_max (E_POISON)
+    Running --> Completed: ack_success
+```"""
+$/transitions = {t1: {desc: "**Transition `Running -> Leasing` (Heartbeat Timeout)**\nWorker loses network partition while holding lease $L_i$.", policy: ["fencing_token"], maxRetries: 3, flag: true}, t2: {desc: "**Transition `Running -> Retrying` (Partial Sub-Batch Failure)**\n3 of 50 records fail downstream validation.", policy: ["split_subset"], maxRetries: 5}, t3: {desc: "**Transition `Running -> DeadLetter` (Deterministic Deserialization Error)**\nPayload fails schema validation on first attempt.", policy: ["immediate_dlq"], flag: true}}
+$/labels = {t1: "E1", t2: "E2", t3: "E3", slider1: "Max Lease Re-acquisitions (K_max)", slider2: "Max Subset Retries (K_max)", flag1: "Emit structured audit event on epoch mismatch", flag3: "Page on-call if DLQ rate exceeds 1% of throughput"}
+$/submitLabel = "Confirm State-Machine Policies"
+transition_tabs = Tabs([{title: "⚡ E1: Lease Expired", child: tab_t1}, {title: "🔄 E2: Partial Batch", child: tab_t2}, {title: "💀 E3: Poison Pill", child: tab_t3}])
+t1_policy_picker = ChoicePicker("Fencing Strategy", "mutuallyExclusive", [{label: "Fencing Token (Monotonic Epoch)", value: "fencing_token"}, {label: "Optimistic CAS on Commit", value: "optimistic_cas"}, {label: "Idempotent Sink Dedup", value: "sink_dedup"}], $/transitions/t1/policy, "chips")
+t2_policy_picker = ChoicePicker("Partial Failure Semantics", "mutuallyExclusive", [{label: "Split & Retry Failed Subset Only", value: "split_subset"}, {label: "Rollback Full Batch", value: "rollback_all"}, {label: "Commit 47 & Route 3 to DLQ", value: "partial_dlq"}], $/transitions/t2/policy, "chips")
+t3_policy_picker = ChoicePicker("Poison Pill Handling", "mutuallyExclusive", [{label: "Immediate DLQ (Skip Retries)", value: "immediate_dlq"}, {label: "Retry Once After Schema Refresh", value: "retry_once_schema"}, {label: "Halt Partition Consumer", value: "halt_partition"}], $/transitions/t3/policy, "chips")

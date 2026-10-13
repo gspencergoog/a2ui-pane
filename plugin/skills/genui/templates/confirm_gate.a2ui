@@ -1,0 +1,24 @@
+// @genui id=confirm_gate surface=inline
+// @summary Confirmation gate for one consequential action: a Markdown summary of what will happen, an acknowledgement checkbox that unlocks the primary button, and a cancel button.
+// @data /title /summary /confirmLabel /confirmed /confirmButtonLabel /cancelLabel
+// @action confirm_gate
+// @customize confirm_btn cancel_btn
+
+$/title = "### Confirm before continuing"
+$/summary = "This action cannot be undone."
+$/confirmLabel = "I understand the consequences"
+$/confirmed = false
+$/confirmButtonLabel = "Proceed"
+$/cancelLabel = "Cancel"
+
+root = Card(gate_col)
+gate_col = Column([gate_title, gate_summary, gate_divider, confirm_check, gate_footer])
+gate_title = Text($/title)
+gate_summary = Text($/summary)
+gate_divider = Divider()
+confirm_check = CheckBox($/confirmLabel, $/confirmed)
+gate_footer = Row([cancel_btn, confirm_btn], "end", "center")
+cancel_label = Text($/cancelLabel)
+cancel_btn = Button(cancel_label, _, Event("cancel_confirm_gate"))
+confirm_label = Text($/confirmButtonLabel)
+confirm_btn = Button(confirm_label, "primary", Event("confirm_gate", {confirmed: $/confirmed}), _, [?and([$/confirmed, true], "Tick the acknowledgement first")])

@@ -1,0 +1,8 @@
+$/title = "### Template 3: Scope & Edge-Case Triage Matrix"
+$/intro = "Classify discovered edge cases into delivery buckets and inspect the source trace for each finding."
+$/items = [{icon: "warning", title: "Concurrent render_a2ui calls on same surfaceId", summary: "Two background subagents emit updateComponents for the same surfaceId simultaneously.", trace: """### Concurrent Write Trace
+`packages/mcp-server/src/store-writer.ts:84`
+
+If two tools write simultaneously, `createSurface` reset boundaries can interleave.""", bucket: ["p0"], note: "Block via 409 Conflict with surfaceId in details"}, {icon: "info", title: "Unsaved draft persistence across AuxPane reload", summary: "User closes and reopens the sidecar panel while a surface has unsaved local edits.", trace: "### AuxPane Reload Trace\nReplaying the JSONL log restores the initial server snapshot.", bucket: ["p1"], note: "Track in follow-up issue"}, {icon: "error", title: "Recursive nested Modals inside inline cards", summary: "Rendering a Modal trigger inside another Modal content tree.", trace: "### Nested Modal Constraint\nStacked modal backdrops clip against the iframe container.", bucket: ["out"], note: "Explicitly unsupported; document in SKILL.md"}]
+$/submitLabel = "Lock In Scope Triage"
+bucket_picker = ChoicePicker(_, "mutuallyExclusive", [{label: "🎯 Must-Have (PR 1)", value: "p0"}, {label: "⏭️ Fast-Follow (PR 2)", value: "p1"}, {label: "🚫 Out of Scope", value: "out"}], $bucket, "chips")

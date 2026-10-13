@@ -1,0 +1,317 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "state_walkthrough",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+      "sendDataModel": true
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "state_walkthrough",
+      "components": [
+        {
+          "id": "root",
+          "component": "Card",
+          "child": "sm_col"
+        },
+        {
+          "id": "sm_col",
+          "component": "Column",
+          "children": [
+            "sm_title",
+            "sm_diagram",
+            "sm_top_divider",
+            "transition_tabs",
+            "sm_bottom_divider",
+            "sm_footer"
+          ]
+        },
+        {
+          "id": "sm_title",
+          "component": "Text",
+          "text": {
+            "path": "/title"
+          }
+        },
+        {
+          "id": "sm_diagram",
+          "component": "Text",
+          "text": {
+            "path": "/diagram"
+          }
+        },
+        {
+          "id": "sm_top_divider",
+          "component": "Divider"
+        },
+        {
+          "id": "transition_tabs",
+          "component": "Tabs",
+          "tabs": [
+            {
+              "title": "⚡ E1: Lease Expired",
+              "child": "tab_t1"
+            },
+            {
+              "title": "🔄 E2: Partial Batch",
+              "child": "tab_t2"
+            },
+            {
+              "title": "💀 E3: Poison Pill",
+              "child": "tab_t3"
+            }
+          ]
+        },
+        {
+          "id": "tab_t1",
+          "component": "Column",
+          "children": [
+            "t1_desc",
+            "t1_policy_picker",
+            "t1_slider",
+            "t1_flag"
+          ]
+        },
+        {
+          "id": "t1_desc",
+          "component": "Text",
+          "text": {
+            "path": "/transitions/t1/desc"
+          }
+        },
+        {
+          "id": "t1_policy_picker",
+          "component": "ChoicePicker",
+          "label": "Fencing Strategy",
+          "variant": "mutuallyExclusive",
+          "options": [
+            {
+              "label": "Fencing Token (Monotonic Epoch)",
+              "value": "fencing_token"
+            },
+            {
+              "label": "Optimistic CAS on Commit",
+              "value": "optimistic_cas"
+            },
+            {
+              "label": "Idempotent Sink Dedup",
+              "value": "sink_dedup"
+            }
+          ],
+          "value": {
+            "path": "/transitions/t1/policy"
+          },
+          "displayStyle": "chips"
+        },
+        {
+          "id": "t1_slider",
+          "component": "Slider",
+          "label": {
+            "path": "/labels/slider1"
+          },
+          "min": 0,
+          "max": 10,
+          "value": {
+            "path": "/transitions/t1/maxRetries"
+          }
+        },
+        {
+          "id": "t1_flag",
+          "component": "CheckBox",
+          "label": {
+            "path": "/labels/flag1"
+          },
+          "value": {
+            "path": "/transitions/t1/flag"
+          }
+        },
+        {
+          "id": "tab_t2",
+          "component": "Column",
+          "children": [
+            "t2_desc",
+            "t2_policy_picker",
+            "t2_slider"
+          ]
+        },
+        {
+          "id": "t2_desc",
+          "component": "Text",
+          "text": {
+            "path": "/transitions/t2/desc"
+          }
+        },
+        {
+          "id": "t2_policy_picker",
+          "component": "ChoicePicker",
+          "label": "Partial Failure Semantics",
+          "variant": "mutuallyExclusive",
+          "options": [
+            {
+              "label": "Split & Retry Failed Subset Only",
+              "value": "split_subset"
+            },
+            {
+              "label": "Rollback Full Batch",
+              "value": "rollback_all"
+            },
+            {
+              "label": "Commit 47 & Route 3 to DLQ",
+              "value": "partial_dlq"
+            }
+          ],
+          "value": {
+            "path": "/transitions/t2/policy"
+          },
+          "displayStyle": "chips"
+        },
+        {
+          "id": "t2_slider",
+          "component": "Slider",
+          "label": {
+            "path": "/labels/slider2"
+          },
+          "min": 0,
+          "max": 10,
+          "value": {
+            "path": "/transitions/t2/maxRetries"
+          }
+        },
+        {
+          "id": "tab_t3",
+          "component": "Column",
+          "children": [
+            "t3_desc",
+            "t3_policy_picker",
+            "t3_flag"
+          ]
+        },
+        {
+          "id": "t3_desc",
+          "component": "Text",
+          "text": {
+            "path": "/transitions/t3/desc"
+          }
+        },
+        {
+          "id": "t3_policy_picker",
+          "component": "ChoicePicker",
+          "label": "Poison Pill Handling",
+          "variant": "mutuallyExclusive",
+          "options": [
+            {
+              "label": "Immediate DLQ (Skip Retries)",
+              "value": "immediate_dlq"
+            },
+            {
+              "label": "Retry Once After Schema Refresh",
+              "value": "retry_once_schema"
+            },
+            {
+              "label": "Halt Partition Consumer",
+              "value": "halt_partition"
+            }
+          ],
+          "value": {
+            "path": "/transitions/t3/policy"
+          },
+          "displayStyle": "chips"
+        },
+        {
+          "id": "t3_flag",
+          "component": "CheckBox",
+          "label": {
+            "path": "/labels/flag3"
+          },
+          "value": {
+            "path": "/transitions/t3/flag"
+          }
+        },
+        {
+          "id": "sm_bottom_divider",
+          "component": "Divider"
+        },
+        {
+          "id": "sm_footer",
+          "component": "Row",
+          "children": [
+            "submit_btn"
+          ],
+          "justify": "end",
+          "align": "center"
+        },
+        {
+          "id": "submit_label",
+          "component": "Text",
+          "text": {
+            "path": "/submitLabel"
+          }
+        },
+        {
+          "id": "submit_btn",
+          "component": "Button",
+          "child": "submit_label",
+          "variant": "primary",
+          "action": {
+            "event": {
+              "name": "submit_state_machine",
+              "context": {
+                "transitions": {
+                  "path": "/transitions"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "state_walkthrough",
+      "path": "/",
+      "value": {
+        "title": "### Template 4: Failure-Mode & State-Machine Walkthrough",
+        "diagram": "Verify transition policies and retry bounds:\n\n$$T_{\text{backoff}}(k) = \\min\\left(T_{\\max},\\; T_0 \\cdot 2^k + \\mathcal{U}(0, J)\right)$$\n\n```mermaid\nstateDiagram-v2\n    [*] --> Queued\n    Queued --> Leasing: acquire_lease()\n    Leasing --> Running: lease_granted\n    Running --> Retrying: transient_error (E_NET)\n    Retrying --> Queued: backoff_elapsed\n    Running --> DeadLetter: k >= K_max (E_POISON)\n    Running --> Completed: ack_success\n```",
+        "transitions": {
+          "t1": {
+            "desc": "**Transition `Running -> Leasing` (Heartbeat Timeout)**\nWorker loses network partition while holding lease $L_i$.",
+            "policy": [
+              "fencing_token"
+            ],
+            "maxRetries": 3,
+            "flag": true
+          },
+          "t2": {
+            "desc": "**Transition `Running -> Retrying` (Partial Sub-Batch Failure)**\n3 of 50 records fail downstream validation.",
+            "policy": [
+              "split_subset"
+            ],
+            "maxRetries": 5
+          },
+          "t3": {
+            "desc": "**Transition `Running -> DeadLetter` (Deterministic Deserialization Error)**\nPayload fails schema validation on first attempt.",
+            "policy": [
+              "immediate_dlq"
+            ],
+            "flag": true
+          }
+        },
+        "labels": {
+          "t1": "E1",
+          "t2": "E2",
+          "t3": "E3",
+          "slider1": "Max Lease Re-acquisitions (K_max)",
+          "slider2": "Max Subset Retries (K_max)",
+          "flag1": "Emit structured audit event on epoch mismatch",
+          "flag3": "Page on-call if DLQ rate exceeds 1% of throughput"
+        },
+        "submitLabel": "Confirm State-Machine Policies"
+      }
+    }
+  }
+]

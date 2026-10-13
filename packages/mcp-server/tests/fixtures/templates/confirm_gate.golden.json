@@ -1,0 +1,143 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "confirm_gate",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+      "sendDataModel": true
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "confirm_gate",
+      "components": [
+        {
+          "id": "root",
+          "component": "Card",
+          "child": "gate_col"
+        },
+        {
+          "id": "gate_col",
+          "component": "Column",
+          "children": [
+            "gate_title",
+            "gate_summary",
+            "gate_divider",
+            "confirm_check",
+            "gate_footer"
+          ]
+        },
+        {
+          "id": "gate_title",
+          "component": "Text",
+          "text": {
+            "path": "/title"
+          }
+        },
+        {
+          "id": "gate_summary",
+          "component": "Text",
+          "text": {
+            "path": "/summary"
+          }
+        },
+        {
+          "id": "gate_divider",
+          "component": "Divider"
+        },
+        {
+          "id": "confirm_check",
+          "component": "CheckBox",
+          "label": {
+            "path": "/confirmLabel"
+          },
+          "value": {
+            "path": "/confirmed"
+          }
+        },
+        {
+          "id": "gate_footer",
+          "component": "Row",
+          "children": [
+            "cancel_btn",
+            "confirm_btn"
+          ],
+          "justify": "end",
+          "align": "center"
+        },
+        {
+          "id": "cancel_label",
+          "component": "Text",
+          "text": {
+            "path": "/cancelLabel"
+          }
+        },
+        {
+          "id": "cancel_btn",
+          "component": "Button",
+          "child": "cancel_label",
+          "action": {
+            "event": {
+              "name": "cancel_confirm_gate"
+            }
+          }
+        },
+        {
+          "id": "confirm_label",
+          "component": "Text",
+          "text": {
+            "path": "/confirmButtonLabel"
+          }
+        },
+        {
+          "id": "confirm_btn",
+          "component": "Button",
+          "child": "confirm_label",
+          "variant": "primary",
+          "action": {
+            "event": {
+              "name": "confirm_gate",
+              "context": {
+                "confirmed": {
+                  "path": "/confirmed"
+                }
+              }
+            }
+          },
+          "checks": [
+            {
+              "condition": {
+                "call": "and",
+                "args": {
+                  "values": [
+                    {
+                      "path": "/confirmed"
+                    },
+                    true
+                  ]
+                }
+              },
+              "message": "Tick the acknowledgement first"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "confirm_gate",
+      "path": "/",
+      "value": {
+        "title": "### Delete 3 merged branches?",
+        "summary": "The following local branches are merged into `main` and will be deleted:\n\n- `feature/express-worker`\n- `fix/slider-padding`\n- `docs/genui-skill`\n\nRemote tracking refs are left untouched.",
+        "confirmLabel": "I understand these branches cannot be recovered from the reflog after 90 days",
+        "confirmed": false,
+        "confirmButtonLabel": "Delete branches",
+        "cancelLabel": "Cancel"
+      }
+    }
+  }
+]

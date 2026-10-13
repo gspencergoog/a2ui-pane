@@ -1,0 +1,4 @@
+$/title = "### Template 2: API & Schema Contract Workbench"
+$/contract = {route: "/_sidecar/send-message", eventName: "submit_alignment", wireFormat: ["flat_envelope"], timeoutSec: 120, idempotent: true, includeDataModel: true}
+$/labels = {route: "Sidecar Endpoint Route", eventName: "Action Event Name", wireFormat: "Payload Envelope Format", timeout: "Await Timeout (seconds)", idempotent: "Require idempotency key header", includeDataModel: "Attach full client dataModel snapshot"}
+$/submitLabel = "Approve API Contract"

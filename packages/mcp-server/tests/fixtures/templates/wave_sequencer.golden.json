@@ -1,0 +1,279 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "wave_sequencer",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+      "sendDataModel": true
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "wave_sequencer",
+      "components": [
+        {
+          "id": "root",
+          "component": "Card",
+          "child": "seq_col"
+        },
+        {
+          "id": "seq_col",
+          "component": "Column",
+          "children": [
+            "seq_title",
+            "seq_intro",
+            "seq_dag",
+            "rollout_badge",
+            "seq_top_divider",
+            "seq_task_list",
+            "seq_bottom_divider",
+            "seq_footer"
+          ]
+        },
+        {
+          "id": "seq_title",
+          "component": "Text",
+          "text": {
+            "path": "/title"
+          }
+        },
+        {
+          "id": "seq_intro",
+          "component": "Text",
+          "text": {
+            "path": "/intro"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "seq_dag",
+          "component": "Text",
+          "text": {
+            "path": "/dag"
+          }
+        },
+        {
+          "id": "rollout_badge",
+          "component": "Text",
+          "text": {
+            "call": "formatString",
+            "args": {
+              "value": "**Rollout strategy:** `${/global/rolloutMode}` | **Coverage gate:** `${/global/coverageGate}%`"
+            }
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "seq_top_divider",
+          "component": "Divider"
+        },
+        {
+          "id": "seq_task_list",
+          "component": "List",
+          "children": {
+            "path": "/tasks",
+            "componentId": "seq_task_card"
+          }
+        },
+        {
+          "id": "seq_task_card",
+          "component": "Card",
+          "child": "seq_task_col"
+        },
+        {
+          "id": "seq_task_col",
+          "component": "Column",
+          "children": [
+            "seq_task_title",
+            "seq_task_deps",
+            "wave_picker",
+            "verification_picker",
+            "seq_task_note"
+          ]
+        },
+        {
+          "id": "seq_task_title",
+          "component": "Text",
+          "text": {
+            "path": "title"
+          },
+          "variant": "h4"
+        },
+        {
+          "id": "seq_task_deps",
+          "component": "Text",
+          "text": {
+            "path": "dependsOn"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "wave_picker",
+          "component": "ChoicePicker",
+          "label": "Delivery wave",
+          "variant": "mutuallyExclusive",
+          "options": [
+            {
+              "label": "🌊 Wave 1 (Foundation)",
+              "value": "wave1"
+            },
+            {
+              "label": "🌊 Wave 2 (Core)",
+              "value": "wave2"
+            },
+            {
+              "label": "🌊 Wave 3 (Polish)",
+              "value": "wave3"
+            },
+            {
+              "label": "⏸️ Defer",
+              "value": "defer"
+            }
+          ],
+          "value": {
+            "path": "wave"
+          },
+          "displayStyle": "chips"
+        },
+        {
+          "id": "verification_picker",
+          "component": "ChoicePicker",
+          "label": "Verification gate",
+          "variant": "multipleSelection",
+          "options": [
+            {
+              "label": "Unit tests",
+              "value": "unit"
+            },
+            {
+              "label": "Integration + harness",
+              "value": "integration"
+            },
+            {
+              "label": "Manual UI check",
+              "value": "manual"
+            }
+          ],
+          "value": {
+            "path": "verification"
+          },
+          "displayStyle": "chips"
+        },
+        {
+          "id": "seq_task_note",
+          "component": "TextField",
+          "label": "Sequencing constraint or owner note",
+          "value": {
+            "path": "note"
+          }
+        },
+        {
+          "id": "seq_bottom_divider",
+          "component": "Divider"
+        },
+        {
+          "id": "seq_footer",
+          "component": "Row",
+          "children": [
+            "submit_btn"
+          ],
+          "justify": "end",
+          "align": "center"
+        },
+        {
+          "id": "submit_label",
+          "component": "Text",
+          "text": {
+            "path": "/submitLabel"
+          }
+        },
+        {
+          "id": "submit_btn",
+          "component": "Button",
+          "child": "submit_label",
+          "variant": "primary",
+          "action": {
+            "event": {
+              "name": "submit_wave_sequence",
+              "context": {
+                "global": {
+                  "path": "/global"
+                },
+                "tasks": {
+                  "path": "/tasks"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "wave_sequencer",
+      "path": "/",
+      "value": {
+        "title": "### Template 5: Execution Phase & Dependency Sequencer",
+        "intro": "Assign each work item to a rollout wave and set the verification depth before transitioning to `/plan`.",
+        "dag": "```mermaid\nflowchart LR\n    T1[\"T1: Schema & Types\"] --> T2[\"T2: StoreWriter Lock\"]\n    T1 --> T3[\"T3: Lit Catalog Components\"]\n    T2 --> T4[\"T4: E2E Golden Suite\"]\n    T3 --> T4\n```",
+        "global": {
+          "rolloutMode": "Stacked PRs (3 Waves)",
+          "coverageGate": 90
+        },
+        "tasks": [
+          {
+            "title": "T1: Protocol & Schema Definitions (@a2ui-pane/protocol)",
+            "dependsOn": "Depends on: none (root package)",
+            "wave": [
+              "wave1"
+            ],
+            "verification": [
+              "unit"
+            ],
+            "note": "Land schema definitions first"
+          },
+          {
+            "title": "T2: StoreWriter Concurrency Lock (@a2ui-pane/mcp-server)",
+            "dependsOn": "Depends on: T1",
+            "wave": [
+              "wave2"
+            ],
+            "verification": [
+              "unit",
+              "integration"
+            ],
+            "note": "Add per-surface write mutex"
+          },
+          {
+            "title": "T3: Custom Lit Catalog Components (@a2ui-pane/renderer)",
+            "dependsOn": "Depends on: T1",
+            "wave": [
+              "wave2"
+            ],
+            "verification": [
+              "unit",
+              "manual"
+            ],
+            "note": "Register custom components"
+          },
+          {
+            "title": "T4: End-to-End Verification & Skill Templates (grill-me)",
+            "dependsOn": "Depends on: T2, T3",
+            "wave": [
+              "wave3"
+            ],
+            "verification": [
+              "integration",
+              "manual"
+            ],
+            "note": "Run full Vitest suite + live smoke test"
+          }
+        ],
+        "submitLabel": "Lock In Execution Sequence"
+      }
+    }
+  }
+]

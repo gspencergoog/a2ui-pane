@@ -1,0 +1,38 @@
+// @genui id=wave_sequencer surface=pane
+// @summary Topological wave assignment: a dependency DAG (Markdown/Mermaid) and a strategy badge above a list of task cards, each with a wave chip row, a multi-select verification gate, and a note.
+// @data /title /intro /dag /global {rolloutMode,coverageGate} /tasks[] {title,dependsOn,wave,verification,note} /submitLabel
+// @action submit_wave_sequence
+// @customize wave_picker verification_picker rollout_badge submit_btn
+
+$/title = "### Execution Phase & Dependency Sequencer"
+$/intro = "Assign each work item to a rollout wave and set its verification gate."
+$/dag = """```mermaid
+flowchart LR
+    T1["T1"] --> T2["T2"]
+    T1 --> T3["T3"]
+    T2 --> T4["T4"]
+    T3 --> T4
+```"""
+$/global = {rolloutMode: "Stacked PRs", coverageGate: 90}
+$/tasks = []
+$/submitLabel = "Lock In Execution Sequence"
+
+root = Card(seq_col)
+seq_col = Column([seq_title, seq_intro, seq_dag, rollout_badge, seq_top_divider, seq_task_list, seq_bottom_divider, seq_footer])
+seq_title = Text($/title)
+seq_intro = Text($/intro, "caption")
+seq_dag = Text($/dag)
+rollout_badge = Text(formatString("**Rollout strategy:** `${/global/rolloutMode}` | **Coverage gate:** `${/global/coverageGate}%`"), "caption")
+seq_top_divider = Divider()
+seq_task_list = List(_template($/tasks, seq_task_card))
+seq_task_card = Card(seq_task_col)
+seq_task_col = Column([seq_task_title, seq_task_deps, wave_picker, verification_picker, seq_task_note])
+seq_task_title = Text($title, "h4")
+seq_task_deps = Text($dependsOn, "caption")
+wave_picker = ChoicePicker("Delivery wave", "mutuallyExclusive", [{label: "🌊 Wave 1 (Foundation)", value: "wave1"}, {label: "🌊 Wave 2 (Core)", value: "wave2"}, {label: "🌊 Wave 3 (Polish)", value: "wave3"}, {label: "⏸️ Defer", value: "defer"}], $wave, "chips")
+verification_picker = ChoicePicker("Verification gate", "multipleSelection", [{label: "Unit tests", value: "unit"}, {label: "Integration + harness", value: "integration"}, {label: "Manual UI check", value: "manual"}], $verification, "chips")
+seq_task_note = TextField("Sequencing constraint or owner note", $note)
+seq_bottom_divider = Divider()
+seq_footer = Row([submit_btn], "end", "center")
+submit_label = Text($/submitLabel)
+submit_btn = Button(submit_label, "primary", Event("submit_wave_sequence", {global: $/global, tasks: $/tasks}))

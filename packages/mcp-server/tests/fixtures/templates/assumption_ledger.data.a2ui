@@ -1,0 +1,3 @@
+$/title = "### Template 1: Assumption & Inferred-Spec Ledger"
+$/intro = "Uncheck any inferred assumption that does not hold, or add a constraint override below."
+$/assumptions = [{claim: "A1: Action side-channel binds exclusively to 127.0.0.1 ephemeral port", source: "`[HIGH • action-endpoint.ts]`", holds: true, override: ""}, {claim: "A2: Inline <agent-embed> cards remain self-contained without network fetches", source: "`[HIGH • embed-writer.ts]`", holds: true, override: ""}, {claim: "A3: Legacy v0.8 catalogs can be dropped from new grill-me templates", source: "`[MED • processor.ts]`", holds: false, override: "Keep v0.9 basicCatalog aliases in processor.ts"}]

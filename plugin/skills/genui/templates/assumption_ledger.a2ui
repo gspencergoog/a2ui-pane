@@ -1,0 +1,26 @@
+// @genui id=assumption_ledger surface=inline
+// @summary Approve-by-exception list of inferred assumptions: each row is pre-checked, shows a source badge, and has an optional override field.
+// @data /title /intro /assumptions[] {claim,source,holds,override} /submitLabel
+// @action confirm_assumptions
+// @customize submit_btn
+
+$/title = "### Verify inferred assumptions"
+$/intro = "Uncheck any assumption that does not hold, or add an override below it."
+$/assumptions = []
+$/submitLabel = "Confirm Assumptions"
+
+root = Card(ledger_col)
+ledger_col = Column([ledger_header, ledger_intro, ledger_top_divider, ledger_rows, ledger_bottom_divider, ledger_footer])
+ledger_header = Text($/title)
+ledger_intro = Text($/intro, "caption")
+ledger_top_divider = Divider()
+ledger_rows = Column(_template($/assumptions, ledger_row))
+ledger_row = Column([ledger_row_head, ledger_row_override])
+ledger_row_head = Row([ledger_row_check, ledger_row_source], "spaceBetween", "center")
+ledger_row_check = CheckBox($claim, $holds)
+ledger_row_source = Text($source, "caption")
+ledger_row_override = TextField("Override or caveat (optional)", $override)
+ledger_bottom_divider = Divider()
+ledger_footer = Row([submit_btn], "end", "center")
+submit_label = Text($/submitLabel)
+submit_btn = Button(submit_label, "primary", Event("confirm_assumptions", {assumptions: $/assumptions}))

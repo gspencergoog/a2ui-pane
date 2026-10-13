@@ -1,0 +1,174 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "assumption_ledger",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+      "sendDataModel": true
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "assumption_ledger",
+      "components": [
+        {
+          "id": "root",
+          "component": "Card",
+          "child": "ledger_col"
+        },
+        {
+          "id": "ledger_col",
+          "component": "Column",
+          "children": [
+            "ledger_header",
+            "ledger_intro",
+            "ledger_top_divider",
+            "ledger_rows",
+            "ledger_bottom_divider",
+            "ledger_footer"
+          ]
+        },
+        {
+          "id": "ledger_header",
+          "component": "Text",
+          "text": {
+            "path": "/title"
+          }
+        },
+        {
+          "id": "ledger_intro",
+          "component": "Text",
+          "text": {
+            "path": "/intro"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "ledger_top_divider",
+          "component": "Divider"
+        },
+        {
+          "id": "ledger_rows",
+          "component": "Column",
+          "children": {
+            "path": "/assumptions",
+            "componentId": "ledger_row"
+          }
+        },
+        {
+          "id": "ledger_row",
+          "component": "Column",
+          "children": [
+            "ledger_row_head",
+            "ledger_row_override"
+          ]
+        },
+        {
+          "id": "ledger_row_head",
+          "component": "Row",
+          "children": [
+            "ledger_row_check",
+            "ledger_row_source"
+          ],
+          "justify": "spaceBetween",
+          "align": "center"
+        },
+        {
+          "id": "ledger_row_check",
+          "component": "CheckBox",
+          "label": {
+            "path": "claim"
+          },
+          "value": {
+            "path": "holds"
+          }
+        },
+        {
+          "id": "ledger_row_source",
+          "component": "Text",
+          "text": {
+            "path": "source"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "ledger_row_override",
+          "component": "TextField",
+          "label": "Override or caveat (optional)",
+          "value": {
+            "path": "override"
+          }
+        },
+        {
+          "id": "ledger_bottom_divider",
+          "component": "Divider"
+        },
+        {
+          "id": "ledger_footer",
+          "component": "Row",
+          "children": [
+            "submit_btn"
+          ],
+          "justify": "end",
+          "align": "center"
+        },
+        {
+          "id": "submit_label",
+          "component": "Text",
+          "text": {
+            "path": "/submitLabel"
+          }
+        },
+        {
+          "id": "submit_btn",
+          "component": "Button",
+          "child": "submit_label",
+          "variant": "primary",
+          "action": {
+            "event": {
+              "name": "confirm_assumptions",
+              "context": {
+                "assumptions": {
+                  "path": "/assumptions"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "assumption_ledger",
+      "path": "/",
+      "value": {
+        "title": "### Template 1: Assumption & Inferred-Spec Ledger",
+        "intro": "Uncheck any inferred assumption that does not hold, or add a constraint override below.",
+        "assumptions": [
+          {
+            "claim": "A1: Action side-channel binds exclusively to 127.0.0.1 ephemeral port",
+            "source": "`[HIGH • action-endpoint.ts]`",
+            "holds": true,
+            "override": ""
+          },
+          {
+            "claim": "A2: Inline <agent-embed> cards remain self-contained without network fetches",
+            "source": "`[HIGH • embed-writer.ts]`",
+            "holds": true,
+            "override": ""
+          },
+          {
+            "claim": "A3: Legacy v0.8 catalogs can be dropped from new grill-me templates",
+            "source": "`[MED • processor.ts]`",
+            "holds": false,
+            "override": "Keep v0.9 basicCatalog aliases in processor.ts"
+          }
+        ],
+        "submitLabel": "Confirm Assumptions"
+      }
+    }
+  }
+]

@@ -1,0 +1,11 @@
+$/title = "### Template 5: Execution Phase & Dependency Sequencer"
+$/intro = "Assign each work item to a rollout wave and set the verification depth before transitioning to `/plan`."
+$/dag = """```mermaid
+flowchart LR
+    T1["T1: Schema & Types"] --> T2["T2: StoreWriter Lock"]
+    T1 --> T3["T3: Lit Catalog Components"]
+    T2 --> T4["T4: E2E Golden Suite"]
+    T3 --> T4
+```"""
+$/global = {rolloutMode: "Stacked PRs (3 Waves)", coverageGate: 90}
+$/tasks = [{title: "T1: Protocol & Schema Definitions (@a2ui-pane/protocol)", dependsOn: "Depends on: none (root package)", wave: ["wave1"], verification: ["unit"], note: "Land schema definitions first"}, {title: "T2: StoreWriter Concurrency Lock (@a2ui-pane/mcp-server)", dependsOn: "Depends on: T1", wave: ["wave2"], verification: ["unit", "integration"], note: "Add per-surface write mutex"}, {title: "T3: Custom Lit Catalog Components (@a2ui-pane/renderer)", dependsOn: "Depends on: T1", wave: ["wave2"], verification: ["unit", "manual"], note: "Register custom components"}, {title: "T4: End-to-End Verification & Skill Templates (grill-me)", dependsOn: "Depends on: T2, T3", wave: ["wave3"], verification: ["integration", "manual"], note: "Run full Vitest suite + live smoke test"}]

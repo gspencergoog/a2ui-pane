@@ -1,0 +1,156 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "progress_board",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+      "sendDataModel": true
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "progress_board",
+      "components": [
+        {
+          "id": "root",
+          "component": "Card",
+          "child": "board_col"
+        },
+        {
+          "id": "board_col",
+          "component": "Column",
+          "children": [
+            "board_title",
+            "board_subtitle",
+            "board_divider",
+            "board_rows",
+            "board_footer"
+          ]
+        },
+        {
+          "id": "board_title",
+          "component": "Text",
+          "text": {
+            "path": "/title"
+          }
+        },
+        {
+          "id": "board_subtitle",
+          "component": "Text",
+          "text": {
+            "path": "/subtitle"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "board_divider",
+          "component": "Divider"
+        },
+        {
+          "id": "board_rows",
+          "component": "Column",
+          "children": {
+            "path": "/items",
+            "componentId": "board_row"
+          }
+        },
+        {
+          "id": "board_row",
+          "component": "Row",
+          "children": [
+            "board_row_status",
+            "board_row_body"
+          ],
+          "align": "center"
+        },
+        {
+          "id": "board_row_status",
+          "component": "Text",
+          "text": {
+            "path": "status"
+          }
+        },
+        {
+          "id": "board_row_body",
+          "component": "Column",
+          "children": [
+            "board_row_label",
+            "board_row_detail"
+          ],
+          "weight": 1
+        },
+        {
+          "id": "board_row_label",
+          "component": "Text",
+          "text": {
+            "path": "label"
+          }
+        },
+        {
+          "id": "board_row_detail",
+          "component": "Text",
+          "text": {
+            "path": "detail"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "board_footer",
+          "component": "Row",
+          "children": [
+            "ack_btn"
+          ],
+          "justify": "end",
+          "align": "center"
+        },
+        {
+          "id": "ack_label",
+          "component": "Text",
+          "text": {
+            "path": "/ackLabel"
+          }
+        },
+        {
+          "id": "ack_btn",
+          "component": "Button",
+          "child": "ack_label",
+          "action": {
+            "event": {
+              "name": "acknowledge_progress"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "progress_board",
+      "path": "/",
+      "value": {
+        "title": "### Ship-it: PR #42 checks",
+        "subtitle": "Live status; rows update as each step finishes.",
+        "items": [
+          {
+            "status": "✅",
+            "label": "Unit tests",
+            "detail": "221 passed in 48s"
+          },
+          {
+            "status": "🔄",
+            "label": "Integration harness",
+            "detail": "running (3/7 suites)"
+          },
+          {
+            "status": "⏳",
+            "label": "Manual UI check",
+            "detail": "waiting for reviewer"
+          }
+        ],
+        "ackLabel": "Acknowledge"
+      }
+    }
+  }
+]

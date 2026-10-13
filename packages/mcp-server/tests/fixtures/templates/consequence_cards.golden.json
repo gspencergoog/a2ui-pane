@@ -1,0 +1,212 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "consequence_cards",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+      "sendDataModel": true
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "consequence_cards",
+      "components": [
+        {
+          "id": "root",
+          "component": "Card",
+          "child": "fork_col"
+        },
+        {
+          "id": "fork_col",
+          "component": "Column",
+          "children": [
+            "fork_question",
+            "option_cards",
+            "choice_picker",
+            "fork_notes",
+            "fork_footer"
+          ]
+        },
+        {
+          "id": "fork_question",
+          "component": "Text",
+          "text": {
+            "path": "/question"
+          }
+        },
+        {
+          "id": "option_cards",
+          "component": "Row",
+          "children": {
+            "path": "/options",
+            "componentId": "option_card"
+          },
+          "align": "stretch"
+        },
+        {
+          "id": "option_card",
+          "component": "Card",
+          "child": "option_col",
+          "weight": 1
+        },
+        {
+          "id": "option_col",
+          "component": "Column",
+          "children": [
+            "option_title",
+            "option_impact",
+            "option_tradeoff"
+          ]
+        },
+        {
+          "id": "option_title",
+          "component": "Text",
+          "text": {
+            "path": "title"
+          }
+        },
+        {
+          "id": "option_impact",
+          "component": "Text",
+          "text": {
+            "path": "impact"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "option_tradeoff",
+          "component": "Text",
+          "text": {
+            "path": "tradeoff"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "choice_picker",
+          "component": "ChoicePicker",
+          "label": "Select cutover strategy",
+          "variant": "mutuallyExclusive",
+          "options": [
+            {
+              "label": "A: Dual-Write (Recommended)",
+              "value": "dual_write"
+            },
+            {
+              "label": "B: In-Place Cutover",
+              "value": "cutover"
+            }
+          ],
+          "value": {
+            "path": "/choice"
+          },
+          "displayStyle": "chips"
+        },
+        {
+          "id": "fork_notes",
+          "component": "TextField",
+          "label": "Caveats, or propose a hybrid",
+          "value": {
+            "path": "/notes"
+          }
+        },
+        {
+          "id": "fork_footer",
+          "component": "Row",
+          "children": [
+            "fork_flags",
+            "submit_btn"
+          ],
+          "justify": "spaceBetween",
+          "align": "center"
+        },
+        {
+          "id": "fork_flags",
+          "component": "Row",
+          "children": [
+            "more_info_check",
+            "defer_check"
+          ],
+          "align": "center"
+        },
+        {
+          "id": "more_info_check",
+          "component": "CheckBox",
+          "label": "Explain further",
+          "value": {
+            "path": "/moreInfo"
+          }
+        },
+        {
+          "id": "defer_check",
+          "component": "CheckBox",
+          "label": "Park for later",
+          "value": {
+            "path": "/defer"
+          }
+        },
+        {
+          "id": "submit_label",
+          "component": "Text",
+          "text": {
+            "path": "/submitLabel"
+          }
+        },
+        {
+          "id": "submit_btn",
+          "component": "Button",
+          "child": "submit_label",
+          "variant": "primary",
+          "action": {
+            "event": {
+              "name": "submit_alignment",
+              "context": {
+                "choice": {
+                  "path": "/choice"
+                },
+                "notes": {
+                  "path": "/notes"
+                },
+                "moreInfo": {
+                  "path": "/moreInfo"
+                },
+                "defer": {
+                  "path": "/defer"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "consequence_cards",
+      "path": "/",
+      "value": {
+        "question": "**Context**: `OrderRepository` writes only to `legacy_orders`. Which cutover strategy should we use for `orders_v2`?",
+        "options": [
+          {
+            "title": "**A: Dual-Write + Shadow Reads (Recommended)**",
+            "impact": "Impact: 3 adapter files; zero downtime.",
+            "tradeoff": "Tradeoff: temporary shadow-diff logging ($< 2\\text{ms}$ p99)."
+          },
+          {
+            "title": "**B: In-Place Maintenance Cutover**",
+            "impact": "Impact: one migration script; 1 file.",
+            "tradeoff": "Tradeoff: 15-minute write freeze during deploy."
+          }
+        ],
+        "choice": [
+          "dual_write"
+        ],
+        "notes": "",
+        "moreInfo": false,
+        "defer": false,
+        "submitLabel": "Submit Alignment"
+      }
+    }
+  }
+]

@@ -1,0 +1,44 @@
+// @genui id=state_walkthrough surface=pane
+// @summary Failure-mode walkthrough: a persistent Markdown block (stateDiagram-v2 and/or formulas) above per-transition tabs, each with a policy chip row, a bound slider, and a flag.
+// @data /title /diagram /transitions {t1,t2,t3} each {desc,policy,maxRetries,flag} /labels {t1,t2,t3,slider1,slider2,flag1,flag3} /submitLabel
+// @action submit_state_machine
+// @customize transition_tabs t1_policy_picker t2_policy_picker t3_policy_picker submit_btn
+
+$/title = "### Failure-Mode & State-Machine Walkthrough"
+$/diagram = """Verify transition policies and retry bounds:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Working: start
+    Working --> Retrying: transient_error
+    Retrying --> Idle: backoff_elapsed
+    Working --> Done: success
+```"""
+$/transitions = {t1: {desc: "**Transition 1**", policy: [], maxRetries: 3, flag: true}, t2: {desc: "**Transition 2**", policy: [], maxRetries: 5}, t3: {desc: "**Transition 3**", policy: [], flag: true}}
+$/labels = {t1: "E1", t2: "E2", t3: "E3", slider1: "Max retries", slider2: "Max retries", flag1: "Emit audit event", flag3: "Page on-call"}
+$/submitLabel = "Confirm Policies"
+
+root = Card(sm_col)
+sm_col = Column([sm_title, sm_diagram, sm_top_divider, transition_tabs, sm_bottom_divider, sm_footer])
+sm_title = Text($/title)
+sm_diagram = Text($/diagram)
+sm_top_divider = Divider()
+transition_tabs = Tabs([{title: "E1", child: tab_t1}, {title: "E2", child: tab_t2}, {title: "E3", child: tab_t3}])
+tab_t1 = Column([t1_desc, t1_policy_picker, t1_slider, t1_flag])
+t1_desc = Text($/transitions/t1/desc)
+t1_policy_picker = ChoicePicker("Policy", "mutuallyExclusive", [{label: "Option A", value: "a"}, {label: "Option B", value: "b"}, {label: "Option C", value: "c"}], $/transitions/t1/policy, "chips")
+t1_slider = Slider($/labels/slider1, 0, 10, $/transitions/t1/maxRetries)
+t1_flag = CheckBox($/labels/flag1, $/transitions/t1/flag)
+tab_t2 = Column([t2_desc, t2_policy_picker, t2_slider])
+t2_desc = Text($/transitions/t2/desc)
+t2_policy_picker = ChoicePicker("Policy", "mutuallyExclusive", [{label: "Option A", value: "a"}, {label: "Option B", value: "b"}, {label: "Option C", value: "c"}], $/transitions/t2/policy, "chips")
+t2_slider = Slider($/labels/slider2, 0, 10, $/transitions/t2/maxRetries)
+tab_t3 = Column([t3_desc, t3_policy_picker, t3_flag])
+t3_desc = Text($/transitions/t3/desc)
+t3_policy_picker = ChoicePicker("Policy", "mutuallyExclusive", [{label: "Option A", value: "a"}, {label: "Option B", value: "b"}, {label: "Option C", value: "c"}], $/transitions/t3/policy, "chips")
+t3_flag = CheckBox($/labels/flag3, $/transitions/t3/flag)
+sm_bottom_divider = Divider()
+sm_footer = Row([submit_btn], "end", "center")
+submit_label = Text($/submitLabel)
+submit_btn = Button(submit_label, "primary", Event("submit_state_machine", {transitions: $/transitions}))

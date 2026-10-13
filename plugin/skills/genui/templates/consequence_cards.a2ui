@@ -1,0 +1,31 @@
+// @genui id=consequence_cards surface=either
+// @summary Architectural fork: side-by-side consequence cards (one per option) above a single-choice chip row, with notes and "explain further" / "park for later" flags.
+// @data /question /options[] {title,impact,tradeoff} /choice /notes /moreInfo /defer /submitLabel
+// @action submit_alignment
+// @customize choice_picker submit_btn
+
+$/question = "**Context**: which strategy should we use?"
+$/options = []
+$/choice = []
+$/notes = ""
+$/moreInfo = false
+$/defer = false
+$/submitLabel = "Submit Alignment"
+
+root = Card(fork_col)
+fork_col = Column([fork_question, option_cards, choice_picker, fork_notes, fork_footer])
+fork_question = Text($/question)
+option_cards = Row(_template($/options, option_card), _, "stretch")
+option_card = Card(option_col, 1)
+option_col = Column([option_title, option_impact, option_tradeoff])
+option_title = Text($title)
+option_impact = Text($impact, "caption")
+option_tradeoff = Text($tradeoff, "caption")
+choice_picker = ChoicePicker("Select an option", "mutuallyExclusive", [{label: "Option A", value: "a"}, {label: "Option B", value: "b"}], $/choice, "chips")
+fork_notes = TextField("Caveats, or propose a hybrid", $/notes)
+fork_footer = Row([fork_flags, submit_btn], "spaceBetween", "center")
+fork_flags = Row([more_info_check, defer_check], _, "center")
+more_info_check = CheckBox("Explain further", $/moreInfo)
+defer_check = CheckBox("Park for later", $/defer)
+submit_label = Text($/submitLabel)
+submit_btn = Button(submit_label, "primary", Event("submit_alignment", {choice: $/choice, notes: $/notes, moreInfo: $/moreInfo, defer: $/defer}))
