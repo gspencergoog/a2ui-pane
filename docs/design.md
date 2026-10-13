@@ -11,6 +11,8 @@ Surfaces appear in two contexts:
 
 Both contexts use the standard Lit renderer (`@a2ui/lit`) and state engine (`@a2ui/web_core`). The agent interacts with A2UI exclusively via a validating stdio MCP server (`render_a2ui`), which validates payloads before committing them and returns structured error diagnostics so the model can correct mistakes.
 
+Authoring is A2UI Express by default. `render_a2ui` accepts `dsl` (Express source) or `template` plus `dsl` (a named, data-bound template from `plugin/skills/genui/templates` or `${PLUGIN_DATA}/templates`, inflated by concatenation so caller data overrides template defaults). The MCP server compiles Express with the upstream Python compiler running in one persistent child process (`python/express_worker.py`, JSON lines over stdio), paying the SDK import cost once per server lifetime. Raw `messages` remain supported. The `genui` skill shipped in `plugin/skills/genui` tells the agent which display channel fits (chat Markdown, artifact, inline card, pane, HTML widget, or `ask_question`) and how to call the tools.
+
 The codebase is structured as a standalone TypeScript monorepo under `packages/*`.
 
 ### 1.1 Goals
@@ -27,7 +29,7 @@ The codebase is structured as a standalone TypeScript monorepo under `packages/*
 
 - Modifying host source code in Jetski or Antigravity.
 - Authoring tools (Monaco editor, raw JSON viewer, CL creation).
-- Protocol v0.8 or v1.0 in the initial release; the primary target is protocol v0.9 and v0.9.1.
+- Protocol v0.8 or v1.0 rendering; the renderer targets v0.9 and v0.9.1. The Express worker already compiles to v1.0 behind `A2UI_PANE_PROTOCOL_VERSION`, so the flip is a renderer change (a Lit v1.0 basic catalog) plus switching the validators to the v1.0 `MessageProcessor`.
 - Mid-call token-by-token streaming (Phase 0 verified `agentapi stream-conversation` is unsupported by the host daemon).
 
 ---
@@ -44,11 +46,14 @@ flowchart LR
       end
     end
     subgraph Repo["a2ui-pane plugin"]
-      MCP["mcp-server: validate (headless MessageProcessor)"]
+      MCP["mcp-server: resolve dsl/template, validate (headless MessageProcessor)"]
+      W["express_worker.py (persistent Python child)"]
       Store[("PLUGIN_DATA/conversations/ID.jsonl, one message per line")]
       Side["sidecar: Node http, SSE"]
     end
-    Agent -->|"render_a2ui"| MCP
+    Agent -->|"render_a2ui (dsl | template | messages)"| MCP
+    MCP -->|"compile (JSON lines)"| W
+    W -->|"messages or line/column error"| MCP
     MCP -->|"errors or ok"| Agent
     MCP -->|"append lines"| Store
     Store -->|"fs.watch + 2 s poll"| Side
@@ -70,10 +75,11 @@ sequenceDiagram
     participant P as Pane App (Lit)
     participant U as User
 
-    A->>M: render_a2ui(conversationId, messages)
+    A->>M: render_a2ui(conversationId, dsl | template+dsl | messages)
+    M->>M: Inflate template, compile Express via worker
     M->>M: Validate on headless MessageProcessor
-    alt Validation Failed
-      M-->>A: isError: true with message index diagnostics
+    alt Compile or validation failed
+      M-->>A: isError: true with Express line/column or message index diagnostics
     else Validation Succeeded
       M->>S: Append N lines to <conversationId>.jsonl
       M-->>A: Ok (surfaces updated, AuxPane hint)
