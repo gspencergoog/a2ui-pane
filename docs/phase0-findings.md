@@ -68,3 +68,18 @@ Bundled `@a2ui/lit/v0_9` (including `A2uiSurface`, `basicCatalog`, and context),
 
 - A ~260 KB minified bundle is very lightweight (compared to the 15 MB Angular bundle previously used by Ads TrustGraph).
 - Inlining this bundle into self-contained `<agent-embed>` snapshot HTML files in Phase 6 is completely viable and will not cause performance or artifact storage issues.
+
+## Express worker findings (2026-10-13)
+
+- Importing `a2ui.inference_formats.experimental.express.ExpressFormat` costs about 3.7 s warm with the checkout's `.venv/bin/python3` and about 5.3 s through `uv run`; almost all of it is the `a2ui.inference_formats` package import, not ANTLR. Compiles take milliseconds, so the MCP server keeps one worker process alive and `install.sh` resolves the interpreter once and bakes it into `mcp_config.json`.
+- No published `a2ui-agent-sdk` (PyPI 0.8.0 at the time) has the sequence-based `ExpressCompiler(catalogs, version=...)`, `ExpressPromptGenerator(catalogs, ...)`, or `to_message_dicts`; those landed after the `python/a2ui-agent-sdk/v0.8.0` tag. The local checkout is therefore the only working source; `buildSpawnArgs` keeps the `uv run --with` path for when a release ships.
+- `Catalog.from_json` needs an explicit `protocol_version` because the plugin's `catalogs/v0_9_1/basic/catalog.json` (byte-identical to upstream) has no `protocolVersion` key.
+- Express facts that shaped the templates: `Event` names must be literal (a bound name compiles but fails the v0.9 `Action.event.name` string schema); `ChoicePicker.options`, `Tabs.tabs`, `Slider.max`, variants, and `weight` are static; `and()` needs two values; later `$/path = ...` and variable assignments silently override earlier ones (this is what makes template inflation by concatenation work).
+- Size comparison, caller data block vs. compact compiled JSON: `triage_matrix` 1,486 B vs 4,260 B; `state_walkthrough` 2,454 B vs 5,202 B; `wave_sequencer` 1,238 B vs 4,300 B; `consequence_cards` 724 B vs 3,080 B. The agent now emits only the data block (plus a one-line picker override when options differ), roughly a 3x to 4x reduction, and never manages component ids.
+
+### v1.0 flip checklist
+
+1. Bump `@a2ui/lit` to a release that ships a v1.0 basic catalog (`@a2ui/lit@0.12.0` exports only `0.8` and `v0_9`; `@a2ui/web_core@0.12.0` already has `v1_0`).
+2. Switch `ConversationState` and the inline validator in `tools/render.ts` to the v1.0 `MessageProcessor` when `A2UI_PANE_PROTOCOL_VERSION=v1.0`, and have the pane app and embed pick the matching renderer.
+3. Re-run the template goldens with `A2UI_PANE_PROTOCOL_VERSION=v1.0 UPDATE_GOLDENS=1` and review the `@path` / `@call` diff.
+4. Note the catalog id mismatch: the plugin JSON's `catalogId` is the `v0_9` URL while `CatalogRegistry` also aliases `v0_9_1`; harmless for v0.9 output because the compiler omits `catalogId` before v1.0, but v1.0 output will carry it.
