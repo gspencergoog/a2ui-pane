@@ -7,6 +7,12 @@ import { ConversationState } from '../conversation-state.js';
 import { CatalogRegistry } from '../catalog-registry.js';
 import { writeEmbed } from '../embed-writer.js';
 import type { ActionEndpoint } from '../action-endpoint.js';
+import {
+  ExpressWorker,
+  ExpressWorkerError,
+  ExpressWorkerUnavailableError,
+} from '../express-worker.js';
+import type { TemplateRegistry } from '../template-registry.js';
 
 export function readSidecarSendMessageUrl(dataDir: string): string | undefined {
   try {
@@ -61,8 +67,33 @@ export const renderA2uiSchema = {
       z.array(z.record(z.unknown())),
       z.string().describe('JSON-serialized array of A2UI v0.9 server-to-client layout operations.'),
     ])
+    .optional()
     .describe(
-      'Array of A2UI v0.9 server-to-client layout operations (or a JSON-encoded string of that array when calling via call_mcp_tool).',
+      'Raw A2UI server-to-client layout operations (array, or a JSON-encoded string when calling via call_mcp_tool). Prefer `dsl` or `template`.',
+    ),
+  dsl: z
+    .string()
+    .optional()
+    .describe(
+      'A2UI Express source. Compiled and validated server-side. With `template`, these statements are appended after the template body (data assignments override template defaults).',
+    ),
+  template: z
+    .string()
+    .optional()
+    .describe(
+      'Template id from the registry (see a2ui_instructions). Inflated with `surfaceId`, then `dsl` is appended.',
+    ),
+  surfaceId: z
+    .string()
+    .optional()
+    .describe(
+      'Surface id used by `template` and by `dsl` blocks that have no surface(...) statement. Defaults to "main".',
+    ),
+  replace: z
+    .boolean()
+    .optional()
+    .describe(
+      'When true, surfaces that this batch re-creates are deleted first instead of failing with "Surface already exists".',
     ),
   mode: z
     .enum(['pane', 'inline'])
@@ -75,47 +106,143 @@ export const renderA2uiSchema = {
 
 export type ConversationStateFactory = (conversationId: string) => ConversationState;
 
+export interface RenderA2uiArgs {
+  conversationId?: string;
+  messages?: unknown[] | string;
+  dsl?: string;
+  template?: string;
+  surfaceId?: string;
+  replace?: boolean;
+  mode?: 'pane' | 'inline';
+}
+
+export interface RenderA2uiDeps {
+  worker?: ExpressWorker;
+  templates?: TemplateRegistry;
+}
+
+type ToolResult = { isError?: true; content: Array<{ type: 'text'; text: string }> };
+
+function errorResult(text: string): ToolResult {
+  return { isError: true, content: [{ type: 'text' as const, text }] };
+}
+
+function parseRawMessages(messages: unknown[] | string): unknown[] | ToolResult {
+  if (typeof messages !== 'string') return messages;
+  try {
+    const parsed = JSON.parse(messages);
+    if (!Array.isArray(parsed)) {
+      return errorResult('Invalid messages string: JSON must decode to an array of A2UI messages.');
+    }
+    return parsed;
+  } catch (err: any) {
+    return errorResult(`Malformed messages JSON string: ${err?.message || err}`);
+  }
+}
+
+function formatCompileError(err: ExpressWorkerError, source: string): string {
+  const { line, column, message, kind } = err.detail;
+  const where =
+    line !== undefined ? ` at line ${line}${column !== undefined ? `, column ${column}` : ''}` : '';
+  const lines = source.split(/\r?\n/);
+  const excerpt =
+    line !== undefined && line >= 1 && line <= lines.length ? `\n> ${lines[line - 1]}` : '';
+  return `Express ${kind}${where}: ${message}${excerpt}\n\nFix the Express source and retry, or pass raw \`messages\` instead.`;
+}
+
+/**
+ * Turns the authoring input (`messages`, `dsl`, or `template` + `dsl`) into protocol messages.
+ * Returns a tool error result when the input is invalid or the Express worker is unavailable.
+ */
+export async function resolveMessages(
+  args: RenderA2uiArgs,
+  deps: RenderA2uiDeps,
+): Promise<{ messages: unknown[]; authored: 'messages' | 'dsl' | 'template' } | ToolResult> {
+  const hasMessages = args.messages !== undefined;
+  const hasDsl = typeof args.dsl === 'string' && args.dsl.trim().length > 0;
+  const hasTemplate = typeof args.template === 'string' && args.template.length > 0;
+
+  if (hasMessages && (hasDsl || hasTemplate)) {
+    return errorResult('Pass either `messages` or `dsl`/`template`, not both.');
+  }
+  if (!hasMessages && !hasDsl && !hasTemplate) {
+    return errorResult(
+      'Missing authoring input: pass `dsl`, `template` (optionally with `dsl`), or `messages`.',
+    );
+  }
+
+  if (hasMessages) {
+    const parsed = parseRawMessages(args.messages as unknown[] | string);
+    if (!Array.isArray(parsed)) return parsed;
+    return { messages: parsed, authored: 'messages' };
+  }
+
+  const surfaceId = args.surfaceId || 'main';
+  if (!isValidId(surfaceId)) {
+    return errorResult(`Invalid surfaceId '${surfaceId}'. ID must match ^[A-Za-z0-9_-]{1,128}$.`);
+  }
+
+  let source: string;
+  if (hasTemplate) {
+    if (!deps.templates) {
+      return errorResult(
+        'Template rendering is not configured on this server; pass `dsl` or `messages`.',
+      );
+    }
+    try {
+      source = deps.templates.inflate(args.template as string, surfaceId, { callerDsl: args.dsl });
+    } catch (err: any) {
+      return errorResult(String(err?.message || err));
+    }
+  } else {
+    source = args.dsl as string;
+  }
+
+  if (!deps.worker) {
+    return errorResult(
+      'Express compilation is not configured on this server (no Python worker); pass raw `messages` instead.',
+    );
+  }
+
+  try {
+    const compiled = await deps.worker.compile(source, surfaceId);
+    return { messages: compiled, authored: hasTemplate ? 'template' : 'dsl' };
+  } catch (err: any) {
+    if (err instanceof ExpressWorkerError) {
+      return errorResult(formatCompileError(err, source));
+    }
+    if (err instanceof ExpressWorkerUnavailableError) {
+      return errorResult(
+        `Express compiler unavailable: ${err.message}. Pass raw \`messages\` instead, or reinstall the plugin (scripts/install.sh) to repair the Python worker.`,
+      );
+    }
+    return errorResult(`Express compilation failed: ${err?.message || err}`);
+  }
+}
+
+/** Collects surface ids created by a batch (used by `replace`). */
+export function createdSurfaceIds(messages: unknown[]): string[] {
+  const ids: string[] = [];
+  for (const msg of messages) {
+    const sid = (msg as Record<string, any>)?.createSurface?.surfaceId;
+    if (typeof sid === 'string' && !ids.includes(sid)) ids.push(sid);
+  }
+  return ids;
+}
+
 export async function handleRenderA2ui(
-  args: {
-    conversationId?: string;
-    messages: unknown[] | string;
-    mode?: 'pane' | 'inline';
-  },
+  args: RenderA2uiArgs,
   getState: ConversationStateFactory,
   catalogs?: CatalogRegistry,
   dataDir?: string,
   actionEndpoint?: ActionEndpoint,
+  deps: RenderA2uiDeps = {},
 ) {
-  let parsedMessages: unknown[];
-  if (typeof args.messages === 'string') {
-    try {
-      const parsed = JSON.parse(args.messages);
-      if (!Array.isArray(parsed)) {
-        return {
-          isError: true,
-          content: [
-            {
-              type: 'text' as const,
-              text: 'Invalid messages string: JSON must decode to an array of A2UI messages.',
-            },
-          ],
-        };
-      }
-      parsedMessages = parsed;
-    } catch (err: any) {
-      return {
-        isError: true,
-        content: [
-          {
-            type: 'text' as const,
-            text: `Malformed messages JSON string: ${err?.message || err}`,
-          },
-        ],
-      };
-    }
-  } else {
-    parsedMessages = args.messages;
+  const resolved = await resolveMessages(args, deps);
+  if (!('messages' in resolved) || !Array.isArray(resolved.messages)) {
+    return resolved as ToolResult;
   }
+  const parsedMessages = resolved.messages;
 
   const hostConvId = process.env.ANTIGRAVITY_CONVERSATION_ID;
   const conversationId = args.conversationId || hostConvId || '';
@@ -261,7 +388,18 @@ export async function handleRenderA2ui(
   const callId = `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const state = getState(conversationId);
 
-  const result = await state.apply(parsedMessages, callId);
+  let batch = parsedMessages;
+  if (args.replace) {
+    const existing = createdSurfaceIds(parsedMessages).filter((sid) => state.hasSurface(sid));
+    if (existing.length > 0) {
+      batch = [
+        ...existing.map((sid) => ({ version: 'v0.9', deleteSurface: { surfaceId: sid } })),
+        ...parsedMessages,
+      ];
+    }
+  }
+
+  const result = await state.apply(batch, callId);
 
   if (!result.ok) {
     const errorLines = result.issues.map(
@@ -287,11 +425,13 @@ export async function handleRenderA2ui(
     ? 'The live surface is visible in the open A2UI side panel. Always include [A2UI Pane](sidecar://a2ui-pane/a2ui-pane/) in your response so the user sees an inline button indicating that the pane was updated and can focus it in one click.'
     : 'The A2UI side panel is currently closed. Always include [A2UI Pane](sidecar://a2ui-pane/a2ui-pane/) in your response so the user sees an inline button indicating that the pane was updated and can open it in one click.';
 
+  const authoredNote =
+    resolved.authored === 'messages' ? '' : ` (compiled from Express ${resolved.authored})`;
   return {
     content: [
       {
         type: 'text' as const,
-        text: `Rendered ${parsedMessages.length} message(s) to ${surfacesText} in the A2UI pane.\n${visibilityNote}`,
+        text: `Rendered ${parsedMessages.length} message(s) to ${surfacesText} in the A2UI pane${authoredNote}.\n${visibilityNote}`,
       },
     ],
   };

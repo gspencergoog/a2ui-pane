@@ -5,7 +5,10 @@
       "args": ["@PLUGIN_DIR@/mcp/dist/server.mjs"],
       "env": {
         "A2UI_PANE_DATA": "${PLUGIN_DATA}",
-        "A2UI_PANE_SIDE_CHANNEL": "1"
+        "A2UI_PANE_SIDE_CHANNEL": "1",
+        "A2UI_PANE_PYTHON": "@PYTHON@",
+        "A2UI_PANE_AGENT_SDK_PATH": "@AGENT_SDK_PATH@",
+        "A2UI_PANE_PROTOCOL_VERSION": "@PROTOCOL_VERSION@"
       }
     }
   }

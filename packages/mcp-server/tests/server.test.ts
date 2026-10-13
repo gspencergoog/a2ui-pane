@@ -50,8 +50,9 @@ describe('MCP Server Tools and Entrypoint', () => {
   });
 
   describe('a2ui_instructions', () => {
-    it('returns protocol rules and basic catalog components', () => {
-      const result = handleA2uiInstructions({}, serverInstance.catalogs);
+    it('returns protocol rules and basic catalog components when no worker is configured', async () => {
+      const result = await handleA2uiInstructions({}, serverInstance.catalogs);
+      expect(result.content[0].text).toContain('A2UI Express authoring is unavailable');
       expect(result.content).toHaveLength(1);
       const text = result.content[0].text;
       expect(text).toContain('A2UI Protocol Rules (v0.9)');
@@ -64,13 +65,17 @@ describe('MCP Server Tools and Entrypoint', () => {
       expect(text).toContain('Text');
     });
 
-    it('filters by catalogId when provided', () => {
-      const result = handleA2uiInstructions({ catalogIds: ['basic'] }, serverInstance.catalogs);
+    it('filters by catalogId when provided', async () => {
+      const result = await handleA2uiInstructions(
+        { catalogIds: ['basic'], format: 'json' },
+        serverInstance.catalogs,
+      );
+      expect(result.content[0].text).not.toContain('unavailable');
       expect(result.content[0].text).toContain('Catalog:');
     });
 
-    it('handles unknown catalogIds by keeping target catalogs', () => {
-      const result = handleA2uiInstructions(
+    it('handles unknown catalogIds by keeping target catalogs', async () => {
+      const result = await handleA2uiInstructions(
         { catalogIds: ['nonexistent-catalog'] },
         serverInstance.catalogs,
       );

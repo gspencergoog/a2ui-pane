@@ -190,4 +190,11 @@ export class ConversationState {
   getSurfaces(): ReadonlyMap<string, any> {
     return this.processor.getSurfaces();
   }
+
+  /**
+   * Reports whether a surface with the given id is currently alive.
+   */
+  hasSurface(surfaceId: string): boolean {
+    return this.processor.getSurfaces().has(surfaceId);
+  }
 }
