@@ -370,14 +370,19 @@ describe('initPaneApp', () => {
     );
   });
 
-  it('locks surface after action submission, calls toggleAuxPane({ open: false }), and unlocks on Edit/Resubmit or new lines', async () => {
+  it('clears surface immediately after action submission, notifies agent on X dismiss button click, and restores dismissed state from sessionStorage', async () => {
     const toggleSpy = vi.fn();
+    const sentMessages: string[] = [];
     (window as any).sidecar = { ui: { toggleAuxPane: toggleSpy } };
+    sessionStorage.clear();
 
     const instance = await initPaneApp({
       container,
       search: '?conversationId=conv_submit_lock',
-      sendMessageFn: async () => ({ ok: true }),
+      sendMessageFn: async (text: string) => {
+        sentMessages.push(text);
+        return { ok: true };
+      },
       eventSourceFactory: (url) => new FakeEventSource(url) as any,
     });
 
@@ -393,25 +398,20 @@ describe('initPaneApp', () => {
       },
     ]);
 
+    const paneView = container.querySelector('#pane-view') as A2uiPaneView;
+    await paneView.updateComplete;
+
     const surface = instance!.applier.getProcessor().getSurface('surfLock');
-    surface?.dispatchAction({ name: 'submit_alignment' });
+    surface?.dispatchAction({ name: 'submit_alignment', context: { label: 'Submit Alignment' } });
     await new Promise((r) => setTimeout(r, 20));
+    await paneView.updateComplete;
 
     expect(instance!.isSubmitted()).toBe(true);
+    expect(paneView.isSurfaceDismissed('surfLock')).toBe(true);
+    expect(paneView.shadowRoot!.querySelector('.a2ui-empty-state')).not.toBeNull();
     expect(toggleSpy).toHaveBeenCalledWith({ open: false });
 
-    const submittedBanner = container.querySelector('#submitted-banner') as HTMLElement;
-    const resubmitBtn = container.querySelector('#resubmit-pane-btn') as HTMLButtonElement;
-    expect(submittedBanner.style.display).toBe('flex');
-
-    // Clicking Edit / Resubmit unlocks the surface
-    resubmitBtn.click();
-    expect(instance!.isSubmitted()).toBe(false);
-    expect(submittedBanner.style.display).toBe('none');
-
-    // Re-lock and verify applying new lines automatically unlocks
-    instance!.setSubmittedState(true);
-    expect(instance!.isSubmitted()).toBe(true);
+    // Apply a new surface surfLock2 -> renders with X dismiss button
     instance!.applier.apply([
       {
         seq: 2,
@@ -423,8 +423,66 @@ describe('initPaneApp', () => {
         },
       },
     ]);
+    await paneView.updateComplete;
     expect(instance!.isSubmitted()).toBe(false);
+    expect(paneView.shadowRoot!.querySelector('[data-surface-id="surfLock"]')).toBeNull();
+    expect(paneView.shadowRoot!.querySelector('[data-surface-id="surfLock2"]')).not.toBeNull();
 
+    // Clicking the built-in X dismiss button clears surfLock2 and notifies the agent
+    const closeBtn = paneView.shadowRoot!.querySelector(
+      '.a2ui-surface-close-btn',
+    ) as HTMLButtonElement;
+    expect(closeBtn).not.toBeNull();
+    closeBtn.click();
+    await new Promise((r) => setTimeout(r, 20));
+    await paneView.updateComplete;
+
+    expect(paneView.isSurfaceDismissed('surfLock2')).toBe(true);
+    expect(paneView.shadowRoot!.querySelector('.a2ui-empty-state')).not.toBeNull();
+    expect(sentMessages.some((m) => m.includes('dismiss_surface') && m.includes('surfLock2'))).toBe(
+      true,
+    );
+
+    // Reload initPaneApp to verify sessionStorage keeps surfLock2 dismissed on history replay
+    const reloadedContainer = document.createElement('div');
+    document.body.appendChild(reloadedContainer);
+    const reloaded = await initPaneApp({
+      container: reloadedContainer,
+      search: '?conversationId=conv_submit_lock',
+      eventSourceFactory: (url) => new FakeEventSource(url) as any,
+    });
+    reloaded!.applier.apply([
+      {
+        seq: 2,
+        ts: new Date().toISOString(),
+        callId: 'c2',
+        message: {
+          version: 'v0.9',
+          createSurface: { surfaceId: 'surfLock2', catalogId: 'basic' },
+        },
+      },
+    ]);
+    const reloadedPaneView = reloadedContainer.querySelector('#pane-view') as A2uiPaneView;
+    await reloadedPaneView.updateComplete;
+    expect(reloadedPaneView.isSurfaceDismissed('surfLock2')).toBe(true);
+    expect(reloadedPaneView.shadowRoot!.querySelector('.a2ui-empty-state')).not.toBeNull();
+
+    // Applying a newer seq (seq 3) for surfLock2 clears the persisted dismissed state
+    reloaded!.applier.apply([
+      {
+        seq: 3,
+        ts: new Date().toISOString(),
+        callId: 'c3',
+        message: {
+          version: 'v0.9',
+          updateDataModel: { surfaceId: 'surfLock2', path: '/updated', value: true },
+        },
+      },
+    ]);
+    await reloadedPaneView.updateComplete;
+    expect(reloadedPaneView.isSurfaceDismissed('surfLock2')).toBe(false);
+
+    document.body.removeChild(reloadedContainer);
     delete (window as any).sidecar;
   });
 });

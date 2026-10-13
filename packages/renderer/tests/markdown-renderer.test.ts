@@ -58,6 +58,20 @@ describe('markdown-renderer', () => {
       expect(out).toContain('<mfrac><mrow><mn>1</mn></mrow><mrow><mn>2</mn></mrow></mfrac>');
       expect(out).toContain('<mi>customcmd</mi>');
     });
+
+    it('renders mathcal, mathbb, mathtt, mathsf, mathit, and upright function names', () => {
+      const out = renderLatexToMathMl(
+        String.raw`\min(T_{\max}, \mathcal{U}(0, J)) + \mathbb{R} + \mathtt{id} + \mathsf{S} + \mathit{v}`,
+        false,
+      );
+      expect(out).toContain('<mi mathvariant="normal">min</mi>');
+      expect(out).toContain('<mi mathvariant="normal">max</mi>');
+      expect(out).toContain('<mi>𝒰</mi>');
+      expect(out).toContain('<mi>ℝ</mi>');
+      expect(out).toContain('mathvariant="monospace"');
+      expect(out).toContain('mathvariant="sans-serif"');
+      expect(out).toContain('mathvariant="italic"');
+    });
   });
 
   describe('renderMermaidSvg', () => {
@@ -93,6 +107,36 @@ describe('markdown-renderer', () => {
       expect(svg).toContain('Sidecar');
       expect(svg).toContain('POST /api/action');
       expect(svg).toContain('200 OK');
+    });
+
+    it('renders stateDiagram-v2 with start/end bullseyes, state aliases, and cyclic back-edges', () => {
+      const svgTd = renderMermaidSvg(`
+        stateDiagram-v2
+          state "Waiting in Queue" as Queued
+          [*] --> Queued
+          Queued --> Running: lease_granted
+          Running --> Retrying: transient_error
+          Retrying --> Queued: backoff_elapsed
+          Running --> [*]
+      `);
+      expect(svgTd).toContain('<svg class="a2ui-mermaid-svg"');
+      expect(svgTd).toContain('Waiting in Queue');
+      expect(svgTd).toContain('lease_granted');
+      expect(svgTd).toContain('backoff_elapsed');
+      expect(svgTd).toContain('<circle');
+      expect(svgTd).toContain('<path d="M ');
+
+      const svgLr = renderMermaidSvg(`
+        stateDiagram
+          direction LR
+          Idle : Waiting for input
+          [*] --> Idle
+          Idle --> Done : finish
+          Done --> Idle : reset
+      `);
+      expect(svgLr).toContain('<svg class="a2ui-mermaid-svg"');
+      expect(svgLr).toContain('Idle: Waiting for input');
+      expect(svgLr).toContain('<path d="M ');
     });
 
     it('falls back to escaped <pre> block for unknown or empty diagram types', () => {

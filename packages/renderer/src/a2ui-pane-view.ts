@@ -3,14 +3,43 @@ import { ContextProvider } from '@lit/context';
 import { Context } from '@a2ui/lit/v0_9';
 import '@a2ui/lit/v0_9';
 import { renderRichMarkdown } from './markdown-renderer.js';
+import { installIconSvgRenderer, installRichTextVariantRenderer } from './icon-paths.js';
 import { MessageProcessor } from '@a2ui/web_core/v0_9';
+
+installIconSvgRenderer();
+installRichTextVariantRenderer();
 
 export interface SurfaceChangedDetail {
   surfaceId: string;
   action: 'created' | 'deleted';
 }
 
+export interface SurfaceSubmissionChangedDetail {
+  surfaceId: string;
+  status: 'active' | 'submitted' | 'dismissed';
+  label?: string;
+}
+
+export interface SurfaceDismissedDetail {
+  surfaceId: string;
+}
+
 const SURFACE_LAYOUT_CSS = `
+  a2ui-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  a2ui-basic-row > a2ui-modal {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  a2ui-basic-row > a2ui-basic-column,
+  a2ui-basic-row > a2ui-basic-row,
+  a2ui-basic-row > a2ui-basic-text {
+    min-width: 0;
+  }
   a2ui-basic-row > a2ui-card {
     display: flex;
     flex-direction: column;
@@ -21,9 +50,47 @@ const SURFACE_LAYOUT_CSS = `
     flex-direction: column;
     box-sizing: border-box;
   }
+  a2ui-slider .a2ui-slider-container {
+    box-sizing: border-box;
+    padding-inline: 6px;
+  }
+  a2ui-slider .a2ui-slider {
+    box-sizing: border-box;
+    margin: 0;
+  }
+  a2ui-basic-textfield .a2ui-textfield {
+    font-size: var(--a2ui-font-size-s, 12px);
+    line-height: 1.3;
+  }
   a2ui-basic-text .a2ui-text {
     font-size: var(--a2ui-font-size-m, 14px);
     line-height: var(--a2ui-line-height-body, 1.4);
+  }
+  a2ui-basic-text .a2ui-text.caption,
+  a2ui-basic-text .a2ui-text .a2ui-caption {
+    font-size: var(--a2ui-font-size-xs, 12px);
+    color: var(--a2ui-text-caption-color, #70757a);
+    font-style: normal;
+  }
+  a2ui-basic-text .a2ui-text.caption p,
+  a2ui-basic-text .a2ui-text h1 p,
+  a2ui-basic-text .a2ui-text h2 p,
+  a2ui-basic-text .a2ui-text h3 p,
+  a2ui-basic-text .a2ui-text h4 p,
+  a2ui-basic-text .a2ui-text h5 p {
+    display: inline;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+    color: inherit;
+    margin: 0;
+  }
+  a2ui-basic-text .a2ui-text code {
+    font-family: var(--a2ui-font-family-monospace, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+    font-size: 0.9em;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background-color: var(--a2ui-color-secondary, rgba(175, 184, 193, 0.25));
   }
   a2ui-basic-text .a2ui-text ul,
   a2ui-basic-text .a2ui-text ol {
@@ -36,11 +103,14 @@ const SURFACE_LAYOUT_CSS = `
   }
   .a2ui-math-block {
     margin: 4px 0;
+    padding: 2px 0;
     overflow-x: auto;
+    overflow-y: hidden;
   }
   .a2ui-mermaid {
     margin: 4px 0;
     overflow-x: auto;
+    overflow-y: hidden;
     text-align: center;
   }
   .a2ui-mermaid-svg {
@@ -60,12 +130,18 @@ export class A2uiPaneView extends LitElement {
   static override properties = {
     processor: { type: Object },
     pendingComponents: { type: Object },
+    dismissibleSurfaces: { type: Boolean },
     surfaceIds: { state: true },
+    submittedSurfaces: { state: true },
+    dismissedSurfaces: { state: true },
   };
 
   declare processor?: MessageProcessor<any>;
   declare pendingComponents: ReadonlySet<string>;
+  declare dismissibleSurfaces: boolean;
   declare surfaceIds: string[];
+  declare submittedSurfaces: ReadonlyMap<string, string>;
+  declare dismissedSurfaces: ReadonlySet<string>;
 
   private unsubscribeCreated?: { unsubscribe: () => void };
   private unsubscribeDeleted?: { unsubscribe: () => void };
@@ -74,6 +150,9 @@ export class A2uiPaneView extends LitElement {
     super();
     this.surfaceIds = [];
     this.pendingComponents = new Set();
+    this.dismissibleSurfaces = false;
+    this.submittedSurfaces = new Map();
+    this.dismissedSurfaces = new Set();
     // Provide markdown renderer context to descendant components (e.g. Text)
     new ContextProvider(this, {
       context: Context.markdown,
@@ -104,12 +183,15 @@ export class A2uiPaneView extends LitElement {
 
     .a2ui-math-block {
       margin: 6px 0;
+      padding: 2px 0;
       overflow-x: auto;
+      overflow-y: hidden;
     }
 
     .a2ui-mermaid {
       margin: 6px 0;
       overflow-x: auto;
+      overflow-y: hidden;
       text-align: center;
     }
 
@@ -126,10 +208,72 @@ export class A2uiPaneView extends LitElement {
     }
 
     .a2ui-surface-wrapper {
+      position: relative;
       display: flex;
       flex-direction: column;
       width: 100%;
       box-sizing: border-box;
+    }
+
+    .a2ui-surface-close-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 10;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--a2ui-color-border, #6e7781);
+      font-size: 13px;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .a2ui-surface-close-btn:hover {
+      background-color: var(--a2ui-color-secondary, rgba(175, 184, 193, 0.2));
+      border-color: var(--a2ui-color-border, #d0d7de);
+      color: var(--a2ui-text-color-text, #24292f);
+    }
+
+    .a2ui-surface-submitted-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 14px;
+      border-radius: var(--a2ui-card-border-radius, 8px);
+      border: 1px solid var(--a2ui-color-border, #d0d7de);
+      background-color: var(--a2ui-color-secondary, #f6f8fa);
+      color: var(--a2ui-text-color-text, #24292f);
+      font-size: 13px;
+    }
+
+    .a2ui-submitted-text {
+      font-weight: 500;
+    }
+
+    .a2ui-submitted-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .a2ui-surface-resubmit-btn,
+    .a2ui-surface-dismiss-btn {
+      background: transparent;
+      border: 1px solid var(--a2ui-color-border, #6a737d);
+      border-radius: 4px;
+      color: inherit;
+      cursor: pointer;
+      font-size: 11px;
+      padding: 3px 8px;
     }
 
     .a2ui-empty-state {
@@ -143,6 +287,117 @@ export class A2uiPaneView extends LitElement {
     }
   `;
 
+  private emitSubmissionChanged(
+    surfaceId: string,
+    status: 'active' | 'submitted' | 'dismissed',
+    label?: string,
+  ): void {
+    this.dispatchEvent(
+      new CustomEvent<SurfaceSubmissionChangedDetail>('surface-submission-changed', {
+        detail: { surfaceId, status, label },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  markSurfaceSubmitted(surfaceId: string, label = ''): void {
+    const nextSubmitted = new Map(this.submittedSurfaces);
+    nextSubmitted.set(surfaceId, label);
+    this.submittedSurfaces = nextSubmitted;
+
+    if (this.dismissedSurfaces.has(surfaceId)) {
+      const nextDismissed = new Set(this.dismissedSurfaces);
+      nextDismissed.delete(surfaceId);
+      this.dismissedSurfaces = nextDismissed;
+    }
+    this.emitSubmissionChanged(surfaceId, 'submitted', label);
+  }
+
+  unsubmitSurface(surfaceId: string): void {
+    if (this.submittedSurfaces.has(surfaceId)) {
+      const nextSubmitted = new Map(this.submittedSurfaces);
+      nextSubmitted.delete(surfaceId);
+      this.submittedSurfaces = nextSubmitted;
+    }
+    if (this.dismissedSurfaces.has(surfaceId)) {
+      const nextDismissed = new Set(this.dismissedSurfaces);
+      nextDismissed.delete(surfaceId);
+      this.dismissedSurfaces = nextDismissed;
+    }
+    this.emitSubmissionChanged(surfaceId, 'active');
+  }
+
+  dismissSurface(surfaceId: string): void {
+    if (this.submittedSurfaces.has(surfaceId)) {
+      const nextSubmitted = new Map(this.submittedSurfaces);
+      nextSubmitted.delete(surfaceId);
+      this.submittedSurfaces = nextSubmitted;
+    }
+    const nextDismissed = new Set(this.dismissedSurfaces);
+    nextDismissed.add(surfaceId);
+    this.dismissedSurfaces = nextDismissed;
+    this.emitSubmissionChanged(surfaceId, 'dismissed');
+  }
+
+  clearSubmittedSurfaces(): void {
+    this.submittedSurfaces = new Map();
+    this.dismissedSurfaces = new Set();
+  }
+
+  isSurfaceSubmitted(surfaceId: string): boolean {
+    return this.submittedSurfaces.has(surfaceId);
+  }
+
+  isSurfaceDismissed(surfaceId: string): boolean {
+    return this.dismissedSurfaces.has(surfaceId);
+  }
+
+  private handleSurfaceCreated(surface: any): void {
+    const id = surface?.id;
+    if (!id) return;
+
+    // Auto-dismiss any previously submitted surfaces when a new surface arrives
+    const autoDismissed: string[] = [];
+    const nextDismissed = new Set(this.dismissedSurfaces);
+    nextDismissed.delete(id);
+    for (const prevSubmittedId of this.submittedSurfaces.keys()) {
+      if (prevSubmittedId !== id) {
+        nextDismissed.add(prevSubmittedId);
+        autoDismissed.push(prevSubmittedId);
+      }
+    }
+    this.dismissedSurfaces = nextDismissed;
+    this.submittedSurfaces = new Map();
+    for (const prevId of autoDismissed) {
+      this.emitSubmissionChanged(prevId, 'dismissed');
+    }
+
+    if (!this.surfaceIds.includes(id)) {
+      this.surfaceIds = [...this.surfaceIds, id];
+      this.dispatchEvent(
+        new CustomEvent<SurfaceChangedDetail>('surface-changed', {
+          detail: { surfaceId: id, action: 'created' },
+          bubbles: true,
+          composed: true,
+        }),
+      );
+    }
+  }
+
+  private handleSurfaceDeleted(id: string): void {
+    if (!id || !this.surfaceIds.includes(id)) return;
+    this.surfaceIds = this.surfaceIds.filter((s) => s !== id);
+    this.unsubmitSurface(id);
+    this.dispatchEvent(
+      new CustomEvent<SurfaceChangedDetail>('surface-changed', {
+        detail: { surfaceId: id, action: 'deleted' },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
   override willUpdate(changedProperties: PropertyValues<this>): void {
     if (changedProperties.has('processor')) {
       this.cleanupSubscriptions();
@@ -151,30 +406,11 @@ export class A2uiPaneView extends LitElement {
         this.surfaceIds = Array.from(this.processor.getSurfaces().keys());
 
         this.unsubscribeCreated = this.processor.onSurfaceCreated((surface: any) => {
-          const id = surface?.id;
-          if (id && !this.surfaceIds.includes(id)) {
-            this.surfaceIds = [...this.surfaceIds, id];
-            this.dispatchEvent(
-              new CustomEvent<SurfaceChangedDetail>('surface-changed', {
-                detail: { surfaceId: id, action: 'created' },
-                bubbles: true,
-                composed: true,
-              }),
-            );
-          }
+          this.handleSurfaceCreated(surface);
         });
 
         this.unsubscribeDeleted = this.processor.onSurfaceDeleted((id: string) => {
-          if (id && this.surfaceIds.includes(id)) {
-            this.surfaceIds = this.surfaceIds.filter((s) => s !== id);
-            this.dispatchEvent(
-              new CustomEvent<SurfaceChangedDetail>('surface-changed', {
-                detail: { surfaceId: id, action: 'deleted' },
-                bubbles: true,
-                composed: true,
-              }),
-            );
-          }
+          this.handleSurfaceDeleted(id);
         });
       } else {
         this.surfaceIds = [];
@@ -217,8 +453,77 @@ export class A2uiPaneView extends LitElement {
     }
   }
 
+  private handleCloseSurfaceClick(surfaceId: string): void {
+    this.dismissSurface(surfaceId);
+    this.dispatchEvent(
+      new CustomEvent<SurfaceDismissedDetail>('surface-dismissed', {
+        detail: { surfaceId },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  private renderSurfaceEntry(id: string, surface: any) {
+    if (this.submittedSurfaces.has(id)) {
+      const label = this.submittedSurfaces.get(id);
+      return html`
+        <div class="a2ui-surface-wrapper" data-surface-id="${id}">
+          <div class="a2ui-surface-submitted-banner" data-submitted-surface="${id}">
+            <span class="a2ui-submitted-text">
+              ✓ Submitted${label ? ` "${label}"` : ''} to agent.
+            </span>
+            <div class="a2ui-submitted-actions">
+              <button
+                type="button"
+                class="a2ui-surface-resubmit-btn"
+                @click=${() => this.unsubmitSurface(id)}
+              >
+                Edit / Resubmit
+              </button>
+              <button
+                type="button"
+                class="a2ui-surface-dismiss-btn"
+                @click=${() => this.dismissSurface(id)}
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    return html`
+      <div class="a2ui-surface-wrapper" data-surface-id="${id}">
+        ${
+          this.dismissibleSurfaces
+            ? html`
+                <button
+                  type="button"
+                  class="a2ui-surface-close-btn"
+                  title="Dismiss"
+                  aria-label="Dismiss surface"
+                  @click=${() => this.handleCloseSurfaceClick(id)}
+                >
+                  ✕
+                </button>
+              `
+            : nothing
+        }
+        <a2ui-surface .surface=${surface}></a2ui-surface>
+      </div>
+    `;
+  }
+
   override render() {
-    if (!this.processor || this.surfaceIds.length === 0) {
+    const visibleIds = this.processor
+      ? this.surfaceIds.filter(
+          (id) => !this.dismissedSurfaces.has(id) && Boolean(this.processor?.getSurface(id)),
+        )
+      : [];
+
+    if (!this.processor || visibleIds.length === 0) {
       return html`
         <slot name="empty">
           <div class="a2ui-empty-state">No surfaces rendered. Waiting for A2UI messages...</div>
@@ -235,14 +540,9 @@ export class A2uiPaneView extends LitElement {
         ?data-busy=${isBusy}
         data-pending-components=${isBusy ? pendingList.join(',') : nothing}
       >
-        ${this.surfaceIds.map((id) => {
+        ${visibleIds.map((id) => {
           const surface = this.processor?.getSurface(id);
-          if (!surface) return nothing;
-          return html`
-            <div class="a2ui-surface-wrapper" data-surface-id="${id}">
-              <a2ui-surface .surface=${surface}></a2ui-surface>
-            </div>
-          `;
+          return this.renderSurfaceEntry(id, surface);
         })}
       </div>
     `;

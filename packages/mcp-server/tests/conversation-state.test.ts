@@ -250,4 +250,42 @@ describe('ConversationState', () => {
     expect(result.ok).toBe(true);
     expect(store.readAll('conv-restart')).toHaveLength(3);
   });
+
+  it('automatically deletes stale pre-existing surfaces when a subsequent batch creates a new surface', async () => {
+    const state = new ConversationState('conv-stale-cleanup', catalogs, store);
+
+    await state.apply(
+      [
+        {
+          version: 'v0.9',
+          createSurface: { surfaceId: 'surf-old', catalogId: 'basic' },
+        },
+      ],
+      'call-1',
+    );
+    expect(state.getSurfaces().has('surf-old')).toBe(true);
+
+    const res2 = await state.apply(
+      [
+        {
+          version: 'v0.9',
+          createSurface: { surfaceId: 'surf-new', catalogId: 'basic' },
+        },
+      ],
+      'call-2',
+    );
+    expect(res2.ok).toBe(true);
+    if (res2.ok) {
+      expect(res2.surfaceIds).toEqual(['surf-new']);
+    }
+    expect(state.getSurfaces().has('surf-old')).toBe(false);
+    expect(state.getSurfaces().has('surf-new')).toBe(true);
+
+    const lines = store.readAll('conv-stale-cleanup');
+    expect(lines).toHaveLength(3);
+    expect(lines[1].message).toEqual({
+      version: 'v0.9',
+      deleteSurface: { surfaceId: 'surf-old' },
+    });
+  });
 });

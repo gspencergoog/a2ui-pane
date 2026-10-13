@@ -1,7 +1,14 @@
 import { injectHostTheme } from '@a2ui-pane/theme';
-import { LineApplier, A2uiPaneView } from '@a2ui-pane/renderer';
+import { StoreLine } from '@a2ui-pane/protocol';
+import {
+  LineApplier,
+  A2uiPaneView,
+  type SurfaceSubmissionChangedDetail,
+  type SurfaceDismissedDetail,
+} from '@a2ui-pane/renderer';
 import { StreamClient, ConnectionStatus } from './stream-client.js';
 import { ActionSender } from './action-sender.js';
+import { showToast } from './toast.js';
 
 // Inject host theme CSS variables
 injectHostTheme();
@@ -55,14 +62,100 @@ function applyErrorBanner(
   }
 }
 
+interface PersistedSurfaceEntry {
+  status: 'submitted' | 'dismissed';
+  label?: string;
+  seq: number;
+}
+
+type PersistedStateMap = Record<string, PersistedSurfaceEntry>;
+
+function getLineSurfaceId(msg: unknown): string | undefined {
+  if (!msg || typeof msg !== 'object') return undefined;
+  const record = msg as Record<string, any>;
+  return (
+    record.createSurface?.surfaceId ||
+    record.updateComponents?.surfaceId ||
+    record.updateDataModel?.surfaceId ||
+    record.deleteSurface?.surfaceId
+  );
+}
+
+function readPersistedState(conversationId: string | null): PersistedStateMap {
+  if (!conversationId || typeof sessionStorage === 'undefined') return {};
+  try {
+    const raw = sessionStorage.getItem(`a2ui-pane-state:${conversationId}`);
+    return raw ? (JSON.parse(raw) as PersistedStateMap) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writePersistedState(conversationId: string | null, state: PersistedStateMap): void {
+  if (!conversationId || typeof sessionStorage === 'undefined') return;
+  try {
+    sessionStorage.setItem(`a2ui-pane-state:${conversationId}`, JSON.stringify(state));
+  } catch {
+    // Ignore storage quota or sandbox errors
+  }
+}
+
+function syncLinesWithPersistedState(
+  lines: StoreLine[],
+  prevLastSeq: number,
+  paneView: A2uiPaneView,
+  persisted: PersistedStateMap,
+  conversationId: string | null,
+): void {
+  let changed = false;
+  for (const line of lines) {
+    if (!line || typeof line !== 'object' || line.seq <= prevLastSeq) continue;
+    const sid = getLineSurfaceId(line.message);
+    if (!sid) continue;
+
+    const entry = persisted[sid];
+    if (!entry) {
+      if (paneView.isSurfaceSubmitted(sid)) {
+        paneView.unsubmitSurface(sid);
+      }
+      continue;
+    }
+
+    if (line.seq > entry.seq) {
+      delete persisted[sid];
+      changed = true;
+      paneView.unsubmitSurface(sid);
+    } else if (entry.status === 'submitted') {
+      paneView.markSurfaceSubmitted(sid, entry.label);
+    } else if (entry.status === 'dismissed') {
+      paneView.dismissSurface(sid);
+    }
+  }
+  if (changed) {
+    writePersistedState(conversationId, persisted);
+  }
+}
+
 function applyPaneSubmittedState(
-  paneView: HTMLElement,
+  paneView: A2uiPaneView,
   submittedBanner: HTMLElement,
   submitted: boolean,
 ): void {
-  paneView.style.pointerEvents = submitted ? 'none' : '';
-  paneView.style.opacity = submitted ? '0.72' : '1';
-  submittedBanner.style.display = submitted ? 'flex' : 'none';
+  if (submitted) {
+    if (paneView.surfaceIds.length > 0) {
+      for (const id of paneView.surfaceIds) {
+        if (!paneView.isSurfaceDismissed(id)) {
+          paneView.dismissSurface(id);
+        }
+      }
+      submittedBanner.style.display = 'none';
+    } else {
+      submittedBanner.style.display = 'flex';
+    }
+  } else {
+    paneView.clearSubmittedSurfaces();
+    submittedBanner.style.display = 'none';
+  }
 }
 
 async function reportPaneVisibility(
@@ -227,11 +320,20 @@ export async function initPaneApp(options: InitOptions = {}): Promise<PaneAppIns
   const submittedBanner = appContainer.querySelector('#submitted-banner') as HTMLElement;
   const resubmitBtn = appContainer.querySelector('#resubmit-pane-btn') as HTMLButtonElement;
   const paneView = appContainer.querySelector('#pane-view') as A2uiPaneView;
+  paneView.dismissibleSurfaces = true;
 
   let submittedState = false;
+  const persistedState = readPersistedState(conversationId);
+
   const setSubmittedState = (next: boolean) => {
     submittedState = next;
     applyPaneSubmittedState(paneView, submittedBanner, next);
+    if (!next) {
+      for (const k of Object.keys(persistedState)) {
+        delete persistedState[k];
+      }
+      writePersistedState(conversationId, persistedState);
+    }
   };
 
   resubmitBtn.addEventListener('click', () => setSubmittedState(false));
@@ -251,15 +353,40 @@ export async function initPaneApp(options: InitOptions = {}): Promise<PaneAppIns
     },
   });
 
+  paneView.addEventListener('surface-dismissed', (evt: Event) => {
+    const detail = (evt as CustomEvent<SurfaceDismissedDetail>).detail;
+    if (!detail?.surfaceId) return;
+    actionSender
+      .sendAction({
+        name: 'dismiss_surface',
+        surfaceId: detail.surfaceId,
+        sourceComponentId: 'surface-close-btn',
+        timestamp: new Date().toISOString(),
+        context: { label: 'Dismissed' },
+      })
+      .catch((err) => {
+        console.error('[main] dismiss sendAction failed:', err);
+      });
+  });
+
   const onAction =
     options.onAction ??
     ((action: any, dataModel?: Record<string, unknown>) => {
-      if (submittedState) return;
+      const targetSurfaceId = typeof action?.surfaceId === 'string' ? action.surfaceId : undefined;
+      if (targetSurfaceId && paneView.isSurfaceDismissed(targetSurfaceId)) return;
+      if (!targetSurfaceId && submittedState) return;
+
       actionSender
         .sendAction(action, dataModel)
         .then((sent) => {
           if (sent) {
-            setSubmittedState(true);
+            submittedState = true;
+            if (targetSurfaceId) {
+              paneView.dismissSurface(targetSurfaceId);
+            } else {
+              setSubmittedState(true);
+            }
+            showToast('Submitted to agent', false);
             try {
               (window as any).sidecar?.ui?.toggleAuxPane?.({ open: false });
             } catch {
@@ -273,12 +400,31 @@ export async function initPaneApp(options: InitOptions = {}): Promise<PaneAppIns
     });
 
   const applier = new LineApplier(undefined, onAction);
+
+  paneView.addEventListener('surface-submission-changed', (evt: Event) => {
+    const detail = (evt as CustomEvent<SurfaceSubmissionChangedDetail>).detail;
+    if (!detail?.surfaceId) return;
+    if (detail.status === 'active') {
+      delete persistedState[detail.surfaceId];
+    } else {
+      persistedState[detail.surfaceId] = {
+        status: detail.status,
+        label: detail.label,
+        seq: applier.getLastAppliedSeq(),
+      };
+    }
+    writePersistedState(conversationId, persistedState);
+  });
+
   const origApply = applier.apply.bind(applier);
   applier.apply = (lines) => {
+    const prevLastSeq = applier.getLastAppliedSeq();
     if (lines.length > 0 && submittedState) {
-      setSubmittedState(false);
+      submittedState = false;
+      submittedBanner.style.display = 'none';
     }
-    return origApply(lines);
+    origApply(lines);
+    syncLinesWithPersistedState(lines, prevLastSeq, paneView, persistedState, conversationId);
   };
 
   paneView.processor = applier.getProcessor();

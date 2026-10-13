@@ -126,6 +126,10 @@ ${HOST_THEME_CSS}
       display: flex;
       flex-direction: column;
     }
+    #a2ui-embed-root a2ui-pane-view {
+      height: auto;
+      overflow: visible;
+    }
   </style>
 </head>
 <body>

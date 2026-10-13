@@ -66,6 +66,34 @@ export class ConversationState {
   }
 
   /**
+   * When a batch creates new surface(s), returns deleteSurface messages for any
+   * pre-existing surfaces not referenced in the incoming batch.
+   */
+  private collectStaleSurfaceDeletes(messages: unknown[]): A2uiServerMessage[] {
+    const hasCreateSurface = messages.some((m) =>
+      Boolean((m as Record<string, unknown>).createSurface),
+    );
+    if (!hasCreateSurface) return [];
+
+    const batchSurfaceIds = new Set<string>();
+    for (const m of messages) {
+      const sid = this.getSurfaceId(m as Record<string, unknown>);
+      if (sid) batchSurfaceIds.add(sid);
+    }
+
+    const deletes: A2uiServerMessage[] = [];
+    for (const existingId of Array.from(this.processor.getSurfaces().keys())) {
+      if (!batchSurfaceIds.has(existingId)) {
+        deletes.push({
+          version: 'v0.9',
+          deleteSurface: { surfaceId: existingId },
+        });
+      }
+    }
+    return deletes;
+  }
+
+  /**
    * Validates and applies a batch of server messages.
    * Performs pre-validation on envelopes and surfaceIds prior to mutating the processor,
    * guaranteeing strict atomic rollback if any message fails.
@@ -114,9 +142,14 @@ export class ConversationState {
       }
     }
 
-    // Step 2: Sequentially apply messages to processor with rollback on failure
+    // Step 2: Sequentially apply messages to processor with rollback on failure.
+    // Automatically delete pre-existing surfaces not referenced when creating a new surface.
     const validMessages: A2uiServerMessage[] = [];
     const surfaceIds = new Set<string>();
+    for (const delMsg of this.collectStaleSurfaceDeletes(messages)) {
+      this.processor.processMessages([delMsg as any]);
+      validMessages.push(delMsg);
+    }
 
     for (let i = 0; i < messages.length; i++) {
       const candidate = messages[i] as Record<string, unknown>;

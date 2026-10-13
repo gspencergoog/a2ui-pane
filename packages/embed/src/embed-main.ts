@@ -310,14 +310,23 @@ export function initEmbed(options: InitEmbedOptions = {}): EmbedInstance | null 
     applier.apply(lines);
   }
 
+  const AUTO_RESIZE_SLACK = 4;
   const observerFactory = options.resizeObserverFactory ?? ((cb) => new SurfaceResizeObserver(cb));
 
   const resizeObserver = observerFactory(({ height, width }) => {
-    postMsg({ type: 'RESIZE', height, width }, '*');
+    postMsg({ type: 'RESIZE', height: Math.ceil(height) + AUTO_RESIZE_SLACK, width }, '*');
   });
 
-  // Perform initial measurement once view is attached
+  // Perform initial measurement once view is attached, and re-measure after async Lit/markdown rendering settles
   resizeObserver.measureAndDispatch(true);
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => {
+      resizeObserver.measureAndDispatch(false);
+    });
+  }
+  setTimeout(() => {
+    resizeObserver.measureAndDispatch(false);
+  }, 60);
 
   return {
     applier,

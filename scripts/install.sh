@@ -68,6 +68,7 @@ fi
 
 # Terminate stale MCP server processes and trigger LanguageServer RefreshMcpServers
 pkill -f "a2ui-pane/mcp/dist/server.mjs" 2>/dev/null || true
+sleep 0.5
 python3 -c '
 import glob, urllib.request
 for env_file in glob.glob("/proc/[0-9]*/environ"):
@@ -75,8 +76,9 @@ for env_file in glob.glob("/proc/[0-9]*/environ"):
         raw = open(env_file, "rb").read().decode("utf-8", errors="ignore")
         env = dict(item.split("=", 1) for item in raw.split("\0") if "=" in item)
         if "ANTIGRAVITY_LS_ADDRESS" in env and "ANTIGRAVITY_CSRF_TOKEN" in env:
+            addr = env["ANTIGRAVITY_LS_ADDRESS"]
             req = urllib.request.Request(
-                f"http://{env[\"ANTIGRAVITY_LS_ADDRESS\"]}/exa.language_server_pb.LanguageServerService/RefreshMcpServers",
+                f"http://{addr}/exa.language_server_pb.LanguageServerService/RefreshMcpServers",
                 data=b"{}",
                 headers={"Content-Type": "application/json", "x-codeium-csrf-token": env["ANTIGRAVITY_CSRF_TOKEN"]},
                 method="POST",

@@ -9,6 +9,11 @@ describe('Theme module', () => {
     expect(HOST_THEME_CSS).toContain('--a2ui-text-color-text:');
     expect(HOST_THEME_CSS).toContain('--a2ui-color-on-primary:');
     expect(HOST_THEME_CSS).toContain('--a2ui-spacing-m:');
+    expect(HOST_THEME_CSS).toContain('--a2ui-icon-size: 18px;');
+    expect(HOST_THEME_CSS).toContain('--a2ui-textfield-padding: 6px 10px;');
+    expect(HOST_THEME_CSS).toContain('--a2ui-textfield-border-radius: 6px;');
+    expect(HOST_THEME_CSS).toContain('--a2ui-list-padding: 0px;');
+    expect(HOST_THEME_CSS).toContain('--a2ui-card-margin: 0px;');
     expect(HOST_THEME_CSS).toContain('--a2ui-choicepicker-chip-font-size: 13px;');
     expect(HOST_THEME_CSS).toContain('#a2ui-embed-root');
     expect(HOST_THEME_CSS).toContain('@media (prefers-color-scheme: dark)');

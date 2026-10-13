@@ -84,6 +84,95 @@ const GREEK_AND_SYMBOLS: Readonly<Record<string, string>> = {
   cdots: '⋯',
 };
 
+const MATHCAL_MAP: Readonly<Record<string, string>> = {
+  A: '𝒜',
+  B: 'ℬ',
+  C: '𝒞',
+  D: '𝒟',
+  E: 'ℰ',
+  F: 'ℱ',
+  G: '𝒢',
+  H: 'ℋ',
+  I: 'ℐ',
+  J: '𝒥',
+  K: '𝒦',
+  L: 'ℒ',
+  M: 'ℳ',
+  N: '𝒩',
+  O: '𝒪',
+  P: '𝒫',
+  Q: '𝒬',
+  R: 'ℛ',
+  S: '𝒮',
+  T: '𝒯',
+  U: '𝒰',
+  V: '𝒱',
+  W: '𝒲',
+  X: '𝒳',
+  Y: '𝒴',
+  Z: '𝒵',
+};
+
+const MATHBB_MAP: Readonly<Record<string, string>> = {
+  A: '𝔸',
+  B: '𝔹',
+  C: 'ℂ',
+  D: '𝔻',
+  E: '𝔼',
+  F: '𝔽',
+  G: '𝔾',
+  H: 'ℍ',
+  I: '𝕀',
+  J: '𝕁',
+  K: '𝕂',
+  L: '𝕃',
+  M: '𝕄',
+  N: 'ℕ',
+  O: '𝕆',
+  P: 'ℙ',
+  Q: 'ℚ',
+  R: 'ℝ',
+  S: '𝕊',
+  T: '𝕋',
+  U: '𝕌',
+  V: '𝕍',
+  W: '𝕎',
+  X: '𝕏',
+  Y: '𝕐',
+  Z: 'ℤ',
+};
+
+const UPRIGHT_FUNCTIONS = new Set([
+  'min',
+  'max',
+  'sup',
+  'inf',
+  'lim',
+  'log',
+  'ln',
+  'exp',
+  'sin',
+  'cos',
+  'tan',
+  'cot',
+  'sec',
+  'csc',
+  'arcsin',
+  'arccos',
+  'arctan',
+  'sinh',
+  'cosh',
+  'tanh',
+  'det',
+  'dim',
+  'ker',
+  'deg',
+  'gcd',
+  'Pr',
+  'arg',
+  'mod',
+]);
+
 const OPERATORS = new Set([
   '+',
   '-',
@@ -221,6 +310,40 @@ function parseCommand(src: string, cmdStart: number): { html: string; nextIndex:
       nextIndex: arg.nextIndex,
     };
   }
+  if (cmd === 'mathcal') {
+    const arg = readBracedGroup(src, end);
+    const converted = Array.from(arg.content.trim())
+      .map((ch) => MATHCAL_MAP[ch] ?? ch)
+      .join('');
+    return {
+      html: `<mi>${escapeHtml(converted)}</mi>`,
+      nextIndex: arg.nextIndex,
+    };
+  }
+  if (cmd === 'mathbb') {
+    const arg = readBracedGroup(src, end);
+    const converted = Array.from(arg.content.trim())
+      .map((ch) => MATHBB_MAP[ch] ?? ch)
+      .join('');
+    return {
+      html: `<mi>${escapeHtml(converted)}</mi>`,
+      nextIndex: arg.nextIndex,
+    };
+  }
+  if (cmd === 'mathtt' || cmd === 'mathsf' || cmd === 'mathit') {
+    const arg = readBracedGroup(src, end);
+    const variant = cmd === 'mathtt' ? 'monospace' : cmd === 'mathsf' ? 'sans-serif' : 'italic';
+    return {
+      html: `<mstyle mathvariant="${variant}"><mrow>${parseLatexTokens(arg.content)}</mrow></mstyle>`,
+      nextIndex: arg.nextIndex,
+    };
+  }
+  if (UPRIGHT_FUNCTIONS.has(cmd)) {
+    return {
+      html: `<mi mathvariant="normal">${escapeHtml(cmd)}</mi>`,
+      nextIndex: end,
+    };
+  }
   if (cmd === 'begin') {
     const env = readBracedGroup(src, end);
     const endMarker = `\\end{${env.content}}`;
@@ -329,7 +452,8 @@ export function renderLatexToMathMl(tex: string, displayMode = false): string {
 interface FlowNode {
   id: string;
   label: string;
-  shape: 'rect' | 'round' | 'diamond';
+  shape: 'rect' | 'round' | 'diamond' | 'start' | 'end';
+  order: number;
 }
 
 interface FlowEdge {
@@ -339,7 +463,11 @@ interface FlowEdge {
   dashed: boolean;
 }
 
-function parseNodeToken(raw: string, nodes: Map<string, FlowNode>): string {
+function parseNodeToken(
+  raw: string,
+  nodes: Map<string, FlowNode>,
+  defaultShape: FlowNode['shape'] = 'rect',
+): string {
   const trimmed = raw.trim();
   const match =
     /^([A-Za-z0-9_.-]+)\s*(?:\[\s*"?([^"\]]*)"?\s*\]|\(\s*"?([^")]*)"?\s*\)|\{\s*"?([^"}]*)?"?\s*\})?$/.exec(
@@ -348,7 +476,12 @@ function parseNodeToken(raw: string, nodes: Map<string, FlowNode>): string {
   if (!match) {
     const fallbackId = trimmed.replace(/\s+/g, '_') || 'node';
     if (!nodes.has(fallbackId)) {
-      nodes.set(fallbackId, { id: fallbackId, label: trimmed, shape: 'rect' });
+      nodes.set(fallbackId, {
+        id: fallbackId,
+        label: trimmed,
+        shape: defaultShape,
+        order: nodes.size,
+      });
     }
     return fallbackId;
   }
@@ -356,14 +489,15 @@ function parseNodeToken(raw: string, nodes: Map<string, FlowNode>): string {
   const rectLabel = match[2];
   const roundLabel = match[3];
   const diamondLabel = match[4];
+  const existingOrder = nodes.get(id)?.order ?? nodes.size;
   if (rectLabel !== undefined) {
-    nodes.set(id, { id, label: rectLabel.trim(), shape: 'rect' });
+    nodes.set(id, { id, label: rectLabel.trim(), shape: 'rect', order: existingOrder });
   } else if (roundLabel !== undefined) {
-    nodes.set(id, { id, label: roundLabel.trim(), shape: 'round' });
+    nodes.set(id, { id, label: roundLabel.trim(), shape: 'round', order: existingOrder });
   } else if (diamondLabel !== undefined) {
-    nodes.set(id, { id, label: diamondLabel.trim(), shape: 'diamond' });
+    nodes.set(id, { id, label: diamondLabel.trim(), shape: 'diamond', order: existingOrder });
   } else if (!nodes.has(id)) {
-    nodes.set(id, { id, label: id, shape: 'rect' });
+    nodes.set(id, { id, label: id, shape: defaultShape, order: existingOrder });
   }
   return id;
 }
@@ -402,16 +536,99 @@ function parseFlowchartLines(lines: string[]): {
   return { nodes, edges };
 }
 
+function parseStateDiagramLines(lines: string[]): {
+  nodes: Map<string, FlowNode>;
+  edges: FlowEdge[];
+  direction: string;
+} {
+  const nodes = new Map<string, FlowNode>();
+  const edges: FlowEdge[] = [];
+  let direction = 'TD';
+
+  const stateAliasPattern = /^state\s+"([^"]+)"\s+as\s+([A-Za-z0-9_.-]+)$/i;
+  const transitionPattern =
+    /^(\[\*\]|[A-Za-z0-9_.-]+)\s*(-->|--\.->)\s*(\[\*\]|[A-Za-z0-9_.-]+)(?:\s*:\s*(.+))?$/;
+  const stateDescPattern = /^([A-Za-z0-9_.-]+)\s*:\s*(.+)$/;
+
+  const ensureStateNode = (token: string, isSource: boolean): string => {
+    if (token === '[*]') {
+      const id = isSource ? '__start__' : '__end__';
+      const shape = isSource ? 'start' : 'end';
+      if (!nodes.has(id)) {
+        nodes.set(id, { id, label: '', shape, order: nodes.size });
+      }
+      return id;
+    }
+    if (!nodes.has(token)) {
+      nodes.set(token, { id: token, label: token, shape: 'round', order: nodes.size });
+    }
+    return token;
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim().replace(/;$/, '');
+    if (!line || line.startsWith('%%') || /^(?:note\b|end\s+note\b|\}|\{)/i.test(line)) {
+      continue;
+    }
+    const dirMatch = /^direction\s+(TD|TB|LR|RL|BT)\b/i.exec(line);
+    if (dirMatch) {
+      direction = dirMatch[1].toUpperCase();
+      continue;
+    }
+    const aliasMatch = stateAliasPattern.exec(line);
+    if (aliasMatch) {
+      const label = aliasMatch[1].trim();
+      const id = aliasMatch[2].trim();
+      const existingOrder = nodes.get(id)?.order ?? nodes.size;
+      nodes.set(id, { id, label, shape: 'round', order: existingOrder });
+      continue;
+    }
+    const transMatch = transitionPattern.exec(line);
+    if (transMatch) {
+      const fromId = ensureStateNode(transMatch[1].trim(), true);
+      const arrow = transMatch[2];
+      const toId = ensureStateNode(transMatch[3].trim(), false);
+      const label = transMatch[4]?.trim();
+      edges.push({
+        from: fromId,
+        to: toId,
+        label,
+        dashed: arrow.includes('.'),
+      });
+      continue;
+    }
+    const descMatch = stateDescPattern.exec(line);
+    if (descMatch) {
+      const id = descMatch[1].trim();
+      const desc = descMatch[2].trim();
+      const existing = nodes.get(id);
+      nodes.set(id, {
+        id,
+        label: existing && existing.label !== id ? existing.label : `${id}: ${desc}`,
+        shape: 'round',
+        order: existing?.order ?? nodes.size,
+      });
+    }
+  }
+
+  return { nodes, edges, direction };
+}
+
 function computeNodeRanks(
   nodes: Map<string, FlowNode>,
   edges: FlowEdge[],
-): Map<string, { rank: number; row: number }> {
+): Map<string, { rank: number; row: number; groupSize: number }> {
   const ranks = new Map<string, number>();
   for (const id of nodes.keys()) {
     ranks.set(id, 0);
   }
   for (let iter = 0; iter < nodes.size; iter++) {
     for (const edge of edges) {
+      const fromNode = nodes.get(edge.from);
+      const toNode = nodes.get(edge.to);
+      if (!fromNode || !toNode) continue;
+      // Ignore back-edges (cycles) when computing hierarchical rank
+      if (fromNode.order >= toNode.order) continue;
       const fromRank = ranks.get(edge.from) ?? 0;
       const toRank = ranks.get(edge.to) ?? 0;
       if (toRank <= fromRank && edge.from !== edge.to) {
@@ -425,73 +642,319 @@ function computeNodeRanks(
     group.push(id);
     byRank.set(rank, group);
   }
-  const positions = new Map<string, { rank: number; row: number }>();
+  const positions = new Map<string, { rank: number; row: number; groupSize: number }>();
   for (const [rank, group] of byRank.entries()) {
-    group.forEach((id, idx) => positions.set(id, { rank, row: idx }));
+    group.forEach((id, idx) => positions.set(id, { rank, row: idx, groupSize: group.length }));
   }
   return positions;
 }
 
-function renderFlowchartSvg(lines: string[], direction: string): string {
-  const { nodes, edges } = parseFlowchartLines(lines);
+function computeNodeDimensions(n: FlowNode): { w: number; h: number } {
+  if (n.shape === 'start' || n.shape === 'end') {
+    return { w: 22, h: 22 };
+  }
+  const textWidth = Math.ceil(n.label.length * 7.4) + 28;
+  return {
+    w: Math.max(116, textWidth),
+    h: 34,
+  };
+}
+
+function renderGraphSvg(
+  nodes: Map<string, FlowNode>,
+  edges: FlowEdge[],
+  direction: string,
+  rawLinesForFallback: string[],
+): string {
   if (nodes.size === 0) {
-    return `<pre class="a2ui-mermaid-fallback"><code>${escapeHtml(lines.join('\n'))}</code></pre>`;
+    return `<pre class="a2ui-mermaid-fallback"><code>${escapeHtml(rawLinesForFallback.join('\n'))}</code></pre>`;
   }
   const isHorizontal = direction === 'LR' || direction === 'RL';
   const positions = computeNodeRanks(nodes, edges);
-  const nodeW = 132;
-  const nodeH = 34;
-  const gapX = isHorizontal ? 176 : 156;
-  const gapY = isHorizontal ? 54 : 62;
-  const pad = 12;
-
-  let maxX = 0;
-  let maxY = 0;
-  const coords = new Map<string, { cx: number; cy: number }>();
-  for (const [id, pos] of positions.entries()) {
-    const col = isHorizontal ? pos.rank : pos.row;
-    const row = isHorizontal ? pos.row : pos.rank;
-    const cx = pad + col * gapX + nodeW / 2;
-    const cy = pad + row * gapY + nodeH / 2;
-    coords.set(id, { cx, cy });
-    maxX = Math.max(maxX, cx + nodeW / 2 + pad);
-    maxY = Math.max(maxY, cy + nodeH / 2 + pad);
+  const dims = new Map<string, { w: number; h: number }>();
+  for (const [id, n] of nodes.entries()) {
+    dims.set(id, computeNodeDimensions(n));
   }
 
-  const edgeSvg = edges
-    .map((e) => {
-      const from = coords.get(e.from);
-      const to = coords.get(e.to);
-      if (!from || !to) return '';
-      const x1 = isHorizontal ? from.cx + nodeW / 2 : from.cx;
-      const y1 = isHorizontal ? from.cy : from.cy + nodeH / 2;
-      const x2 = isHorizontal ? to.cx - nodeW / 2 - 4 : to.cx;
-      const y2 = isHorizontal ? to.cy : to.cy - nodeH / 2 - 4;
-      const dash = e.dashed ? ' stroke-dasharray="4 3"' : '';
-      const midX = (x1 + x2) / 2;
-      const midY = (y1 + y2) / 2 - 6;
-      const labelEl = e.label
-        ? `<text x="${midX}" y="${midY}" text-anchor="middle" font-size="11" fill="var(--a2ui-text-caption-color, #70757a)">${escapeHtml(e.label)}</text>`
-        : '';
-      return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--a2ui-color-primary, #0b57d0)" stroke-width="1.5"${dash} marker-end="url(#a2ui-arrow)" />${labelEl}`;
-    })
-    .join('');
+  let maxRank = 0;
+  let maxGroupSize = 1;
+  for (const pos of positions.values()) {
+    maxRank = Math.max(maxRank, pos.rank);
+    maxGroupSize = Math.max(maxGroupSize, pos.groupSize);
+  }
+
+  // Check if there are any back-edges so we reserve left margin in vertical layout
+  const hasBackEdge = edges.some((e) => {
+    const f = positions.get(e.from);
+    const t = positions.get(e.to);
+    return f && t && f.rank >= t.rank;
+  });
+
+  const coords = new Map<
+    string,
+    { cx: number; cy: number; w: number; h: number; rank: number; row: number }
+  >();
+  let maxX = 0;
+  let maxY = 0;
+
+  if (isHorizontal) {
+    const padX = 16;
+    const padY = 16;
+    const gapY = 54;
+    const colWidths: number[] = new Array(maxRank + 1).fill(116);
+    for (const [id, pos] of positions.entries()) {
+      const d = dims.get(id)!;
+      colWidths[pos.rank] = Math.max(colWidths[pos.rank], d.w);
+    }
+
+    const colGap: number[] = new Array(maxRank + 1).fill(46);
+    for (const e of edges) {
+      const f = positions.get(e.from);
+      const t = positions.get(e.to);
+      if (f && t && t.rank > f.rank && e.label) {
+        colGap[f.rank] = Math.max(colGap[f.rank], Math.ceil(e.label.length * 6.4) + 28);
+      }
+    }
+
+    const colCenterX: number[] = [];
+    let cursorX = padX;
+    for (let r = 0; r <= maxRank; r++) {
+      colCenterX[r] = cursorX + colWidths[r] / 2;
+      cursorX += colWidths[r] + colGap[r];
+    }
+    maxX = cursorX - (colGap[maxRank] ?? 46) + padX;
+    const totalRowsHeight = (maxGroupSize - 1) * gapY + 34;
+    maxY = padY * 2 + totalRowsHeight + (hasBackEdge ? 28 : 0);
+
+    for (const [id, pos] of positions.entries()) {
+      const d = dims.get(id)!;
+      const rowOffset = (maxGroupSize - pos.groupSize) / 2;
+      const cy = padY + (hasBackEdge ? 20 : 0) + (pos.row + rowOffset) * gapY + 17;
+      coords.set(id, {
+        cx: colCenterX[pos.rank],
+        cy,
+        w: d.w,
+        h: d.h,
+        rank: pos.rank,
+        row: pos.row,
+      });
+    }
+  } else {
+    const leftMargin = hasBackEdge ? 96 : 16;
+    const rightMargin = 24;
+    const padY = 16;
+    const colGapX = 28;
+
+    // Group nodes by rank to compute row widths and incoming edge label widths
+    const byRank = new Map<number, string[]>();
+    for (const [id, pos] of positions.entries()) {
+      const list = byRank.get(pos.rank) ?? [];
+      list.push(id);
+      byRank.set(pos.rank, list);
+    }
+
+    const incomingLabelWidth = new Map<string, number>();
+    const labeledEdgesByRank = new Map<number, number>();
+    for (const e of edges) {
+      const f = positions.get(e.from);
+      const t = positions.get(e.to);
+      if (f && t && f.rank < t.rank && e.label) {
+        const labelW = Math.ceil(e.label.length * 6.2) + 22;
+        incomingLabelWidth.set(e.to, Math.max(incomingLabelWidth.get(e.to) ?? 0, labelW));
+        labeledEdgesByRank.set(f.rank, (labeledEdgesByRank.get(f.rank) ?? 0) + 1);
+      }
+    }
+
+    const getSlotWidth = (id: string, rankSize: number): number => {
+      const baseW = dims.get(id)!.w;
+      if (rankSize <= 1) return baseW;
+      return Math.max(baseW, incomingLabelWidth.get(id) ?? 0);
+    };
+
+    let maxRowWidth = 220;
+    for (const list of byRank.values()) {
+      const rowW =
+        list.reduce((sum, id) => sum + getSlotWidth(id, list.length), 0) +
+        Math.max(0, list.length - 1) * colGapX;
+      maxRowWidth = Math.max(maxRowWidth, rowW);
+    }
+
+    const rankCenterY: number[] = [];
+    let cursorY = padY + 17;
+    for (let r = 0; r <= maxRank; r++) {
+      rankCenterY[r] = cursorY;
+      const gapY = (labeledEdgesByRank.get(r) ?? 0) >= 2 ? 88 : 66;
+      cursorY += gapY;
+    }
+
+    maxX = leftMargin + maxRowWidth + rightMargin;
+    maxY = (rankCenterY[maxRank] ?? padY + 17) + 17 + padY;
+
+    for (const [rank, list] of byRank.entries()) {
+      const rowW =
+        list.reduce((sum, id) => sum + getSlotWidth(id, list.length), 0) +
+        Math.max(0, list.length - 1) * colGapX;
+      let startX = leftMargin + (maxRowWidth - rowW) / 2;
+      const cy = rankCenterY[rank];
+      list.forEach((id, idx) => {
+        const d = dims.get(id)!;
+        const slotW = getSlotWidth(id, list.length);
+        const cx = startX + slotW / 2;
+        startX += slotW + colGapX;
+        coords.set(id, { cx, cy, w: d.w, h: d.h, rank, row: idx });
+      });
+    }
+  }
+
+  // Group forward edges by source node to spread fan-out ports and stagger labels
+  const forwardOutBySource = new Map<string, FlowEdge[]>();
+  for (const e of edges) {
+    const f = coords.get(e.from);
+    const t = coords.get(e.to);
+    if (!f || !t || f.rank >= t.rank || e.from === e.to) continue;
+    const list = forwardOutBySource.get(e.from) ?? [];
+    list.push(e);
+    forwardOutBySource.set(e.from, list);
+  }
+  for (const list of forwardOutBySource.values()) {
+    list.sort((a, b) => {
+      const ca = coords.get(a.to)!;
+      const cb = coords.get(b.to)!;
+      return isHorizontal ? ca.cy - cb.cy : ca.cx - cb.cx;
+    });
+  }
+
+  const labelHaloAttrs =
+    'paint-order="stroke fill" stroke="var(--a2ui-color-surface, #ffffff)" stroke-width="4" stroke-linejoin="round"';
+  const edgeLines: string[] = [];
+  const edgeLabels: string[] = [];
+
+  for (const e of edges) {
+    const from = coords.get(e.from);
+    const to = coords.get(e.to);
+    if (!from || !to) continue;
+    const isBackEdge = from.rank >= to.rank && e.from !== e.to;
+    const dash = e.dashed || isBackEdge ? ' stroke-dasharray="4 3"' : '';
+
+    if (isBackEdge) {
+      if (isHorizontal) {
+        const x1 = from.cx;
+        const y1 = from.cy - from.h / 2;
+        const x2 = to.cx;
+        const y2 = to.cy - to.h / 2 - 4;
+        const ctrlY = Math.min(y1, y2) - 26;
+        const midX = (x1 + x2) / 2;
+        edgeLines.push(
+          `<path d="M ${x1} ${y1} Q ${midX} ${ctrlY} ${x2} ${y2}" fill="none" stroke="var(--a2ui-color-primary, #0b57d0)" stroke-width="1.5"${dash} marker-end="url(#a2ui-arrow)" />`,
+        );
+        if (e.label) {
+          edgeLabels.push(
+            `<text x="${midX}" y="${ctrlY + 4}" text-anchor="middle" font-size="10.5" ${labelHaloAttrs} fill="var(--a2ui-text-caption-color, #70757a)">${escapeHtml(e.label)}</text>`,
+          );
+        }
+      } else {
+        const x1 = from.cx - from.w / 2;
+        const y1 = from.cy;
+        const x2 = to.cx - to.w / 2 - 4;
+        const y2 = to.cy;
+        const arcX = Math.min(x1, x2) - 44;
+        const midY = (y1 + y2) / 2;
+        edgeLines.push(
+          `<path d="M ${x1} ${y1} C ${arcX} ${y1}, ${arcX} ${y2}, ${x2} ${y2}" fill="none" stroke="var(--a2ui-color-primary, #0b57d0)" stroke-width="1.5"${dash} marker-end="url(#a2ui-arrow)" />`,
+        );
+        if (e.label) {
+          edgeLabels.push(
+            `<text x="${arcX - 4}" y="${midY + 3}" text-anchor="end" font-size="10.5" ${labelHaloAttrs} fill="var(--a2ui-text-caption-color, #70757a)">${escapeHtml(e.label)}</text>`,
+          );
+        }
+      }
+      continue;
+    }
+
+    const siblings = forwardOutBySource.get(e.from) ?? [e];
+    const outCount = siblings.length;
+    const outIdx = Math.max(0, siblings.indexOf(e));
+
+    if (!isHorizontal && outCount > 1) {
+      const spread = Math.min(44, from.w * 0.36);
+      const x1 = from.cx + ((outIdx - (outCount - 1) / 2) / Math.max(1, outCount - 1)) * spread;
+      const y1 = from.cy + from.h / 2;
+      const x2 = to.cx;
+      const y2 = to.cy - to.h / 2 - 4;
+      if (Math.abs(x1 - x2) > 6) {
+        const ctrlY = y1 + (y2 - y1) * 0.45;
+        edgeLines.push(
+          `<path d="M ${x1} ${y1} C ${x1} ${ctrlY}, ${x2} ${ctrlY}, ${x2} ${y2}" fill="none" stroke="var(--a2ui-color-primary, #0b57d0)" stroke-width="1.5"${dash} marker-end="url(#a2ui-arrow)" />`,
+        );
+      } else {
+        edgeLines.push(
+          `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--a2ui-color-primary, #0b57d0)" stroke-width="1.5"${dash} marker-end="url(#a2ui-arrow)" />`,
+        );
+      }
+      if (e.label) {
+        const xFraction = 0.76;
+        const yFraction = outCount >= 3 ? (outIdx % 2 === 0 ? 0.46 : 0.76) : 0.58;
+        const labelX = x1 + xFraction * (x2 - x1);
+        const labelY = y1 + yFraction * (y2 - y1) + 3;
+        edgeLabels.push(
+          `<text x="${labelX}" y="${labelY}" text-anchor="middle" font-size="10.5" ${labelHaloAttrs} fill="var(--a2ui-text-caption-color, #70757a)">${escapeHtml(e.label)}</text>`,
+        );
+      }
+      continue;
+    }
+
+    const x1 = isHorizontal ? from.cx + from.w / 2 : from.cx;
+    const y1 = isHorizontal ? from.cy : from.cy + from.h / 2;
+    const x2 = isHorizontal ? to.cx - to.w / 2 - 4 : to.cx;
+    const y2 = isHorizontal ? to.cy : to.cy - to.h / 2 - 4;
+    const midX = (x1 + x2) / 2;
+    const midY = isHorizontal ? (y1 + y2) / 2 - 6 : (y1 + y2) / 2 + 3;
+    const textOffset = !isHorizontal && Math.abs(x1 - x2) < 8 ? 8 : 0;
+    const anchor = textOffset > 0 ? 'start' : 'middle';
+    edgeLines.push(
+      `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--a2ui-color-primary, #0b57d0)" stroke-width="1.5"${dash} marker-end="url(#a2ui-arrow)" />`,
+    );
+    if (e.label) {
+      edgeLabels.push(
+        `<text x="${midX + textOffset}" y="${midY}" text-anchor="${anchor}" font-size="10.5" ${labelHaloAttrs} fill="var(--a2ui-text-caption-color, #70757a)">${escapeHtml(e.label)}</text>`,
+      );
+    }
+  }
+  const edgeSvg = edgeLines.join('');
+  const edgeLabelSvg = edgeLabels.join('');
 
   const nodeSvg = Array.from(nodes.values())
     .map((n) => {
       const c = coords.get(n.id)!;
-      const x = c.cx - nodeW / 2;
-      const y = c.cy - nodeH / 2;
-      const rx = n.shape === 'round' ? 18 : 6;
+      if (n.shape === 'start') {
+        return `<g class="a2ui-mermaid-node"><circle cx="${c.cx}" cy="${c.cy}" r="8" fill="var(--a2ui-color-primary, #0b57d0)" /></g>`;
+      }
+      if (n.shape === 'end') {
+        return `<g class="a2ui-mermaid-node"><circle cx="${c.cx}" cy="${c.cy}" r="9" fill="none" stroke="var(--a2ui-color-primary, #0b57d0)" stroke-width="1.5" /><circle cx="${c.cx}" cy="${c.cy}" r="5" fill="var(--a2ui-color-primary, #0b57d0)" /></g>`;
+      }
+      const x = c.cx - c.w / 2;
+      const y = c.cy - c.h / 2;
+      const rx = n.shape === 'round' ? 14 : 6;
       const shapeEl =
         n.shape === 'diamond'
-          ? `<polygon points="${c.cx},${y} ${x + nodeW},${c.cy} ${c.cx},${y + nodeH} ${x},${c.cy}" fill="var(--a2ui-color-secondary, #f1f3f4)" stroke="var(--a2ui-color-primary, #0b57d0)" stroke-width="1.5" />`
-          : `<rect x="${x}" y="${y}" width="${nodeW}" height="${nodeH}" rx="${rx}" fill="var(--a2ui-color-secondary, #f1f3f4)" stroke="var(--a2ui-color-border, #dadce0)" stroke-width="1.5" />`;
+          ? `<polygon points="${c.cx},${y} ${x + c.w},${c.cy} ${c.cx},${y + c.h} ${x},${c.cy}" fill="var(--a2ui-color-secondary, #f1f3f4)" stroke="var(--a2ui-color-primary, #0b57d0)" stroke-width="1.5" />`
+          : `<rect x="${x}" y="${y}" width="${c.w}" height="${c.h}" rx="${rx}" fill="var(--a2ui-color-secondary, #f1f3f4)" stroke="var(--a2ui-color-border, #dadce0)" stroke-width="1.5" />`;
       return `<g class="a2ui-mermaid-node">${shapeEl}<text x="${c.cx}" y="${c.cy + 4}" text-anchor="middle" font-size="12" font-weight="500" fill="var(--a2ui-text-color-text, #1f1f1f)">${escapeHtml(n.label)}</text></g>`;
     })
     .join('');
 
-  return `<div class="a2ui-mermaid"><svg class="a2ui-mermaid-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${maxX} ${maxY}" width="100%" style="max-width:${maxX}px;max-height:180px;height:auto;display:block;margin:0 auto"><defs><marker id="a2ui-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 1 L 10 5 L 0 9 z" fill="var(--a2ui-color-primary, #0b57d0)" /></marker></defs>${edgeSvg}${nodeSvg}</svg></div>`;
+  const maxH = isHorizontal ? 200 : 300;
+  return `<div class="a2ui-mermaid"><svg class="a2ui-mermaid-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${maxX} ${maxY}" width="100%" style="max-width:${maxX}px;max-height:${maxH}px;height:auto;display:block;margin:0 auto"><defs><marker id="a2ui-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 1 L 10 5 L 0 9 z" fill="var(--a2ui-color-primary, #0b57d0)" /></marker></defs>${edgeSvg}${nodeSvg}${edgeLabelSvg}</svg></div>`;
+}
+
+function renderFlowchartSvg(lines: string[], direction: string): string {
+  const { nodes, edges } = parseFlowchartLines(lines);
+  return renderGraphSvg(nodes, edges, direction, lines);
+}
+
+function renderStateDiagramSvg(lines: string[]): string {
+  const { nodes, edges, direction } = parseStateDiagramLines(lines);
+  return renderGraphSvg(nodes, edges, direction, lines);
 }
 
 function renderSequenceSvg(lines: string[]): string {
@@ -556,7 +1019,8 @@ function renderSequenceSvg(lines: string[]): string {
 }
 
 /**
- * Renders a Mermaid diagram definition (`flowchart`/`graph` or `sequenceDiagram`) to an inline SVG.
+ * Renders a Mermaid diagram definition (`flowchart`/`graph`, `stateDiagram`/`stateDiagram-v2`,
+ * or `sequenceDiagram`) to an inline SVG.
  */
 export function renderMermaidSvg(code: string): string {
   const rawLines = code
@@ -568,6 +1032,9 @@ export function renderMermaidSvg(code: string): string {
   if (flowMatch) {
     const dir = (flowMatch[1] ?? 'TD').toUpperCase();
     return renderFlowchartSvg(rawLines.slice(1), dir);
+  }
+  if (/^stateDiagram(?:-v2)?\b/i.test(header)) {
+    return renderStateDiagramSvg(rawLines.slice(1));
   }
   if (/^sequenceDiagram\b/i.test(header)) {
     return renderSequenceSvg(rawLines.slice(1));
