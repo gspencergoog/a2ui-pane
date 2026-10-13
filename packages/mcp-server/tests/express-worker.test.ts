@@ -150,6 +150,23 @@ describe('ExpressWorker (fake child)', () => {
     );
   });
 
+  it('fails fast without respawn-looping if the child exits during init', async () => {
+    const { worker, logs } = fakeWorker('init-exit', { startupTimeoutMs: 2000 });
+    workers.push(worker);
+    expect(await worker.isAvailable()).toBe(false);
+    expect(worker.unavailableMessage).toContain('Express worker exited');
+    expect(logs.filter((l) => l.startsWith('starting:')).length).toBe(1);
+  });
+
+  it('uses startupTimeoutMs rather than requestTimeoutMs for init', async () => {
+    const { worker } = fakeWorker('init-slow', {
+      requestTimeoutMs: 50,
+      startupTimeoutMs: 1000,
+    });
+    workers.push(worker);
+    expect(await worker.isAvailable()).toBe(true);
+  });
+
   it('reports a missing executable as unavailable', async () => {
     const worker = new ExpressWorker({
       pythonBin: '/nonexistent/python',

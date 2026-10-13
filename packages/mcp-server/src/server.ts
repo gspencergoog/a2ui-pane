@@ -8,6 +8,7 @@ import { StoreWriter } from './store-writer.js';
 import { ConversationState } from './conversation-state.js';
 import { ActionEndpoint } from './action-endpoint.js';
 import { ExpressWorker } from './express-worker.js';
+export { ExpressWorker } from './express-worker.js';
 import { TemplateRegistry } from './template-registry.js';
 import { handleA2uiInstructions, a2uiInstructionsSchema } from './tools/instructions.js';
 import { handleRenderA2ui, renderA2uiSchema } from './tools/render.js';

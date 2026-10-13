@@ -158,6 +158,10 @@ describe('SidecarServer', () => {
       const res = await request('/api/stream?token=test-secret-token&conversationId=../bad/id');
       expect(res.status).toBe(400);
       expect(res.body).toContain('Invalid or missing conversationId');
+
+      const resNew = await request('/api/stream?token=test-secret-token&conversationId=_new');
+      expect(resNew.status).toBe(400);
+      expect(resNew.body).toContain('Invalid or missing conversationId: _new');
     });
 
     it('connects to SSE stream and streams existing lines and keepalives', async () => {
@@ -575,6 +579,12 @@ describe('SidecarServer', () => {
         JSON.stringify({ conversationId: '../bad', visible: 'yes' }),
       );
       expect(badArgs.status).toBe(400);
+
+      const newPlaceholder = await postVis(
+        '/api/visibility?token=test-secret-token',
+        JSON.stringify({ conversationId: '_new', visible: true }),
+      );
+      expect(newPlaceholder.status).toBe(400);
 
       const okTrue = await postVis(
         '/api/visibility?token=test-secret-token',

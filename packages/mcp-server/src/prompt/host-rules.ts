@@ -17,7 +17,7 @@ Pass exactly one authoring input:
 Other parameters:
 
 - \`mode\`: \`"pane"\` (default) renders in the live AuxPane; \`"inline"\` returns an \`<agent-embed src="file://...">\` tag to place in your reply.
-- \`replace: true\`: deletes any surface that the batch re-creates before applying it, instead of failing with "Surface already exists". Express's own \`deleteSurface("id")\` statement works too.
+- \`replace: true\`: deletes any surface that the batch re-creates before applying it, instead of failing with "Surface already exists". Pass \`replace: false\` with a distinct \`surfaceId\` to stack an additional surface in the pane without clearing existing ones. Express's own \`deleteSurface("id")\` statement works too.
 - \`surfaceId\`: the surface used by \`template\` and by \`dsl\` blocks without \`surface(...)\`.
 
 ## 2. After a pane render

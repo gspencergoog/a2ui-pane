@@ -209,16 +209,28 @@ function setupVisibilityTracking(
   };
 }
 
+const PLACEHOLDER_CONVERSATION_IDS = new Set(['_new']);
+
+function normalizeConversationId(id: string | null | undefined): string | null {
+  if (!id) return null;
+  const trimmed = id.trim();
+  if (!trimmed || PLACEHOLDER_CONVERSATION_IDS.has(trimmed)) return null;
+  return trimmed;
+}
+
 async function resolveConversationId(
   initialId: string | null,
   fetchImpl?: typeof fetch,
 ): Promise<string | null> {
-  if (initialId || !fetchImpl) return initialId;
+  if (initialId !== null) {
+    return normalizeConversationId(initialId);
+  }
+  if (!fetchImpl) return null;
   try {
     const resp = await fetchImpl('./api/config');
     if (resp.ok) {
       const config = (await resp.json()) as any;
-      return config?.conversationId ?? null;
+      return normalizeConversationId(config?.conversationId);
     }
   } catch {
     // Configuration fallback
@@ -347,6 +359,7 @@ export async function initPaneApp(options: InitOptions = {}): Promise<PaneAppIns
   });
 
   const actionSender = new ActionSender({
+    conversationId,
     sendMessageFn: options.sendMessageFn,
     onPendingChange: (pending) => {
       paneView.pendingComponents = pending;

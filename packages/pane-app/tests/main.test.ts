@@ -142,6 +142,46 @@ describe('initPaneApp', () => {
     expect(statusBadge?.textContent?.trim()).toBe('No Conversation');
   });
 
+  it('treats conversationId=_new as not attached yet without falling back to /api/config', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ conversationId: 'config-conv-456' }),
+    });
+
+    const instance = await initPaneApp({
+      container,
+      search: '?conversationId=_new&token=tok123',
+      fetchFn: mockFetch as any,
+      eventSourceFactory: (url) => new FakeEventSource(url) as any,
+    });
+
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(instance?.client).toBeUndefined();
+    expect(FakeEventSource.instances).toHaveLength(0);
+    const statusBadge = container.querySelector('#status-badge');
+    expect(statusBadge?.textContent?.trim()).toBe('No Conversation');
+  });
+
+  it('forwards the resolved conversationId to sendMessageFn when dispatching actions', async () => {
+    const sendMessageSpy = vi.fn().mockResolvedValue({ ok: true });
+    const instance = await initPaneApp({
+      container,
+      search: '?conversationId=conv_forward_id',
+      sendMessageFn: sendMessageSpy,
+      eventSourceFactory: (url) => new FakeEventSource(url) as any,
+    });
+
+    await instance!.actionSender.sendAction({
+      name: 'approve',
+      surfaceId: 's1',
+      sourceComponentId: 'btn1',
+      timestamp: '2026-10-13T00:00:00Z',
+    });
+
+    expect(sendMessageSpy).toHaveBeenCalledTimes(1);
+    expect(sendMessageSpy.mock.calls[0][1]).toBe('conv_forward_id');
+  });
+
   it('updates status badge across all connection states', async () => {
     const instance = await initPaneApp({
       container,

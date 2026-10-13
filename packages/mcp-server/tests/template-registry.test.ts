@@ -8,13 +8,14 @@ const SAMPLE = `// @genui id=triage_matrix surface=pane
 // @summary Classify items into buckets.
 // @data /title /items[] {title,bucket}
 // @action submit_triage_matrix
+// @customize bucket_picker submit_btn
 
 $/title = "Default title"
 root = Card(Text($/title))
 `;
 
 describe('parseTemplateHeader', () => {
-  it('reads id, surface, summary, data keys, and action', () => {
+  it('reads id, surface, summary, data keys, action, and customize', () => {
     const header = parseTemplateHeader(SAMPLE);
     expect(header).toEqual({
       id: 'triage_matrix',
@@ -22,6 +23,7 @@ describe('parseTemplateHeader', () => {
       summary: 'Classify items into buckets.',
       dataKeys: ['/title', '/items[]', '{title,bucket}'],
       action: 'submit_triage_matrix',
+      customize: ['bucket_picker', 'submit_btn'],
     });
   });
 
@@ -31,6 +33,7 @@ describe('parseTemplateHeader', () => {
     expect(header.surface).toBe('either');
     expect(header.summary).toBe('');
     expect(header.dataKeys).toEqual([]);
+    expect(header.customize).toEqual([]);
   });
 
   it('ignores an invalid surface value', () => {
@@ -114,6 +117,7 @@ describe('TemplateRegistry', () => {
     const index = registry.renderIndex();
     expect(index).toContain('| `triage_matrix` | pane | Classify items into buckets. |');
     expect(index).toContain('`submit_triage_matrix`');
+    expect(index).toContain('`bucket_picker` `submit_btn`');
     writeFileSync(join(pluginDir, 'extra.a2ui'), 'root = Text("extra")\n');
     expect(registry.resolve('extra')).toBeUndefined();
     registry.invalidate();

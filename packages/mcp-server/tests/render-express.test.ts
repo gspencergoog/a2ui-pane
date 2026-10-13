@@ -122,7 +122,7 @@ describe('render_a2ui Express paths', () => {
 
   it('formats compile errors with line, column, and the source line', async () => {
     const result = await resolveMessages(
-      { dsl: 'root = Card(x)\nBAD line here' },
+      { dsl: '<a2ui>\nroot = Card(x)\nBAD line here\n</a2ui>' },
       { worker, templates },
     );
     const text = (result as any).content[0].text as string;
@@ -176,6 +176,24 @@ describe('render_a2ui Express paths', () => {
     );
     expect(replaced.isError).toBeUndefined();
     expect(server.getState('conv-rep').hasSurface('dup')).toBe(true);
+
+    const stacked = await handleRenderA2ui(
+      {
+        conversationId: 'conv-rep',
+        dsl: 'root = Text("stacked")',
+        surfaceId: 'second',
+        mode: 'pane',
+        replace: false,
+      },
+      server.getState,
+      server.catalogs,
+      tempDir,
+      undefined,
+      { worker, templates },
+    );
+    expect(stacked.isError).toBeUndefined();
+    expect(server.getState('conv-rep').hasSurface('dup')).toBe(true);
+    expect(server.getState('conv-rep').hasSurface('second')).toBe(true);
 
     expect(
       createdSurfaceIds([

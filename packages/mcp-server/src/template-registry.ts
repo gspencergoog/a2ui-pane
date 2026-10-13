@@ -13,6 +13,8 @@ export interface TemplateEntry {
   dataKeys: string[];
   /** Action event name declared by the `// @action` header line. */
   action?: string;
+  /** Component variable names declared by the `// @customize` header line. */
+  customize: string[];
 }
 
 const TEMPLATE_ID_RE = /^[a-z][a-z0-9_]*$/;
@@ -28,17 +30,20 @@ export function parseTemplateHeader(source: string): {
   summary: string;
   dataKeys: string[];
   action?: string;
+  customize: string[];
 } {
   const result = {
     surface: 'either' as TemplateSurface,
     summary: '',
     dataKeys: [] as string[],
+    customize: [] as string[],
   } as {
     id?: string;
     surface: TemplateSurface;
     summary: string;
     dataKeys: string[];
     action?: string;
+    customize: string[];
   };
   for (const line of source.split(/\r?\n/)) {
     if (!line.trim()) continue;
@@ -63,6 +68,9 @@ export function parseTemplateHeader(source: string): {
         break;
       case 'action':
         result.action = rest.trim();
+        break;
+      case 'customize':
+        result.customize = rest.trim().split(/\s+/).filter(Boolean);
         break;
       default:
         break;
@@ -133,12 +141,12 @@ export class TemplateRegistry {
     const entries = this.list();
     if (entries.length === 0) return '';
     const lines = [
-      '| Template id | Surface | Summary | Data keys | Action |',
-      '| :--- | :--- | :--- | :--- | :--- |',
+      '| Template id | Surface | Summary | Data keys | Action | Customize |',
+      '| :--- | :--- | :--- | :--- | :--- | :--- |',
     ];
     for (const e of entries) {
       lines.push(
-        `| \`${e.id}\` | ${e.surface} | ${e.summary || ''} | ${e.dataKeys.map((k) => `\`${k}\``).join(' ')} | ${e.action ? `\`${e.action}\`` : ''} |`,
+        `| \`${e.id}\` | ${e.surface} | ${e.summary || ''} | ${e.dataKeys.map((k) => `\`${k}\``).join(' ')} | ${e.action ? `\`${e.action}\`` : ''} | ${e.customize.map((c) => `\`${c}\``).join(' ')} |`,
       );
     }
     return lines.join('\n');
@@ -188,6 +196,7 @@ export class TemplateRegistry {
         summary: header.summary,
         dataKeys: header.dataKeys,
         action: header.action,
+        customize: header.customize,
       });
     }
   }

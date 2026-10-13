@@ -302,9 +302,6 @@
           }
         },
         "labels": {
-          "t1": "E1",
-          "t2": "E2",
-          "t3": "E3",
           "slider1": "Max Lease Re-acquisitions (K_max)",
           "slider2": "Max Subset Retries (K_max)",
           "flag1": "Emit structured audit event on epoch mismatch",

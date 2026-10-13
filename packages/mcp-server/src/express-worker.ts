@@ -116,6 +116,7 @@ interface Pending {
   reject: (err: Error) => void;
   timer?: NodeJS.Timeout;
   retried: boolean;
+  timeoutMs?: number;
 }
 
 /**
@@ -190,9 +191,19 @@ export class ExpressWorker {
     return response;
   }
 
-  private enqueue(request: WorkerRequest, retried = false): Promise<WorkerResponse> {
+  private enqueue(
+    request: WorkerRequest,
+    retried = false,
+    timeoutMs?: number,
+  ): Promise<WorkerResponse> {
     return new Promise<WorkerResponse>((resolve, reject) => {
-      this.queue.push({ request: { ...request, id: this.nextId++ }, resolve, reject, retried });
+      this.queue.push({
+        request: { ...request, id: this.nextId++ },
+        resolve,
+        reject,
+        retried,
+        timeoutMs,
+      });
       this.pump();
     });
   }
@@ -201,11 +212,16 @@ export class ExpressWorker {
     if (this.inflight || this.queue.length === 0 || !this.child) return;
     const pending = this.queue.shift()!;
     this.inflight = pending;
-    const timeoutMs = this.opts.requestTimeoutMs ?? 10_000;
+    const timeoutMs = pending.timeoutMs ?? this.opts.requestTimeoutMs ?? 10_000;
     pending.timer = setTimeout(() => {
+      if (pending.request.op === 'init') {
+        this.teardown(new Error(`Express worker did not initialize within ${timeoutMs} ms`));
+        return;
+      }
       this.log(`request ${pending.request.op} timed out after ${timeoutMs} ms; restarting worker`);
       this.handleCrash(new Error(`Express worker request '${pending.request.op}' timed out`));
     }, timeoutMs);
+    pending.timer.unref?.();
     this.child.stdin.write(JSON.stringify(pending.request) + '\n');
   }
 
@@ -267,6 +283,15 @@ export class ExpressWorker {
       proc.once('spawn', () => resolve(proc));
     });
 
+    if (this.disposed) {
+      try {
+        child.kill('SIGTERM');
+      } catch {
+        // already gone
+      }
+      throw new ExpressWorkerUnavailableError('Express worker disposed');
+    }
+
     this.child = child;
     this.reader = createInterface({ input: child.stdout });
     this.reader.on('line', (line) => this.handleResponseLine(line));
@@ -288,19 +313,18 @@ export class ExpressWorker {
       catalogPath: this.opts.catalogPath,
       version: this.opts.defaultVersion ?? 'v0.9',
     };
-    const initPromise = this.enqueue(initRequest);
-    const timeout = new Promise<never>((_, reject) =>
-      setTimeout(
-        () => reject(new Error(`Express worker did not initialize within ${startupTimeoutMs} ms`)),
-        startupTimeoutMs,
-      ).unref(),
-    );
-    const response = await Promise.race([initPromise, timeout]);
-    if (!response.ok) {
-      this.teardown(new Error(response.error.message));
-      throw new Error(`Express worker init failed: ${response.error.message}`);
+    try {
+      const response = await this.enqueue(initRequest, true, startupTimeoutMs);
+      if (!response.ok) {
+        throw new Error(`Express worker init failed: ${response.error.message}`);
+      }
+      this.log(
+        `ready (${String(response.version)}, ${String(response.componentCount)} components)`,
+      );
+    } catch (err: any) {
+      this.teardown(err instanceof Error ? err : new Error(String(err)));
+      throw err;
     }
-    this.log(`ready (${String(response.version)}, ${String(response.componentCount)} components)`);
   }
 
   private handleCrash(reason: Error): void {
@@ -319,7 +343,9 @@ export class ExpressWorker {
     const toRetry: Pending[] = [];
     if (inflight) {
       if (inflight.timer) clearTimeout(inflight.timer);
-      if (inflight.retried) {
+      if (inflight.request.op === 'init') {
+        inflight.reject(reason);
+      } else if (inflight.retried) {
         inflight.reject(new ExpressWorkerUnavailableError(`${reason.message} (after one retry)`));
       } else {
         toRetry.push({ ...inflight, retried: true });

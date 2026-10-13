@@ -14,7 +14,7 @@ stateDiagram-v2
     Running --> Completed: ack_success
 ```"""
 $/transitions = {t1: {desc: "**Transition `Running -> Leasing` (Heartbeat Timeout)**\nWorker loses network partition while holding lease $L_i$.", policy: ["fencing_token"], maxRetries: 3, flag: true}, t2: {desc: "**Transition `Running -> Retrying` (Partial Sub-Batch Failure)**\n3 of 50 records fail downstream validation.", policy: ["split_subset"], maxRetries: 5}, t3: {desc: "**Transition `Running -> DeadLetter` (Deterministic Deserialization Error)**\nPayload fails schema validation on first attempt.", policy: ["immediate_dlq"], flag: true}}
-$/labels = {t1: "E1", t2: "E2", t3: "E3", slider1: "Max Lease Re-acquisitions (K_max)", slider2: "Max Subset Retries (K_max)", flag1: "Emit structured audit event on epoch mismatch", flag3: "Page on-call if DLQ rate exceeds 1% of throughput"}
+$/labels = {slider1: "Max Lease Re-acquisitions (K_max)", slider2: "Max Subset Retries (K_max)", flag1: "Emit structured audit event on epoch mismatch", flag3: "Page on-call if DLQ rate exceeds 1% of throughput"}
 $/submitLabel = "Confirm State-Machine Policies"
 transition_tabs = Tabs([{title: "⚡ E1: Lease Expired", child: tab_t1}, {title: "🔄 E2: Partial Batch", child: tab_t2}, {title: "💀 E3: Poison Pill", child: tab_t3}])
 t1_policy_picker = ChoicePicker("Fencing Strategy", "mutuallyExclusive", [{label: "Fencing Token (Monotonic Epoch)", value: "fencing_token"}, {label: "Optimistic CAS on Commit", value: "optimistic_cas"}, {label: "Idempotent Sink Dedup", value: "sink_dedup"}], $/transitions/t1/policy, "chips")

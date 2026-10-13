@@ -116,9 +116,12 @@ node -e '
   const p = process.argv[1];
   const buildTime = process.argv[2];
   const out = process.argv[3];
-  const data = JSON.parse(fs.readFileSync(p, "utf8"));
-  data.description = "Interactive A2UI surfaces sidecar (built " + buildTime + ")";
-  fs.writeFileSync(out, JSON.stringify(data, null, 2) + "\n");
+  const raw = fs.readFileSync(p, "utf8");
+  const updated = raw.replace(
+    /"description":\s*"[^"]*"/,
+    "\"description\": \"Interactive A2UI surfaces sidecar (built " + buildTime + ")\"",
+  );
+  fs.writeFileSync(out, updated);
 ' "${REPO_ROOT}/plugin/sidecars/a2ui-pane/sidecar.json" "${BUILD_TIME}" "${tmp_json}"
 mv "${tmp_json}" "${REPO_ROOT}/plugin/sidecars/a2ui-pane/sidecar.json"
 

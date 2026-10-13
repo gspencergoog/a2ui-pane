@@ -98,7 +98,11 @@ export class ConversationState {
    * Performs pre-validation on envelopes and surfaceIds prior to mutating the processor,
    * guaranteeing strict atomic rollback if any message fails.
    */
-  async apply(messages: unknown[], callId: string): Promise<ApplyResult> {
+  async apply(
+    messages: unknown[],
+    callId: string,
+    options?: { clearStaleSurfaces?: boolean },
+  ): Promise<ApplyResult> {
     if (!Array.isArray(messages)) {
       return {
         ok: false,
@@ -146,9 +150,11 @@ export class ConversationState {
     // Automatically delete pre-existing surfaces not referenced when creating a new surface.
     const validMessages: A2uiServerMessage[] = [];
     const surfaceIds = new Set<string>();
-    for (const delMsg of this.collectStaleSurfaceDeletes(messages)) {
-      this.processor.processMessages([delMsg as any]);
-      validMessages.push(delMsg);
+    if (options?.clearStaleSurfaces !== false) {
+      for (const delMsg of this.collectStaleSurfaceDeletes(messages)) {
+        this.processor.processMessages([delMsg as any]);
+        validMessages.push(delMsg);
+      }
     }
 
     for (let i = 0; i < messages.length; i++) {

@@ -39,7 +39,7 @@ If `render_a2ui` is not in your tool list, the plugin is not installed: ask thro
 2. Prefer a template: `render_a2ui({ template: "<id>", surfaceId: "<id>", mode, dsl: "<data assignments>" })`. Your `dsl` is appended after the template body, so `$/path = value` lines override defaults and a redefined variable (for example `submit_btn = Button(...)`) replaces the template's component. See [references/templates.md](references/templates.md) for ids, data keys, and which variables are meant to be redefined.
 3. Otherwise author Express directly: `render_a2ui({ dsl, surfaceId, mode })`. [references/express_quickstart.md](references/express_quickstart.md) has the ten lines you need most and the gotchas that still bite.
 4. After a pane render, always include `[A2UI Pane](sidecar://a2ui-pane/a2ui-pane/)` inline in your reply. After an inline render, include the returned `<agent-embed ...></agent-embed>` tag and end your turn (do not call `await_a2ui_action` first).
-5. Re-rendering the same `surfaceId`: pass `replace: true`, or send only `$/path = value` statements (compiles to `updateDataModel`) to change data in place, or `surface("<id>", update=true)` to swap components.
+5. Re-rendering the same `surfaceId`: pass `replace: true`, or send only `$/path = value` statements (compiles to `updateDataModel`) to change data in place, or `surface("<id>", update=true)` to swap components. To stack a second surface in the pane alongside an existing one, pass a distinct `surfaceId` with `replace: false`.
 
 ## 4. Design rules
 

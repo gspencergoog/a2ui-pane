@@ -13,9 +13,7 @@ const pkgRoot = resolve(here, '..');
 const repoRoot = resolve(pkgRoot, '..', '..');
 const require = createRequire(import.meta.url);
 
-const { ExpressWorker } = await import(resolve(pkgRoot, 'dist', 'check-templates-lib.mjs')).catch(
-  () => import('../src/express-worker.ts'),
-);
+const { ExpressWorker } = await import(resolve(pkgRoot, 'dist', 'server.mjs'));
 void require;
 
 const templatesDir = resolve(repoRoot, 'plugin', 'skills', 'genui', 'templates');

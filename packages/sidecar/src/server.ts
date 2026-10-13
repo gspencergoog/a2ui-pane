@@ -21,6 +21,10 @@ export interface SidecarDeps {
   onVisibilityChange?: (conversationId: string, visible: boolean) => void;
 }
 
+function isAttachedConversationId(id: unknown): id is string {
+  return typeof id === 'string' && id !== '_new' && isValidId(id);
+}
+
 function handleVisibility(
   req: IncomingMessage,
   res: ServerResponse,
@@ -36,11 +40,7 @@ function handleVisibility(
         conversationId?: unknown;
         visible?: unknown;
       };
-      if (
-        typeof parsed.conversationId !== 'string' ||
-        !isValidId(parsed.conversationId) ||
-        typeof parsed.visible !== 'boolean'
-      ) {
+      if (!isAttachedConversationId(parsed.conversationId) || typeof parsed.visible !== 'boolean') {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Invalid conversationId or visible flag' }));
         return;
@@ -139,16 +139,19 @@ export function createSidecarServer(
         return;
       }
 
-      const convId = url.searchParams.get('conversationId') || env.conversationId;
-      if (!convId || !isValidId(convId)) {
+      const rawConvId = url.searchParams.has('conversationId')
+        ? url.searchParams.get('conversationId')
+        : env.conversationId;
+      if (!isAttachedConversationId(rawConvId)) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(
           JSON.stringify({
-            error: `Invalid or missing conversationId: ${convId}`,
+            error: `Invalid or missing conversationId: ${String(rawConvId)}`,
           }),
         );
         return;
       }
+      const convId = rawConvId;
 
       activeStreams.set(convId, (activeStreams.get(convId) ?? 0) + 1);
       req.on('close', () => {

@@ -2,9 +2,10 @@ import { formatActionText, A2uiActionDetails } from '@a2ui-pane/protocol';
 import { showToast } from './toast.js';
 
 export interface ActionSenderOptions {
+  conversationId?: string | null;
   onPendingChange?: (pendingComponents: ReadonlySet<string>) => void;
   showToastFn?: (message: string, isError?: boolean) => void;
-  sendMessageFn?: (text: string) => Promise<any>;
+  sendMessageFn?: (text: string, conversationId?: string) => Promise<any>;
 }
 
 /**
@@ -65,7 +66,11 @@ export class ActionSender {
     }
 
     try {
-      await sendFn(text);
+      if (this.options.conversationId) {
+        await sendFn(text, this.options.conversationId);
+      } else {
+        await sendFn(text);
+      }
       this.releaseComponent(sourceId);
       return true;
     } catch (err: any) {

@@ -1,6 +1,6 @@
 // @genui id=state_walkthrough surface=pane
 // @summary Failure-mode walkthrough: a persistent Markdown block (stateDiagram-v2 and/or formulas) above per-transition tabs, each with a policy chip row, a bound slider, and a flag.
-// @data /title /diagram /transitions {t1,t2,t3} each {desc,policy,maxRetries,flag} /labels {t1,t2,t3,slider1,slider2,flag1,flag3} /submitLabel
+// @data /title /diagram /transitions {t1:{desc,policy,maxRetries,flag},t2:{desc,policy,maxRetries},t3:{desc,policy,flag}} /labels {slider1,slider2,flag1,flag3} /submitLabel
 // @action submit_state_machine
 // @customize transition_tabs t1_policy_picker t2_policy_picker t3_policy_picker submit_btn
 
@@ -16,7 +16,7 @@ stateDiagram-v2
     Working --> Done: success
 ```"""
 $/transitions = {t1: {desc: "**Transition 1**", policy: [], maxRetries: 3, flag: true}, t2: {desc: "**Transition 2**", policy: [], maxRetries: 5}, t3: {desc: "**Transition 3**", policy: [], flag: true}}
-$/labels = {t1: "E1", t2: "E2", t3: "E3", slider1: "Max retries", slider2: "Max retries", flag1: "Emit audit event", flag3: "Page on-call"}
+$/labels = {slider1: "Max retries", slider2: "Max retries", flag1: "Emit audit event", flag3: "Page on-call"}
 $/submitLabel = "Confirm Policies"
 
 root = Card(sm_col)

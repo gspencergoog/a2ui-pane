@@ -25,6 +25,23 @@ rl.on('line', (line) => {
     return;
   }
   if (req.op === 'init') {
+    if (mode === 'init-exit') {
+      process.exit(2);
+    }
+    if (mode === 'init-slow') {
+      setTimeout(() => {
+        process.stdout.write(
+          JSON.stringify({
+            id: req.id,
+            ok: true,
+            version: req.version || 'v0.9',
+            componentCount: 18,
+            catalogId: 'basic',
+          }) + '\n',
+        );
+      }, 120);
+      return;
+    }
     if (mode === 'init-fail') {
       process.stdout.write(
         JSON.stringify({

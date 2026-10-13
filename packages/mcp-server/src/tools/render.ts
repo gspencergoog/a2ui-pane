@@ -93,7 +93,7 @@ export const renderA2uiSchema = {
     .boolean()
     .optional()
     .describe(
-      'When true, surfaces that this batch re-creates are deleted first instead of failing with "Surface already exists".',
+      'When true, surfaces that this batch re-creates are deleted first instead of failing with "Surface already exists". When false, existing pane surfaces with other surfaceIds are kept so multiple surfaces stack in the pane.',
     ),
   mode: z
     .enum(['pane', 'inline'])
@@ -140,11 +140,22 @@ function parseRawMessages(messages: unknown[] | string): unknown[] | ToolResult 
   }
 }
 
+function stripSentinels(dsl: string): string {
+  let text = dsl.trim();
+  if (text.startsWith('<a2ui>')) {
+    text = text.slice('<a2ui>'.length);
+  }
+  if (text.endsWith('</a2ui>')) {
+    text = text.slice(0, -'</a2ui>'.length);
+  }
+  return text.replace(/^\n+|\n+$/g, '');
+}
+
 function formatCompileError(err: ExpressWorkerError, source: string): string {
   const { line, column, message, kind } = err.detail;
   const where =
     line !== undefined ? ` at line ${line}${column !== undefined ? `, column ${column}` : ''}` : '';
-  const lines = source.split(/\r?\n/);
+  const lines = stripSentinels(source).split(/\r?\n/);
   const excerpt =
     line !== undefined && line >= 1 && line <= lines.length ? `\n> ${lines[line - 1]}` : '';
   return `Express ${kind}${where}: ${message}${excerpt}\n\nFix the Express source and retry, or pass raw \`messages\` instead.`;
@@ -399,7 +410,9 @@ export async function handleRenderA2ui(
     }
   }
 
-  const result = await state.apply(batch, callId);
+  const result = await state.apply(batch, callId, {
+    clearStaleSurfaces: args.replace !== false,
+  });
 
   if (!result.ok) {
     const errorLines = result.issues.map(
