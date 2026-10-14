@@ -67,16 +67,9 @@
           "align": "center"
         },
         {
-          "id": "cancel_label",
-          "component": "Text",
-          "text": {
-            "path": "/cancelLabel"
-          }
-        },
-        {
           "id": "cancel_btn",
           "component": "Button",
-          "child": "cancel_label",
+          "child": "cancel_btn_child",
           "action": {
             "event": {
               "name": "cancel_confirm_gate"
@@ -84,16 +77,16 @@
           }
         },
         {
-          "id": "confirm_label",
+          "id": "cancel_btn_child",
           "component": "Text",
           "text": {
-            "path": "/confirmButtonLabel"
+            "path": "/cancelLabel"
           }
         },
         {
           "id": "confirm_btn",
           "component": "Button",
-          "child": "confirm_label",
+          "child": "confirm_btn_child",
           "variant": "primary",
           "action": {
             "event": {
@@ -121,6 +114,13 @@
               "message": "Tick the acknowledgement first"
             }
           ]
+        },
+        {
+          "id": "confirm_btn_child",
+          "component": "Text",
+          "text": {
+            "path": "/confirmButtonLabel"
+          }
         }
       ]
     }

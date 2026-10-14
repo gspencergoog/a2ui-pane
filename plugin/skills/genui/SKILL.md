@@ -31,15 +31,15 @@ Do not render a card where a sentence would do. A surface earns its place when i
 
 ## 2. Fallback chain
 
-If `render_a2ui` is not in your tool list, the plugin is not installed: ask through `ask_question` (batch the questions, prefix the recommended option with `(Recommended)`, include a "Let's come back to this" option) and show read-only structure as Markdown tables or an artifact. If `render_a2ui` returns `Express compiler unavailable`, pass raw `messages` (see `a2ui_instructions` with `format: "json"`) or fall back the same way.
+If `render_a2ui` is not available in any form (not a native tool, and not listed as a lazily loaded MCP tool of the `a2ui-pane` server that you can invoke through `call_mcp_tool`), the plugin is not installed: ask through `ask_question` (batch the questions, prefix the recommended option with `(Recommended)`, include a "Let's come back to this" option) and show read-only structure as Markdown tables or an artifact. If `render_a2ui` returns `Express compiler unavailable`, pass raw `messages` (see `a2ui_instructions` with `format: "json"`) or fall back the same way.
 
 ## 3. Render an A2UI surface
 
 1. Call `a2ui_instructions` once per session. It returns the A2UI Express contract for the basic catalog, host rules, and the template index.
-2. Prefer a template: `render_a2ui({ template: "<id>", surfaceId: "<id>", mode, dsl: "<data assignments>" })`. Your `dsl` is appended after the template body, so `$/path = value` lines override defaults and a redefined variable (for example `submit_btn = Button(...)`) replaces the template's component. See [references/templates.md](references/templates.md) for ids, data keys, and which variables are meant to be redefined.
-3. Otherwise author Express directly: `render_a2ui({ dsl, surfaceId, mode })`. [references/express_quickstart.md](references/express_quickstart.md) has the ten lines you need most and the gotchas that still bite.
+2. Prefer a template: `render_a2ui({ conversationId, template: "<id>", surfaceId: "<id>", mode, dsl: "<data assignments>" })`. Always pass your own `conversationId`; the server cannot infer it in Jetski. Your `dsl` is appended after the template body, so `$/path = value` lines override defaults and a redefined variable (for example `submit_btn = Button(...)`) replaces the template's component. See [references/templates.md](references/templates.md) for ids, data keys, and which variables are meant to be redefined.
+3. Otherwise author Express directly: `render_a2ui({ conversationId, dsl, surfaceId, mode })`. [references/express_quickstart.md](references/express_quickstart.md) has the ten lines you need most and the gotchas that still bite.
 4. After a pane render, always include `[A2UI Pane](sidecar://a2ui-pane/a2ui-pane/)` inline in your reply. After an inline render, include the returned `<agent-embed ...></agent-embed>` tag and end your turn (do not call `await_a2ui_action` first).
-5. Re-rendering the same `surfaceId`: pass `replace: true`, or send only `$/path = value` statements (compiles to `updateDataModel`) to change data in place, or `surface("<id>", update=true)` to swap components. To stack a second surface in the pane alongside an existing one, pass a distinct `surfaceId` with `replace: false`.
+5. Changing a live pane surface: send only `$/path = value` statements for the same `surfaceId` to change data (top-level keys you name are replaced, keys you omit are kept), or `surface("<id>", update=true)` to swap components, or pass `replace: true` to delete and re-create the surface from scratch. By default a new surface clears every other surface from the pane; pass `stack: true` with a distinct `surfaceId` to add a surface alongside the existing ones, and `replace: true, stack: true` to re-create one surface in a stacked pane without touching the others.
 
 ## 4. Design rules
 

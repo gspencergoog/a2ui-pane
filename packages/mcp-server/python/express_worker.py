@@ -99,9 +99,14 @@ def strip_sentinels(dsl: str) -> str:
 
 
 def error_payload(exc: BaseException) -> dict[str, Any]:
-    """Maps an exception to the wire error shape, extracting line/column when present."""
+    """Maps an exception to the wire error shape, extracting line/column and help when present."""
     message = str(exc)
     payload: dict[str, Any] = {"kind": type(exc).__name__, "message": message}
+    # ExpressCompilerError keeps its corrective hint (valid properties, expected
+    # argument shape) in help_message rather than in str(exc).
+    help_message = getattr(exc, "help_message", None)
+    if isinstance(help_message, str) and help_message and help_message not in message:
+        payload["help"] = help_message
     line = getattr(exc, "line", None)
     column = getattr(exc, "column", None)
     if line is None:

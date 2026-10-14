@@ -60,7 +60,7 @@ export const renderA2uiSchema = {
     .string()
     .optional()
     .describe(
-      'The conversation ID to associate this layout with. Defaults to the active host conversation if omitted.',
+      'Your current conversation ID. Required unless the host passes ANTIGRAVITY_CONVERSATION_ID to the MCP server (Jetski does not); the call fails with "Missing required conversationId" otherwise.',
     ),
   messages: z
     .union([
@@ -93,7 +93,13 @@ export const renderA2uiSchema = {
     .boolean()
     .optional()
     .describe(
-      'When true, surfaces that this batch re-creates are deleted first instead of failing with "Surface already exists". When false, existing pane surfaces with other surfaceIds are kept so multiple surfaces stack in the pane.',
+      'When true, surfaces that this batch re-creates are deleted first instead of failing with "Surface already exists". Other surfaces are not affected; see `stack`.',
+    ),
+  stack: z
+    .boolean()
+    .optional()
+    .describe(
+      'When true, existing pane surfaces with other surfaceIds are kept so several surfaces stack in the pane. When false (default), creating a surface clears every other surface from the pane.',
     ),
   mode: z
     .enum(['pane', 'inline'])
@@ -113,6 +119,7 @@ export interface RenderA2uiArgs {
   template?: string;
   surfaceId?: string;
   replace?: boolean;
+  stack?: boolean;
   mode?: 'pane' | 'inline';
 }
 
@@ -152,13 +159,14 @@ function stripSentinels(dsl: string): string {
 }
 
 function formatCompileError(err: ExpressWorkerError, source: string): string {
-  const { line, column, message, kind } = err.detail;
+  const { line, column, message, kind, help } = err.detail;
   const where =
     line !== undefined ? ` at line ${line}${column !== undefined ? `, column ${column}` : ''}` : '';
   const lines = stripSentinels(source).split(/\r?\n/);
   const excerpt =
     line !== undefined && line >= 1 && line <= lines.length ? `\n> ${lines[line - 1]}` : '';
-  return `Express ${kind}${where}: ${message}${excerpt}\n\nFix the Express source and retry, or pass raw \`messages\` instead.`;
+  const hint = help ? `\nHelp: ${help}` : '';
+  return `Express ${kind}${where}: ${message}${excerpt}${hint}\n\nFix the Express source and retry, or pass raw \`messages\` instead.`;
 }
 
 /**
@@ -239,6 +247,51 @@ export function createdSurfaceIds(messages: unknown[]): string[] {
     if (typeof sid === 'string' && !ids.includes(sid)) ids.push(sid);
   }
   return ids;
+}
+
+function escapePointerSegment(key: string): string {
+  return key.replace(/~/g, '~0').replace(/\//g, '~1');
+}
+
+/**
+ * Splits root-path `updateDataModel` writes aimed at an already-live surface into one
+ * write per top-level key, so they merge into the surface's data model instead of
+ * replacing it.
+ *
+ * The Express compiler emits `path: "/"` for any data block that assigns a top-level
+ * key, which the client applies as a wholesale replacement. That is correct for a
+ * surface the same batch creates, but for a live surface it would erase every key the
+ * block did not mention (titles, labels, and unsubmitted user input). Messages for
+ * surfaces created in this batch, non-root paths, and non-object values pass through
+ * unchanged.
+ */
+export function mergeRootDataUpdates(
+  messages: unknown[],
+  isLive: (surfaceId: string) => boolean,
+): unknown[] {
+  const created = new Set(createdSurfaceIds(messages));
+  return messages.flatMap((msg) => {
+    const m = msg as Record<string, any>;
+    const upd = m?.updateDataModel;
+    const value = upd?.value;
+    const path = upd?.path ?? '/';
+    if (
+      !upd ||
+      (path !== '/' && path !== '') ||
+      typeof upd.surfaceId !== 'string' ||
+      created.has(upd.surfaceId) ||
+      !isLive(upd.surfaceId) ||
+      !value ||
+      typeof value !== 'object' ||
+      Array.isArray(value)
+    ) {
+      return [msg];
+    }
+    return Object.entries(value).map(([key, v]) => ({
+      ...m,
+      updateDataModel: { ...upd, path: `/${escapePointerSegment(key)}`, value: v },
+    }));
+  });
 }
 
 export async function handleRenderA2ui(
@@ -399,19 +452,24 @@ export async function handleRenderA2ui(
   const callId = `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const state = getState(conversationId);
 
-  let batch = parsedMessages;
+  // Raw `messages` are applied as authored; Express output gets root data writes to a
+  // live surface split per key so a data-only update merges instead of replacing.
+  let batch =
+    resolved.authored === 'messages'
+      ? parsedMessages
+      : mergeRootDataUpdates(parsedMessages, (sid) => state.hasSurface(sid));
   if (args.replace) {
-    const existing = createdSurfaceIds(parsedMessages).filter((sid) => state.hasSurface(sid));
+    const existing = createdSurfaceIds(batch).filter((sid) => state.hasSurface(sid));
     if (existing.length > 0) {
       batch = [
         ...existing.map((sid) => ({ version: 'v0.9', deleteSurface: { surfaceId: sid } })),
-        ...parsedMessages,
+        ...batch,
       ];
     }
   }
 
   const result = await state.apply(batch, callId, {
-    clearStaleSurfaces: args.replace !== false,
+    clearStaleSurfaces: !args.stack,
   });
 
   if (!result.ok) {

@@ -146,16 +146,9 @@
           }
         },
         {
-          "id": "submit_label",
-          "component": "Text",
-          "text": {
-            "path": "/submitLabel"
-          }
-        },
-        {
           "id": "submit_btn",
           "component": "Button",
-          "child": "submit_label",
+          "child": "submit_btn_child",
           "variant": "primary",
           "action": {
             "event": {
@@ -175,6 +168,13 @@
                 }
               }
             }
+          }
+        },
+        {
+          "id": "submit_btn_child",
+          "component": "Text",
+          "text": {
+            "path": "/submitLabel"
           }
         }
       ]

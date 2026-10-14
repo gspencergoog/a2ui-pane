@@ -112,16 +112,32 @@ describe('TemplateRegistry', () => {
     );
   });
 
-  it('renders a markdown index and reloads after invalidate', () => {
+  it('rejects caller dsl that opens its own surface scope', () => {
+    const registry = make();
+    for (const dsl of [
+      'surface("other")\n$/title = "x"',
+      '$/title = "x"\n  deleteSurface("triage_matrix")',
+    ]) {
+      expect(() => registry.inflate('triage_matrix', 's', { callerDsl: dsl })).toThrow(
+        /must not contain surface\(\.\.\.\) or deleteSurface\(\.\.\.\)/,
+      );
+    }
+    // A mention inside a string or comment is not a statement.
+    expect(() =>
+      registry.inflate('triage_matrix', 's', { callerDsl: '$/title = "surface(x)"' }),
+    ).not.toThrow();
+  });
+
+  it('renders a markdown index and re-scans when an id is missing', () => {
     const registry = make();
     const index = registry.renderIndex();
     expect(index).toContain('| `triage_matrix` | pane | Classify items into buckets. |');
     expect(index).toContain('`submit_triage_matrix`');
     expect(index).toContain('`bucket_picker` `submit_btn`');
-    writeFileSync(join(pluginDir, 'extra.a2ui'), 'root = Text("extra")\n');
     expect(registry.resolve('extra')).toBeUndefined();
-    registry.invalidate();
+    writeFileSync(join(pluginDir, 'extra.a2ui'), 'root = Text("extra")\n');
     expect(registry.resolve('extra')).toBeDefined();
+    expect(registry.list().map((e) => e.id)).toContain('extra');
   });
 
   it('returns an empty index with no templates', () => {

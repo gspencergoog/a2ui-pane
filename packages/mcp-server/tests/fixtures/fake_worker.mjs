@@ -89,6 +89,46 @@ rl.on('line', (line) => {
       );
       return;
     }
+    if (String(req.dsl).includes('HELPME')) {
+      process.stdout.write(
+        JSON.stringify({
+          id: req.id,
+          ok: false,
+          error: {
+            kind: 'ExpressCompilerError',
+            message: "Property 'foo' is not a valid property of component 'Text'.",
+            help: "Component 'Text' accepts properties: text, usageHint",
+          },
+        }) + '\n',
+      );
+      return;
+    }
+    // A block of only `$/key = <json>` lines mimics the compiler's data-only output:
+    // a single root-path updateDataModel carrying every assigned top-level key.
+    const dataLines = String(req.dsl)
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (dataLines.length > 0 && dataLines.every((l) => /^\$\/[A-Za-z0-9_]+\s*=/.test(l))) {
+      const value = {};
+      for (const l of dataLines) {
+        const m = /^\$\/([A-Za-z0-9_]+)\s*=\s*(.*)$/.exec(l);
+        value[m[1]] = JSON.parse(m[2]);
+      }
+      process.stdout.write(
+        JSON.stringify({
+          id: req.id,
+          ok: true,
+          messages: [
+            {
+              version: 'v0.9',
+              updateDataModel: { surfaceId: req.surfaceId || 'main', path: '/', value },
+            },
+          ],
+        }) + '\n',
+      );
+      return;
+    }
     process.stdout.write(
       JSON.stringify({
         id: req.id,
@@ -103,6 +143,14 @@ rl.on('line', (line) => {
             updateComponents: {
               surfaceId: req.surfaceId || 'main',
               components: [{ id: 'root', component: 'Text', text: String(req.dsl).slice(0, 20) }],
+            },
+          },
+          {
+            version: 'v0.9',
+            updateDataModel: {
+              surfaceId: req.surfaceId || 'main',
+              path: '/',
+              value: { title: 'Default title', note: '' },
             },
           },
         ],

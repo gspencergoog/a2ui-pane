@@ -105,20 +105,20 @@
           "align": "center"
         },
         {
-          "id": "ack_label",
-          "component": "Text",
-          "text": {
-            "path": "/ackLabel"
-          }
-        },
-        {
           "id": "ack_btn",
           "component": "Button",
-          "child": "ack_label",
+          "child": "ack_btn_child",
           "action": {
             "event": {
               "name": "acknowledge_progress"
             }
+          }
+        },
+        {
+          "id": "ack_btn_child",
+          "component": "Text",
+          "text": {
+            "path": "/ackLabel"
           }
         }
       ]

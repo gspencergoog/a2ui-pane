@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { MessageProcessor, basicCatalog } from '@a2ui/web_core/v0_9';
 import { ExpressWorker } from '../src/express-worker.js';
 import { TemplateRegistry } from '../src/template-registry.js';
+import { mergeRootDataUpdates } from '../src/tools/render.js';
 
 const REPO_ROOT = resolve(__dirname, '..', '..', '..');
 const TEMPLATES_DIR = resolve(REPO_ROOT, 'plugin', 'skills', 'genui', 'templates');
@@ -106,6 +107,39 @@ describe.skipIf(!pythonBin && !agentSdkPath)('bundled genui templates (compiled 
     const dataModel = (messages.find((m: any) => m.updateDataModel) as any).updateDataModel.value;
     expect(dataModel.title).toBe('### Custom');
     expect(dataModel.confirmed).toBe(false);
+  });
+
+  it('lets a caller redefine a Customize button without orphaning a label', async () => {
+    const buttons: Array<[string, string]> = [
+      ['assumption_ledger', 'submit_btn = Button(Text("Ship it"), "primary", Event("ship"))'],
+      ['confirm_gate', 'confirm_btn = Button(Text("Go"), "primary", Event("go"))'],
+      ['confirm_gate', 'cancel_btn = Button(Text("Nope"), _, Event("nope"))'],
+      ['progress_board', 'ack_btn = Button(Text("Seen"), _, Event("seen"))'],
+    ];
+    for (const [id, callerDsl] of buttons) {
+      const messages = await worker.compile(registry.inflate(id, id, { callerDsl }), id);
+      expect(() => validate(messages), `${id}: ${callerDsl}`).not.toThrow();
+    }
+  });
+
+  it('compiles a data-only block to a root-path update that mergeRootDataUpdates splits', async () => {
+    const messages = await worker.compile('$/title = "### New"\n$/note = "x"', 'live');
+    expect(messages).toEqual([
+      {
+        version: 'v0.9',
+        updateDataModel: { surfaceId: 'live', path: '/', value: { title: '### New', note: 'x' } },
+      },
+    ]);
+    expect(mergeRootDataUpdates(messages, () => true).map((m: any) => m.updateDataModel)).toEqual([
+      { surfaceId: 'live', path: '/title', value: '### New' },
+      { surfaceId: 'live', path: '/note', value: 'x' },
+    ]);
+  });
+
+  it("forwards the compiler's help hint on an invalid property", async () => {
+    await expect(worker.compile('root = Text("x", nope="y")', 'h')).rejects.toMatchObject({
+      detail: { kind: 'ExpressUnknownPropertyError', help: expect.stringContaining('Text') },
+    });
   });
 
   it('has no stray fixture files', () => {

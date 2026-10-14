@@ -9,7 +9,7 @@ A plugin for Jetski and Antigravity that renders agent-generated A2UI surfaces i
 - **AuxPane UI:** A live side pane that renders multi-surface A2UI layouts, updates state incrementally (`updateComponents`, `updateDataModel`), and forwards user actions (button clicks, form submits) directly back to the agent as chat turns.
 - **Inline Chat Cards:** Self-contained `<agent-embed>` HTML cards rendered inline in conversation history for compact decisions.
 - **A2UI Express authoring:** `render_a2ui` accepts [A2UI Express](https://github.com/a2ui-project/a2ui/tree/main/specification/proposals/express) (`dsl`) or a named template plus data (`template` + `dsl`) and compiles it with the upstream Python compiler in one persistent worker process, so the agent never writes adjacency-list JSON by hand. Raw `messages` still work.
-- **Validating MCP Server:** Every batch is validated against the basic catalog before it is committed; errors come back with the Express line and column so the agent can self-correct.
+- **Validating MCP Server:** Every batch is validated against the basic catalog before it is committed; Express parse errors come back with the line and column, and compiler errors with the compiler's fix hint, so the agent can self-correct.
 - **`genui` skill:** The plugin's `plugin/skills/genui` skill is a "how to show things" router (chat Markdown, artifact, inline card, pane, HTML widget, or `ask_question`) with eight ready-made templates (`assumption_ledger`, `contract_workbench`, `consequence_cards`, `triage_matrix`, `state_walkthrough`, `wave_sequencer`, `confirm_gate`, `progress_board`).
 
 ## Repository Structure

@@ -16,8 +16,10 @@ Pass exactly one authoring input:
 
 Other parameters:
 
+- \`conversationId\`: your current conversation ID. Always pass it; the call fails with "Missing required conversationId" on hosts (including Jetski) that do not hand the MCP server \`ANTIGRAVITY_CONVERSATION_ID\`.
 - \`mode\`: \`"pane"\` (default) renders in the live AuxPane; \`"inline"\` returns an \`<agent-embed src="file://...">\` tag to place in your reply.
-- \`replace: true\`: deletes any surface that the batch re-creates before applying it, instead of failing with "Surface already exists". Pass \`replace: false\` with a distinct \`surfaceId\` to stack an additional surface in the pane without clearing existing ones. Express's own \`deleteSurface("id")\` statement works too.
+- \`replace: true\`: deletes any surface that the batch re-creates before applying it, instead of failing with "Surface already exists". It does not touch other surfaces. Express's own \`deleteSurface("id")\` statement works too.
+- \`stack: true\`: keeps the other surfaces already in the pane. By default, creating a surface clears every other surface from the pane; pass \`stack: true\` with a distinct \`surfaceId\` to add a surface alongside existing ones, or \`replace: true, stack: true\` to re-create one surface in a stacked pane.
 - \`surfaceId\`: the surface used by \`template\` and by \`dsl\` blocks without \`surface(...)\`.
 
 ## 2. After a pane render
@@ -30,7 +32,7 @@ Place the returned \`<agent-embed ...></agent-embed>\` tag in your reply and end
 
 ## 4. Updating a surface
 
-To change data on a live pane surface, send a block containing only \`$/path = value\` assignments for the same \`surfaceId\` (compiles to \`updateDataModel\`). To change components, use \`surface("<id>", update=true)\` followed by the component definitions.
+To change data on a live pane surface, send a block containing only \`$/path = value\` assignments for the same \`surfaceId\` (compiles to \`updateDataModel\`). The host merges it by top-level key: keys you assign are replaced, keys you leave out keep their current value, including unsubmitted user input. To change components, use \`surface("<id>", update=true)\` followed by the component definitions.
 
 ## 5. Actions
 

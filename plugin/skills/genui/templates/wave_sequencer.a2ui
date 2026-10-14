@@ -34,5 +34,4 @@ verification_picker = ChoicePicker("Verification gate", "multipleSelection", [{l
 seq_task_note = TextField("Sequencing constraint or owner note", $note)
 seq_bottom_divider = Divider()
 seq_footer = Row([submit_btn], "end", "center")
-submit_label = Text($/submitLabel)
-submit_btn = Button(submit_label, "primary", Event("submit_wave_sequence", {global: $/global, tasks: $/tasks}))
+submit_btn = Button(Text($/submitLabel), "primary", Event("submit_wave_sequence", {global: $/global, tasks: $/tasks}))

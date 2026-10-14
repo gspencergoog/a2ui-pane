@@ -29,5 +29,4 @@ bucket_picker = ChoicePicker(_, "mutuallyExclusive", [{label: "🎯 Must-Have", 
 triage_item_note = TextField("Caveat or follow-up target", $note)
 triage_divider = Divider()
 triage_footer = Row([submit_btn], "end", "center")
-submit_label = Text($/submitLabel)
-submit_btn = Button(submit_label, "primary", Event("submit_triage_matrix", {items: $/items}))
+submit_btn = Button(Text($/submitLabel), "primary", Event("submit_triage_matrix", {items: $/items}))

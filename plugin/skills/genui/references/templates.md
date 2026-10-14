@@ -4,6 +4,7 @@ Templates are Express files in `templates/`. Render one with:
 
 ```json
 {
+  "conversationId": "<your conversation id>",
   "template": "triage_matrix",
   "surfaceId": "review-triage",
   "mode": "pane",
@@ -11,13 +12,13 @@ Templates are Express files in `templates/`. Render one with:
 }
 ```
 
-The server emits `surface("review-triage", sendDataModel=true)`, the template body, then your `dsl`. Later statements win, so:
+The server emits `surface("review-triage", sendDataModel=true)`, the template body, then your `dsl` (so do not put a `surface(...)` line in `dsl`). Later statements win, so:
 
 - `$/key = value` overrides the template default for that key.
-- Redefining a variable listed under **Customize** (for example a `ChoicePicker` with different options, or `submit_btn` with another label or event) replaces that component.
+- Redefining a variable listed under **Customize** (for example a `ChoicePicker` with different options, or `submit_btn` with another label or event) replaces that component. Button labels are inlined (`Button(Text($/submitLabel), ...)`), so redefining a button leaves nothing orphaned; to change only the label, set its data key instead.
 - Inside list items, the template binds fields relatively (`$title`), so your item objects just need the listed keys.
 
-User templates in `${PLUGIN_DATA}/templates/*.a2ui` are discovered too and shadow a built-in of the same id.
+User templates in `${PLUGIN_DATA}/templates/*.a2ui` are discovered too (the registry re-scans when an id is not found) and shadow a built-in of the same id.
 
 | Template id          | Surface        | Shape                                                                                                               | Data keys                                                                                                                                                                           | Action                                              | Customize                                                                               |
 | :------------------- | :------------- | :------------------------------------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------- | :-------------------------------------------------------------------------------------- |

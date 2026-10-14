@@ -40,5 +40,4 @@ t3_policy_picker = ChoicePicker("Policy", "mutuallyExclusive", [{label: "Option 
 t3_flag = CheckBox($/labels/flag3, $/transitions/t3/flag)
 sm_bottom_divider = Divider()
 sm_footer = Row([submit_btn], "end", "center")
-submit_label = Text($/submitLabel)
-submit_btn = Button(submit_label, "primary", Event("submit_state_machine", {transitions: $/transitions}))
+submit_btn = Button(Text($/submitLabel), "primary", Event("submit_state_machine", {transitions: $/transitions}))

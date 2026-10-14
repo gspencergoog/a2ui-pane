@@ -31,8 +31,8 @@ function templateSection(templates?: TemplateRegistry): string {
   return [
     '## 7. Templates',
     '',
-    'Render a template with `render_a2ui({ template: "<id>", surfaceId, mode, dsl: "<data assignments>" })`.',
-    'Provide every data key listed for the template as `$/key = value` statements in `dsl`; later assignments override template defaults.',
+    'Render a template with `render_a2ui({ conversationId, template: "<id>", surfaceId, mode, dsl: "<data assignments>" })`.',
+    'Provide every data key listed for the template as `$/key = value` statements in `dsl`; later assignments override template defaults. Do not put `surface(...)` in `dsl`; the server emits it from `surfaceId`.',
     'List items are arrays of objects; keys inside `[]` entries are relative bindings used by the template rows.',
     '',
     index,

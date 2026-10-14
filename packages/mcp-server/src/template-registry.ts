@@ -19,6 +19,8 @@ export interface TemplateEntry {
 
 const TEMPLATE_ID_RE = /^[a-z][a-z0-9_]*$/;
 const HEADER_LINE_RE = /^\s*\/\/\s*@(\w+)\s*(.*)$/;
+/** Matches a `surface(...)` or `deleteSurface(...)` statement at the start of a line. */
+const SURFACE_STATEMENT_RE = /^\s*(?:surface|deleteSurface)\s*\(/m;
 
 /**
  * Parses the `// @genui ...` comment block at the top of a template file.
@@ -107,6 +109,11 @@ export class TemplateRegistry {
 
   resolve(id: string): TemplateEntry | undefined {
     this.ensureLoaded();
+    if (!this.entries.has(id)) {
+      // A miss may be a template dropped into a user directory after the first scan.
+      this.invalidate();
+      this.ensureLoaded();
+    }
     return this.entries.get(id);
   }
 
@@ -130,6 +137,11 @@ export class TemplateRegistry {
     const sendDataModel = options.sendDataModel === false ? '' : ', sendDataModel=true';
     const parts = [`surface("${surfaceId}"${sendDataModel})`, body.trimEnd()];
     const caller = options.callerDsl?.trim();
+    if (caller && SURFACE_STATEMENT_RE.test(caller)) {
+      throw new Error(
+        'Template `dsl` must not contain surface(...) or deleteSurface(...): the server emits the surface line, so pass `surfaceId` instead.',
+      );
+    }
     if (caller) {
       parts.push(`// caller overrides`, caller);
     }

@@ -1,20 +1,17 @@
 #!/usr/bin/env node
-// Compiles every template under plugin/skills/genui/templates with its fixture data and
-// validates the result against the basic catalog. Used by templates.test.ts and handy
-// for a quick manual check:
+// Manual check (not used by the test suite): compiles every template under
+// plugin/skills/genui/templates with its fixture data through the real worker.
+// Requires a built dist/ and a Python interpreter with the a2ui agent SDK:
 //   A2UI_PANE_PYTHON=/path/to/python node packages/mcp-server/scripts/check-templates.mjs
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolve(here, '..');
 const repoRoot = resolve(pkgRoot, '..', '..');
-const require = createRequire(import.meta.url);
 
 const { ExpressWorker } = await import(resolve(pkgRoot, 'dist', 'server.mjs'));
-void require;
 
 const templatesDir = resolve(repoRoot, 'plugin', 'skills', 'genui', 'templates');
 const fixturesDir = resolve(pkgRoot, 'tests', 'fixtures', 'templates');

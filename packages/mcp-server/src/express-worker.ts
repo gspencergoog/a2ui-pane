@@ -6,6 +6,8 @@ export interface WorkerError {
   message: string;
   line?: number;
   column?: number;
+  /** Corrective hint from the compiler (for example the valid properties of a component). */
+  help?: string;
 }
 
 export type WorkerRequest = {
@@ -299,6 +301,12 @@ export class ExpressWorker {
       for (const line of chunk.toString().split('\n')) {
         if (line.trim()) this.log(line);
       }
+    });
+    // A write that races the child's exit surfaces as an 'error' on stdin (EPIPE). Without
+    // a listener Node would raise it as an uncaught exception and take the server down;
+    // the 'exit' handler below already restarts the worker and retries the request.
+    child.stdin.on('error', (err: Error) => {
+      this.log(`stdin error: ${err.message}`);
     });
     child.once('exit', (code, signal) => {
       if (this.child === child) {
