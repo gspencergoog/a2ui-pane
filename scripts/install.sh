@@ -6,7 +6,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 usage() {
   cat <<EOF
-Usage: scripts/install.sh [--agent-sdk-path <a2ui checkout>] [--protocol-version v0.9]
+Usage: scripts/install.sh [--agent-sdk-path <a2ui checkout>] [--no-agent-sdk] [--protocol-version v0.9]
 
 Builds the monorepo, stages the plugin bundles, and symlinks the plugin into
 ~/.gemini/config/plugins/a2ui-pane.
@@ -14,8 +14,10 @@ Builds the monorepo, stages the plugin bundles, and symlinks the plugin into
 A2UI Express authoring needs the Python A2UI agent SDK. Until a release with the
 current Express API is published, point this script at a local a2ui checkout
 (a uv workspace containing python/a2ui_agent) with --agent-sdk-path or
-A2UI_PANE_AGENT_SDK_PATH. Without it the plugin still works, but only with raw
-JSON \`messages\`.
+A2UI_PANE_AGENT_SDK_PATH.
+
+If you want to install without Express Python SDK support (raw JSON messages only),
+pass --no-agent-sdk.
 
 Environment overrides: A2UI_PANE_NODE, A2UI_PANE_UV, A2UI_PANE_AGENT_SDK_PATH,
 A2UI_PANE_PROTOCOL_VERSION.
@@ -23,20 +25,32 @@ EOF
 }
 
 AGENT_SDK_PATH="${A2UI_PANE_AGENT_SDK_PATH:-}"
+NO_AGENT_SDK=0
 PROTOCOL_VERSION="${A2UI_PANE_PROTOCOL_VERSION:-v0.9}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --agent-sdk-path) AGENT_SDK_PATH="$2"; shift 2 ;;
+    --no-agent-sdk|--raw-only) NO_AGENT_SDK=1; shift ;;
     --protocol-version) PROTOCOL_VERSION="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
 
+if [ -z "${AGENT_SDK_PATH}" ] && [ "${NO_AGENT_SDK}" -eq 0 ]; then
+  cat <<'EOF' >&2
+Error: Neither A2UI_PANE_AGENT_SDK_PATH nor --agent-sdk-path is set.
+Please set A2UI_PANE_AGENT_SDK_PATH to your local a2ui checkout (containing python/a2ui_agent),
+or pass --agent-sdk-path <path>.
+To install without Express Python SDK support (raw JSON messages only), pass --no-agent-sdk.
+EOF
+  exit 1
+fi
+
 echo "=== Building A2UI Pane Monorepo ==="
 cd "${REPO_ROOT}"
-yarn install --immutable || yarn install || true
-yarn build || { echo "YARN BUILD FAILED: $?"; exit 1; }
+command yarn install --immutable || command yarn install || true
+command yarn build || { echo "YARN BUILD FAILED: $?"; exit 1; }
 echo "=== Build Step Succeeded ==="
 
 echo "=== Staging Plugin Bundles ==="
@@ -61,7 +75,7 @@ cp -R "${REPO_ROOT}/packages/pane-app/dist"/. "${REPO_ROOT}/plugin/sidecars/a2ui
 # Resolve the Python interpreter for the Express worker (optional)
 echo "=== Configuring A2UI Express Worker ==="
 PYTHON_BIN=""
-if [ -n "${AGENT_SDK_PATH}" ]; then
+if [ -n "${AGENT_SDK_PATH}" ] && [ "${NO_AGENT_SDK}" -eq 0 ]; then
   AGENT_SDK_PATH="$(cd "${AGENT_SDK_PATH}" && pwd)"
   UV_BIN="${A2UI_PANE_UV:-}"
   if [ -z "${UV_BIN}" ]; then
@@ -79,11 +93,11 @@ if [ -n "${AGENT_SDK_PATH}" ]; then
     echo "${AGENT_SDK_PATH} does not look like an a2ui checkout (missing python/a2ui_agent/pyproject.toml)." >&2
     exit 1
   fi
-  PYTHON_BIN="$("${UV_BIN}" run --project "${AGENT_SDK_PATH}" --package a2ui-agent-sdk --no-sync python -c 'import sys; print(sys.executable)')"
+  PYTHON_BIN="$("${UV_BIN}" run --project "${AGENT_SDK_PATH}" --package a2ui-agent-sdk python -c 'import sys; print(sys.executable)')"
   echo "Using Python interpreter: ${PYTHON_BIN}"
 else
-  echo "No agent SDK path given; Express authoring disabled (raw messages only)."
-  echo "Re-run with --agent-sdk-path <a2ui checkout> to enable it."
+  echo "Express authoring disabled (raw messages only)."
+  AGENT_SDK_PATH=""
 fi
 
 # Generate mcp_config.json from template
@@ -142,25 +156,126 @@ else
   echo "✨ Successfully installed a2ui-pane plugin to ${TARGET_PLUGIN_DIR}"
 fi
 
-# Terminate stale MCP server processes and trigger LanguageServer RefreshMcpServers
+# Terminate stale MCP server processes and trigger LanguageServer reload
 pkill -f "a2ui-pane/mcp/dist/server.mjs" 2>/dev/null || true
 sleep 0.5
 python3 -c '
-import glob, urllib.request
+import glob, json, os, re, subprocess, urllib.request
+
+instances = []
+
+# 1. Environment variables (set inside agent subshells)
+env_addr = os.environ.get("ANTIGRAVITY_LS_ADDRESS")
+env_token = os.environ.get("ANTIGRAVITY_CSRF_TOKEN")
+if env_addr and env_token:
+    instances.append((env_addr, env_token))
+
+# 2. Linux /proc scan (Jetski / Cloudtop)
 for env_file in glob.glob("/proc/[0-9]*/environ"):
     try:
         raw = open(env_file, "rb").read().decode("utf-8", errors="ignore")
         env = dict(item.split("=", 1) for item in raw.split("\0") if "=" in item)
-        if "ANTIGRAVITY_LS_ADDRESS" in env and "ANTIGRAVITY_CSRF_TOKEN" in env:
-            addr = env["ANTIGRAVITY_LS_ADDRESS"]
-            req = urllib.request.Request(
-                f"http://{addr}/exa.language_server_pb.LanguageServerService/RefreshMcpServers",
-                data=b"{}",
-                headers={"Content-Type": "application/json", "x-codeium-csrf-token": env["ANTIGRAVITY_CSRF_TOKEN"]},
-                method="POST",
-            )
-            urllib.request.urlopen(req, timeout=3).read()
-            break
+        addr = env.get("ANTIGRAVITY_LS_ADDRESS")
+        token = env.get("ANTIGRAVITY_CSRF_TOKEN")
+        if addr and token and (addr, token) not in instances:
+            instances.append((addr, token))
+    except Exception:
+        pass
+
+# 3. Process table inspection (macOS & Linux external terminals)
+try:
+    res = subprocess.run(["ps", "ax", "-o", "pid=,command="], capture_output=True, text=True, check=False)
+    if res.returncode == 0:
+        for line in res.stdout.splitlines():
+            if "language_server" in line and "--csrf_token" in line:
+                m_token = re.search(r"--csrf_token[= ]([a-f0-9-]+)", line)
+                if not m_token:
+                    continue
+                token = m_token.group(1)
+
+                port = None
+                log_path = os.path.expanduser("~/Library/Logs/Antigravity/language_server.log")
+                if os.path.isfile(log_path):
+                    try:
+                        with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
+                            for l in reversed(f.readlines()[-200:]):
+                                m_port = re.search(r"listening on .* port at (\d+) for HTTP\b", l)
+                                if m_port:
+                                    port = m_port.group(1)
+                                    break
+                    except Exception:
+                        pass
+
+                if not port:
+                    m_pid = re.match(r"\s*(\d+)", line)
+                    if m_pid:
+                        pid = m_pid.group(1)
+                        try:
+                            lsof_res = subprocess.run(
+                                ["lsof", "-nP", "-iTCP", "-sTCP:LISTEN", "-a", "-p", pid],
+                                capture_output=True, text=True, check=False
+                            )
+                            for p_match in re.finditer(r":(\d+)\s+\(LISTEN\)", lsof_res.stdout):
+                                test_port = p_match.group(1)
+                                try:
+                                    req = urllib.request.Request(
+                                        f"http://127.0.0.1:{test_port}/exa.language_server_pb.LanguageServerService/GetUnleashData",
+                                        data=b"{}",
+                                        headers={"Content-Type": "application/json", "x-codeium-csrf-token": token},
+                                        method="POST",
+                                    )
+                                    with urllib.request.urlopen(req, timeout=1) as resp:
+                                        if resp.status == 200:
+                                            port = test_port
+                                            break
+                                except Exception:
+                                    pass
+                        except Exception:
+                            pass
+
+                if port:
+                    addr = f"127.0.0.1:{port}"
+                    if (addr, token) not in instances:
+                        instances.append((addr, token))
+except Exception:
+    pass
+
+# Ensure plugin is enabled in config.json as fallback for cold starts
+cfg_path = os.path.expanduser("~/.gemini/config/config.json")
+if os.path.isfile(cfg_path):
+    try:
+        with open(cfg_path, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+        plugins = cfg.setdefault("plugins", {})
+        if "a2ui-pane" not in plugins or not plugins["a2ui-pane"].get("enabled"):
+            plugins["a2ui-pane"] = {"enabled": True}
+            with open(cfg_path, "w", encoding="utf-8") as f:
+                json.dump(cfg, f, indent=2)
+    except Exception:
+        pass
+
+for addr, token in instances:
+    # 1. Enable plugin live in Language Server
+    try:
+        state_req = urllib.request.Request(
+            f"http://{addr}/exa.language_server_pb.LanguageServerService/JetboxWriteState",
+            data=json.dumps({"userConfig": {"plugins": {"a2ui-pane": {"enabled": True}}}}).encode("utf-8"),
+            headers={"Content-Type": "application/json", "x-codeium-csrf-token": token},
+            method="POST",
+        )
+        urllib.request.urlopen(state_req, timeout=3).read()
+    except Exception:
+        pass
+
+    # 2. Refresh MCP servers
+    try:
+        refresh_req = urllib.request.Request(
+            f"http://{addr}/exa.language_server_pb.LanguageServerService/RefreshMcpServers",
+            data=b"{}",
+            headers={"Content-Type": "application/json", "x-codeium-csrf-token": token},
+            method="POST",
+        )
+        urllib.request.urlopen(refresh_req, timeout=3).read()
     except Exception:
         pass
 ' 2>/dev/null || true

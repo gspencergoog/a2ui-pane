@@ -3,7 +3,7 @@
   "args": ["dist/main.mjs"],
   "restart_policy": "always",
   "display_name": "A2UI Pane",
-  "description": "Interactive A2UI surfaces sidecar (built 2026-10-14T17:10:02Z)",
+  "description": "Interactive A2UI surfaces sidecar (built 2026-10-14T19:43:53Z)",
   "has_web_ui": true,
   "env": {
     "A2UI_PANE_DATA": "${PLUGIN_DATA}"

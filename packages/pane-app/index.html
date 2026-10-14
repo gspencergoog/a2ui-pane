@@ -25,9 +25,28 @@
         flex-direction: column;
       }
     </style>
+    <script>
+      window.addEventListener(
+        'error',
+        function (e) {
+          if (e.target && e.target.tagName === 'SCRIPT' && !window.__a2ui_retried__) {
+            window.__a2ui_retried__ = true;
+            var app = document.getElementById('app');
+            if (app && !app.hasChildNodes()) {
+              app.innerHTML =
+                '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#6a737d;font-size:12px;font-family:sans-serif;">Connecting to sidecar...</div>';
+              setTimeout(function () {
+                window.location.reload();
+              }, 1500);
+            }
+          }
+        },
+        true,
+      );
+    </script>
+    <script type="module" src="./src/main.ts"></script>
   </head>
   <body>
     <div id="app"></div>
-    <script type="module" src="./src/main.ts"></script>
   </body>
 </html>
