@@ -138,4 +138,4 @@ echo "=== Packaging Complete ==="
 ls -lh "${OUTPUT_DIR}"/a2ui-pane.*
 echo ""
 echo "Archive contents sample:"
-tar -ztvf "${TARBALL}" | head -n 25
+(tar -ztvf "${TARBALL}" 2>/dev/null || true) | head -n 25 || true
