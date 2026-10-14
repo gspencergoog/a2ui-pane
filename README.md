@@ -24,13 +24,33 @@ A plugin for Jetski and Antigravity that renders agent-generated A2UI surfaces i
 - `plugin/`: Installable plugin folder (manifests, build output, the `genui` skill and its templates, the `genui` rule).
 - `catalogs/`: Bundled A2UI component catalog schemas.
 
-## Requirements
+## Quick Install (Pre-built Release)
+
+Install or update the latest pre-built plugin release directly without cloning the repository or building from source:
+
+```bash
+# Basic install (raw A2UI JSON messages):
+curl -fsSL https://raw.githubusercontent.com/gspencergoog/a2ui-pane/main/scripts/install-remote.sh | bash
+
+# With A2UI Express authoring support enabled:
+curl -fsSL https://raw.githubusercontent.com/gspencergoog/a2ui-pane/main/scripts/install-remote.sh | bash -s -- --agent-sdk-path ~/code/a2ui/main
+```
+
+**Prerequisites**: Only `node` (>= 20) and `curl` or `wget` are required.
+
+To update to the latest release at any time, re-run the install command.
+
+---
+
+## Development & Building from Source
+
+For contributors developing `a2ui-pane`:
+
+### Requirements
 
 - Node.js >= 22.0.0
 - Yarn 4.x (managed via Corepack)
-- For A2UI Express authoring: [`uv`](https://docs.astral.sh/uv/) and a local checkout of the [a2ui](https://github.com/a2ui-project/a2ui) repository (a `uv` workspace containing `python/a2ui_agent`). No published `a2ui-agent-sdk` release includes the current Express compiler API yet; once one does, `install.sh` can switch to it.
-
-## Development
+- For A2UI Express authoring: [`uv`](https://docs.astral.sh/uv/) and a local checkout of the [a2ui](https://github.com/a2ui-project/a2ui) repository containing `python/a2ui_agent`.
 
 ```bash
 # Install dependencies
@@ -39,26 +59,26 @@ yarn install
 # Build all packages
 yarn build
 
-# Run unit tests (Express worker and template goldens run when a Python SDK is configured)
-A2UI_PANE_PYTHON=/path/to/a2ui/.venv/bin/python3 yarn test
-
-# Regenerate template goldens after editing a template
-UPDATE_GOLDENS=1 A2UI_PANE_PYTHON=... yarn workspace @a2ui-pane/mcp-server test
+# Run unit tests
+yarn test
 
 # Lint and format
 yarn lint
 yarn format:check
+
+# Package release archives locally
+yarn package
 ```
 
-## Installation
+### Local Source Installation
 
-Run the install script to build the packages, stage the plugin, resolve the Python interpreter for the Express worker, pre-warm it, and symlink the plugin into the host plugins directory:
+Run the install script from your local checkout to build packages, stage the plugin, and symlink it into your host plugins directory:
 
 ```bash
 ./scripts/install.sh --agent-sdk-path ~/code/a2ui/main
 ```
 
-Without `--agent-sdk-path` (or `A2UI_PANE_AGENT_SDK_PATH`) the plugin installs with raw `messages` rendering only, and `a2ui_instructions` says so.
+Without `--agent-sdk-path` (or `A2UI_PANE_AGENT_SDK_PATH`), pass `--no-agent-sdk` to install with raw `messages` rendering only.
 
 The script writes these into `plugin/mcp_config.json`:
 

@@ -1,0 +1,47 @@
+name: Release Plugin
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Run test suite
+        run: yarn test
+
+      - name: Run linter
+        run: yarn lint
+
+      - name: Build and package release archives
+        run: ./scripts/package.sh --skip-tests
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/a2ui-pane.tar.gz
+            dist/a2ui-pane.tar.gz.sha256
+            dist/a2ui-pane.zip
+            dist/a2ui-pane.zip.sha256
+          generate_release_notes: true

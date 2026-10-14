@@ -159,7 +159,7 @@ fi
 # Terminate stale MCP server processes and trigger LanguageServer reload
 pkill -f "a2ui-pane/mcp/dist/server.mjs" 2>/dev/null || true
 sleep 0.5
-python3 -c '
+command python3 -c '
 import glob, json, os, re, subprocess, urllib.request
 
 instances = []
