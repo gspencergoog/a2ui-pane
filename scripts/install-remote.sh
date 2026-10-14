@@ -127,26 +127,57 @@ if [[ -n "${TARBALL_PATH}" ]]; then
   ARCHIVE_FILE="${TARBALL_PATH}"
   echo "Using local archive: ${ARCHIVE_FILE}"
 else
-  if [[ -z "${TARBALL_URL}" ]]; then
-    if [[ "${VERSION}" == "latest" ]]; then
-      TARBALL_URL="https://github.com/${REPO}/releases/latest/download/a2ui-pane.tar.gz"
-    else
-      TARBALL_URL="https://github.com/${REPO}/releases/download/${VERSION}/a2ui-pane.tar.gz"
+  ARCHIVE_FILE="${TEMP_DIR}/a2ui-pane.tar.gz"
+  DOWNLOAD_SUCCESS=0
+
+  # Strategy A: Use GitHub CLI if available and authenticated (handles private repos)
+  if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+    echo "Downloading A2UI Pane release via gh CLI (${REPO}@${VERSION})..."
+    GH_VER_ARG=()
+    if [[ "${VERSION}" != "latest" ]]; then
+      GH_VER_ARG=("${VERSION}")
+    fi
+    if gh release download "${GH_VER_ARG[@]}" --repo "${REPO}" --pattern "a2ui-pane.tar.gz" --output "${ARCHIVE_FILE}" 2>/dev/null; then
+      DOWNLOAD_SUCCESS=1
     fi
   fi
 
-  ARCHIVE_FILE="${TEMP_DIR}/a2ui-pane.tar.gz"
-  echo "Downloading A2UI Pane release from: ${TARBALL_URL}"
-  if [[ "${DOWNLOADER}" == "curl" ]]; then
-    if ! curl -fsSL "${TARBALL_URL}" -o "${ARCHIVE_FILE}"; then
-      echo "Error: Failed to download release from ${TARBALL_URL}" >&2
-      exit 1
+  # Strategy B: Direct HTTP download (public releases or GITHUB_TOKEN)
+  if [[ "${DOWNLOAD_SUCCESS}" -eq 0 ]]; then
+    if [[ -z "${TARBALL_URL}" ]]; then
+      if [[ "${VERSION}" == "latest" ]]; then
+        TARBALL_URL="https://github.com/${REPO}/releases/latest/download/a2ui-pane.tar.gz"
+      else
+        TARBALL_URL="https://github.com/${REPO}/releases/download/${VERSION}/a2ui-pane.tar.gz"
+      fi
     fi
-  else
-    if ! wget -q "${TARBALL_URL}" -O "${ARCHIVE_FILE}"; then
-      echo "Error: Failed to download release from ${TARBALL_URL}" >&2
-      exit 1
+
+    echo "Downloading A2UI Pane release from: ${TARBALL_URL}"
+    AUTH_HEADER=()
+    AUTH_TOKEN="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
+    if [[ -n "${AUTH_TOKEN}" ]]; then
+      AUTH_HEADER=(-H "Authorization: Bearer ${AUTH_TOKEN}")
     fi
+
+    if [[ "${DOWNLOADER}" == "curl" ]]; then
+      if curl -fsSL "${AUTH_HEADER[@]}" "${TARBALL_URL}" -o "${ARCHIVE_FILE}"; then
+        DOWNLOAD_SUCCESS=1
+      fi
+    elif [[ "${DOWNLOADER}" == "wget" ]]; then
+      WGET_HEADER=()
+      if [[ -n "${AUTH_TOKEN}" ]]; then
+        WGET_HEADER=(--header="Authorization: Bearer ${AUTH_TOKEN}")
+      fi
+      if wget -q "${WGET_HEADER[@]}" "${TARBALL_URL}" -O "${ARCHIVE_FILE}"; then
+        DOWNLOAD_SUCCESS=1
+      fi
+    fi
+  fi
+
+  if [[ "${DOWNLOAD_SUCCESS}" -eq 0 ]]; then
+    echo "Error: Failed to download release from ${REPO}." >&2
+    echo "If the repository is private, ensure 'gh' is logged in or GITHUB_TOKEN is set." >&2
+    exit 1
   fi
 fi
 
