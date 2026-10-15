@@ -42,10 +42,16 @@ class WorkerState:
 
     def init(self, catalog_path: str, version: str | None) -> dict[str, Any]:
         from a2ui.core import Catalog
-        from a2ui.inference_formats.experimental.express import (
-            ExpressCompiler,
-            ExpressPromptGenerator,
-        )
+        try:
+            from a2ui.inference_formats.express import (
+                ExpressCompiler,
+                ExpressPromptGenerator,
+            )
+        except ImportError:
+            from a2ui.inference_formats.experimental.express import (
+                ExpressCompiler,
+                ExpressPromptGenerator,
+            )
 
         self.default_version = version or self.default_version
         with open(catalog_path, "r", encoding="utf-8") as handle:
@@ -76,7 +82,10 @@ class WorkerState:
         return self.prompt_generator.generate()
 
     def decompile(self, messages: list[dict]) -> str:
-        from a2ui.inference_formats.experimental.express import ExpressDecompiler
+        try:
+            from a2ui.inference_formats.express import ExpressDecompiler
+        except ImportError:
+            from a2ui.inference_formats.experimental.express import ExpressDecompiler
         from a2ui.parser.messages import to_message_models
 
         self._require_init()

@@ -10,7 +10,7 @@ A plugin for Jetski and Antigravity that renders agent-generated A2UI surfaces i
 - **Inline Chat Cards:** Self-contained `<agent-embed>` HTML cards rendered inline in conversation history for compact decisions.
 - **A2UI Express authoring:** `render_a2ui` accepts [A2UI Express](https://github.com/a2ui-project/a2ui/tree/main/specification/proposals/express) (`dsl`) or a named template plus data (`template` + `dsl`) and compiles it with the upstream Python compiler in one persistent worker process, so the agent never writes adjacency-list JSON by hand. Raw `messages` still work.
 - **Validating MCP Server:** Every batch is validated against the basic catalog before it is committed; Express parse errors come back with the line and column, and compiler errors with the compiler's fix hint, so the agent can self-correct.
-- **`genui` skill:** The plugin's `plugin/skills/genui` skill is a "how to show things" router (chat Markdown, artifact, inline card, pane, HTML widget, or `ask_question`) with eight ready-made templates (`assumption_ledger`, `contract_workbench`, `consequence_cards`, `triage_matrix`, `state_walkthrough`, `wave_sequencer`, `confirm_gate`, `progress_board`).
+- **`genui` skill:** The plugin's `plugin/skills/genui` skill is a "how to show things" router (chat Markdown, artifact, inline card, pane, HTML widget, or the host's interactive question tool / chat prompt) with eight ready-made templates (`assumption_ledger`, `contract_workbench`, `consequence_cards`, `triage_matrix`, `state_walkthrough`, `wave_sequencer`, `confirm_gate`, `progress_board`).
 
 ## Repository Structure
 
@@ -84,7 +84,7 @@ The script writes these into `plugin/mcp_config.json`:
 
 | Variable                     | Meaning                                                                                                                  |
 | :--------------------------- | :----------------------------------------------------------------------------------------------------------------------- |
-| `A2UI_PANE_PYTHON`           | Interpreter that can import `a2ui.inference_formats.experimental.express` (resolved from the checkout's `uv` workspace). |
+| `A2UI_PANE_PYTHON`           | Interpreter that can import `a2ui.inference_formats.express` (resolved from the checkout's `uv` workspace). |
 | `A2UI_PANE_AGENT_SDK_PATH`   | The a2ui checkout; used with `uv run --project` if `A2UI_PANE_PYTHON` is unset.                                          |
 | `A2UI_PANE_PROTOCOL_VERSION` | Target protocol version for compiled Express (`v0.9` today; the renderer does not draw v1.0 yet).                        |
 

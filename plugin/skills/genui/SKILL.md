@@ -4,12 +4,14 @@ description: >-
   Shows information to the user through the right channel and collects
   structured input back: chat Markdown, Markdown artifacts, interactive A2UI
   surfaces (inline cards or the live side pane) authored in A2UI Express or
-  from named templates, HTML widgets via the generative_ui skill, or
-  ask_question as the fallback. Use whenever you need to present a dashboard,
-  form, decision, triage list, progress board, confirmation gate, comparison,
-  or any UI beyond plain text, whenever you are about to ask the user more than
-  one question, and whenever another skill (grill-me, plan, pr-review,
-  code-review, ship-it) says "render with genui".
+  from named templates, HTML widgets via the generative_ui skill, or the host's
+  interactive question tool (ask_question or AskUserQuestion) and chat prompts
+  as the fallback. Use whenever you need to present a dashboard, form,
+  decision, triage list, progress board, confirmation gate, comparison, or any
+  UI beyond plain text, whenever you are about to ask the user more than one
+  question, and whenever another skill (grill-me, just-brainstorm, plan,
+  code-merge, pr-review, code-review, ship-it, commit-changes, branch-cleanup,
+  what-if, api-review) says "render with genui".
 ---
 
 # genui: How to Show Things
@@ -18,20 +20,23 @@ This skill decides _which_ display channel fits and _how_ to build an A2UI surfa
 
 ## 1. Pick the channel
 
-| Need                                                                               | Channel                                     | Signal to pick it                                                   |
-| :--------------------------------------------------------------------------------- | :------------------------------------------ | :------------------------------------------------------------------ |
-| Short answer, status line, small table                                             | Chat Markdown                               | Default. Nothing to collect back.                                   |
-| Report, plan, analysis, anything the user returns to                               | Markdown artifact                           | Long-lived and linkable; no interaction needed.                     |
-| One or two inputs or decisions, structured answer needed back                      | A2UI inline card (`mode: "inline"`)         | Fits under the 500px host cap; the answer changes what you do next. |
-| Many items, lists, diagrams, multi-turn updates, live progress                     | A2UI pane (`mode: "pane"`)                  | Needs scrolling, modals, tabs, or in-place updates.                 |
-| Free-form visualization the catalog cannot express (charts, canvas, custom layout) | HTML via the built-in `generative_ui` skill | Read-mostly; no typed round trip.                                   |
-| Trivial confirmation, or the `a2ui-pane` tools are not available                   | `ask_question`                              | Consequences are obvious from a one-line label.                     |
+| Need                                                                               | Channel                                                                                | Signal to pick it                                                   |
+| :--------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------- | :------------------------------------------------------------------ |
+| Short answer, status line, small table                                             | Chat Markdown                                                                          | Default. Nothing to collect back.                                   |
+| Report, plan, analysis, anything the user returns to                               | Markdown artifact                                                                      | Long-lived and linkable; no interaction needed.                     |
+| One or two inputs or decisions, structured answer needed back                      | A2UI inline card (`mode: "inline"`)                                                    | Fits under the 500px host cap; the answer changes what you do next. |
+| Many items, lists, diagrams, multi-turn updates, live progress                     | A2UI pane (`mode: "pane"`)                                                             | Needs scrolling, modals, tabs, or in-place updates.                 |
+| Free-form visualization the catalog cannot express (charts, canvas, custom layout) | HTML via the built-in `generative_ui` skill                                            | Read-mostly; no typed round trip.                                   |
+| Single self-contained choice, or the `a2ui-pane` tools are not available           | Host interactive question tool (`ask_question` / `AskUserQuestion`) or numbered chat   | Consequences are obvious from a one-line label.                     |
 
-Do not render a card where a sentence would do. A surface earns its place when it collects more than one decision, shows structure that prose hides (a DAG, a state machine, a matrix), or needs to stay live across turns.
+Do not render a card where a sentence would do. A surface earns its place when it collects more than one decision, shows structure that prose hides (a DAG, a state machine, a matrix), gates a consequential action, or needs to stay live across turns.
 
 ## 2. Fallback chain
 
-If `render_a2ui` is not available in any form (not a native tool, and not listed as a lazily loaded MCP tool of the `a2ui-pane` server that you can invoke through `call_mcp_tool`), the plugin is not installed: ask through `ask_question` (batch the questions, prefix the recommended option with `(Recommended)`, include a "Let's come back to this" option) and show read-only structure as Markdown tables or an artifact. If `render_a2ui` returns `Express compiler unavailable`, pass raw `messages` (see `a2ui_instructions` with `format: "json"`) or fall back the same way.
+If `render_a2ui` is not available in any form (not a native tool, and not listed as a lazily loaded MCP tool of the `a2ui-pane` server that you can invoke through `call_mcp_tool`), the plugin is not installed:
+1. **Tier 2 (Host interactive question tool)**: Ask through your host's structured question tool (`ask_question` in Jetski/Antigravity, `AskUserQuestion` in Claude Code). Batch related questions, put thought into choosing a recommended option, list the recommended option first with `(Recommended)`, and include a "Let's come back to this" option when appropriate. Show read-only structure as Markdown tables or an artifact.
+2. **Tier 3 (Chat turn boundary)**: If your host has no structured question tool, present a numbered list of options in chat (listing your thoughtfully chosen recommended option first with `(Recommended)`), and end your turn to wait for the user's reply before continuing.
+3. **Compiler fallback**: If `render_a2ui` returns `Express compiler unavailable`, pass raw `messages` (see `a2ui_instructions` with `format: "json"`) or fall back to Tier 2 / Tier 3.
 
 ## 3. Render an A2UI surface
 
