@@ -56,6 +56,9 @@ describe('A2uiPaneView', () => {
     );
     expect(layoutStyle).not.toBeNull();
     expect(layoutStyle?.textContent).toContain('a2ui-basic-row > a2ui-card > .a2ui-card');
+    expect(layoutStyle?.textContent).toContain('a2ui-basic-text .a2ui-text pre');
+    expect(layoutStyle?.textContent).toContain('white-space: pre-wrap');
+    expect(layoutStyle?.textContent).toContain('a2ui-basic-text .a2ui-text pre code');
   });
 
   it('listens to onSurfaceCreated, updates DOM and dispatches surface-changed event', async () => {

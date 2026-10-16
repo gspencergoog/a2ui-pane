@@ -40,6 +40,15 @@ const SURFACE_LAYOUT_CSS = `
     flex-shrink: 0;
     white-space: nowrap;
   }
+  a2ui-card,
+  a2ui-card > .a2ui-card,
+  a2ui-basic-column,
+  a2ui-basic-column > .a2ui-column,
+  a2ui-basic-text,
+  a2ui-basic-text > .a2ui-text {
+    min-width: 0;
+    max-width: 100%;
+  }
   a2ui-basic-row > a2ui-basic-column,
   a2ui-basic-row > a2ui-basic-row,
   a2ui-basic-row > a2ui-basic-text {
@@ -96,6 +105,33 @@ const SURFACE_LAYOUT_CSS = `
     padding: 1px 5px;
     border-radius: 4px;
     background-color: var(--a2ui-color-secondary, rgba(175, 184, 193, 0.25));
+    overflow-wrap: anywhere;
+  }
+  a2ui-basic-text .a2ui-text pre {
+    display: block;
+    margin: 6px 0;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background-color: var(--a2ui-color-secondary, rgba(175, 184, 193, 0.25));
+    font-family: var(--a2ui-font-family-monospace, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+    font-size: 0.9em;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    box-sizing: border-box;
+    max-width: 100%;
+  }
+  a2ui-basic-text .a2ui-text pre code {
+    display: block;
+    padding: 0;
+    border-radius: 0;
+    background-color: transparent;
+    font-size: inherit;
+    line-height: inherit;
+    white-space: inherit;
+    overflow-wrap: inherit;
+    word-break: inherit;
   }
   a2ui-basic-text .a2ui-text ul,
   a2ui-basic-text .a2ui-text ol {
