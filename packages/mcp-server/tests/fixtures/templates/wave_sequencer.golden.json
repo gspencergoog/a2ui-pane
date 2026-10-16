@@ -1,25 +1,20 @@
 [
   {
-    "version": "v0.9",
+    "version": "v1.0",
     "createSurface": {
       "surfaceId": "wave_sequencer",
-      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
-      "sendDataModel": true
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateComponents": {
-      "surfaceId": "wave_sequencer",
+      "sendDataModel": true,
       "components": [
         {
           "id": "root",
           "component": "Card",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "child": "seq_col"
         },
         {
           "id": "seq_col",
           "component": "Column",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "seq_title",
             "seq_intro",
@@ -34,30 +29,35 @@
         {
           "id": "seq_title",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/title"
+            "@path": "/title"
           }
         },
         {
           "id": "seq_intro",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/intro"
+            "@path": "/intro"
           },
           "variant": "caption"
         },
         {
           "id": "seq_dag",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/dag"
+            "@path": "/dag"
           }
         },
         {
           "id": "rollout_badge",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "call": "formatString",
+            "@call": "formatString",
+            "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
             "args": {
               "value": "**Rollout strategy:** `${/global/rolloutMode}` | **Coverage gate:** `${/global/coverageGate}%`"
             }
@@ -66,11 +66,13 @@
         },
         {
           "id": "seq_top_divider",
-          "component": "Divider"
+          "component": "Divider",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
         },
         {
           "id": "seq_task_list",
           "component": "List",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": {
             "path": "/tasks",
             "componentId": "seq_task_card"
@@ -79,11 +81,13 @@
         {
           "id": "seq_task_card",
           "component": "Card",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "child": "seq_task_col"
         },
         {
           "id": "seq_task_col",
           "component": "Column",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "seq_task_title",
             "seq_task_deps",
@@ -95,22 +99,28 @@
         {
           "id": "seq_task_title",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "title"
-          },
-          "variant": "h4"
+            "@call": "formatString",
+            "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+            "args": {
+              "value": "#### ${title}"
+            }
+          }
         },
         {
           "id": "seq_task_deps",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "dependsOn"
+            "@path": "dependsOn"
           },
           "variant": "caption"
         },
         {
           "id": "wave_picker",
           "component": "ChoicePicker",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": "Delivery wave",
           "variant": "mutuallyExclusive",
           "options": [
@@ -132,13 +142,14 @@
             }
           ],
           "value": {
-            "path": "wave"
+            "@path": "wave"
           },
           "displayStyle": "chips"
         },
         {
           "id": "verification_picker",
           "component": "ChoicePicker",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": "Verification gate",
           "variant": "multipleSelection",
           "options": [
@@ -156,25 +167,28 @@
             }
           ],
           "value": {
-            "path": "verification"
+            "@path": "verification"
           },
           "displayStyle": "chips"
         },
         {
           "id": "seq_task_note",
           "component": "TextField",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": "Sequencing constraint or owner note",
           "value": {
-            "path": "note"
+            "@path": "note"
           }
         },
         {
           "id": "seq_bottom_divider",
-          "component": "Divider"
+          "component": "Divider",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
         },
         {
           "id": "seq_footer",
           "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "submit_btn"
           ],
@@ -184,6 +198,7 @@
         {
           "id": "submit_btn",
           "component": "Button",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "child": "submit_btn_child",
           "variant": "primary",
           "action": {
@@ -191,10 +206,10 @@
               "name": "submit_wave_sequence",
               "context": {
                 "global": {
-                  "path": "/global"
+                  "@path": "/global"
                 },
                 "tasks": {
-                  "path": "/tasks"
+                  "@path": "/tasks"
                 }
               }
             }
@@ -203,19 +218,13 @@
         {
           "id": "submit_btn_child",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/submitLabel"
+            "@path": "/submitLabel"
           }
         }
-      ]
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateDataModel": {
-      "surfaceId": "wave_sequencer",
-      "path": "/",
-      "value": {
+      ],
+      "dataModel": {
         "title": "### Template 5: Execution Phase & Dependency Sequencer",
         "intro": "Assign each work item to a rollout wave and set the verification depth before transitioning to `/plan`.",
         "dag": "```mermaid\nflowchart LR\n    T1[\"T1: Schema & Types\"] --> T2[\"T2: StoreWriter Lock\"]\n    T1 --> T3[\"T3: Lit Catalog Components\"]\n    T2 --> T4[\"T4: E2E Golden Suite\"]\n    T3 --> T4\n```",

@@ -3,7 +3,9 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
-import { MessageProcessor, basicCatalog } from '@a2ui/web_core/v0_9';
+import { MessageProcessor } from '@a2ui/web_core/v0_9';
+import { basicCatalog as v1BasicCatalog } from '@a2ui/web_core/v1_0';
+import { chartsSchemaCatalog } from '@a2ui-pane/renderer';
 import {
   ExpressWorker,
   ExpressWorkerError,
@@ -14,7 +16,17 @@ import {
 
 const FAKE = resolve(__dirname, 'fixtures', 'fake_worker.mjs');
 const REAL_WORKER = resolve(__dirname, '..', 'python', 'express_worker.py');
-const CATALOG = resolve(__dirname, '..', '..', '..', 'catalogs', 'v0_9_1', 'basic', 'catalog.json');
+const CATALOG = resolve(__dirname, '..', '..', '..', 'catalogs', 'v1_0', 'basic', 'catalog.json');
+const CHARTS_CATALOG = resolve(
+  __dirname,
+  '..',
+  '..',
+  '..',
+  'catalogs',
+  'v1_0',
+  'charts',
+  'catalog.json',
+);
 
 function fakeWorker(
   mode: string,
@@ -193,13 +205,13 @@ const realPython = process.env.A2UI_PANE_PYTHON;
 const agentSdkPath = process.env.A2UI_PANE_AGENT_SDK_PATH;
 
 describe.skipIf(!realPython && !agentSdkPath)('ExpressWorker (real Python SDK)', () => {
-  it('compiles Express to valid v0.9 messages', async () => {
+  it('compiles Express to valid v1.0 messages across basic + charts catalogs', async () => {
     const worker = new ExpressWorker({
       pythonBin: realPython,
       agentSdkPath,
       uvBin: process.env.A2UI_PANE_UV,
       workerScript: REAL_WORKER,
-      catalogPath: CATALOG,
+      catalogPaths: [CATALOG, CHARTS_CATALOG],
       startupTimeoutMs: 60_000,
       log: () => {},
     });
@@ -207,17 +219,23 @@ describe.skipIf(!realPython && !agentSdkPath)('ExpressWorker (real Python SDK)',
       const dsl = [
         'surface("real", sendDataModel=true)',
         '$/items = [{title: "A", done: true}]',
-        'root = Card(Column([Text("## Hi"), Column(_template($/items, CheckBox($title, $done)))]))',
+        '$/series = [{name: "P95", values: [12, 18, 15]}]',
+        'root = Card(Column([Text("## Hi"), Chart("bar", $/series, labels=["Q1", "Q2", "Q3"]), Column(_template($/items, CheckBox($title, $done)))]))',
       ].join('\n');
       const messages = await worker.compile(dsl, 'real');
-      const processor = new MessageProcessor([basicCatalog as any], () => {}, {
-        validationConfig: { allowUnknownElements: false },
-      });
+      const processor = new MessageProcessor(
+        [v1BasicCatalog as any, chartsSchemaCatalog as any],
+        () => {},
+        {
+          validationConfig: { allowUnknownElements: false },
+        },
+      );
       processor.processMessages(messages as any);
       expect(processor.getSurfaces().has('real')).toBe(true);
       await expect(worker.compile('root = Card(', 'x')).rejects.toBeInstanceOf(ExpressWorkerError);
       const prompt = await worker.instructions();
       expect(prompt).toContain('A2UI Express');
+      expect(prompt).toContain('Chart');
     } finally {
       worker.dispose();
     }

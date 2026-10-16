@@ -1,10 +1,12 @@
 import { LitElement, html, css, nothing, PropertyValues } from 'lit';
 import { ContextProvider } from '@lit/context';
-import { Context } from '@a2ui/lit/v0_9';
+import { Context } from '@a2ui/lit';
+import '@a2ui/lit';
 import '@a2ui/lit/v0_9';
+import './charts-catalog.js';
 import { renderRichMarkdown } from './markdown-renderer.js';
 import { installIconSvgRenderer, installRichTextVariantRenderer } from './icon-paths.js';
-import { MessageProcessor } from '@a2ui/web_core/v0_9';
+import { MessageProcessor } from '@a2ui/web_core/v1_0';
 
 installIconSvgRenderer();
 installRichTextVariantRenderer();

@@ -1,25 +1,20 @@
 [
   {
-    "version": "v0.9",
+    "version": "v1.0",
     "createSurface": {
       "surfaceId": "consequence_cards",
-      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
-      "sendDataModel": true
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateComponents": {
-      "surfaceId": "consequence_cards",
+      "sendDataModel": true,
       "components": [
         {
           "id": "root",
           "component": "Card",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "child": "fork_col"
         },
         {
           "id": "fork_col",
           "component": "Column",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "fork_question",
             "option_cards",
@@ -31,13 +26,15 @@
         {
           "id": "fork_question",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/question"
+            "@path": "/question"
           }
         },
         {
           "id": "option_cards",
           "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": {
             "path": "/options",
             "componentId": "option_card"
@@ -47,12 +44,14 @@
         {
           "id": "option_card",
           "component": "Card",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "child": "option_col",
           "weight": 1
         },
         {
           "id": "option_col",
           "component": "Column",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "option_title",
             "option_impact",
@@ -62,29 +61,33 @@
         {
           "id": "option_title",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "title"
+            "@path": "title"
           }
         },
         {
           "id": "option_impact",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "impact"
+            "@path": "impact"
           },
           "variant": "caption"
         },
         {
           "id": "option_tradeoff",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "tradeoff"
+            "@path": "tradeoff"
           },
           "variant": "caption"
         },
         {
           "id": "choice_picker",
           "component": "ChoicePicker",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": "Select cutover strategy",
           "variant": "mutuallyExclusive",
           "options": [
@@ -98,21 +101,23 @@
             }
           ],
           "value": {
-            "path": "/choice"
+            "@path": "/choice"
           },
           "displayStyle": "chips"
         },
         {
           "id": "fork_notes",
           "component": "TextField",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": "Caveats, or propose a hybrid",
           "value": {
-            "path": "/notes"
+            "@path": "/notes"
           }
         },
         {
           "id": "fork_footer",
           "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "fork_flags",
             "submit_btn"
@@ -123,6 +128,7 @@
         {
           "id": "fork_flags",
           "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "more_info_check",
             "defer_check"
@@ -132,22 +138,25 @@
         {
           "id": "more_info_check",
           "component": "CheckBox",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": "Explain further",
           "value": {
-            "path": "/moreInfo"
+            "@path": "/moreInfo"
           }
         },
         {
           "id": "defer_check",
           "component": "CheckBox",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": "Park for later",
           "value": {
-            "path": "/defer"
+            "@path": "/defer"
           }
         },
         {
           "id": "submit_btn",
           "component": "Button",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "child": "submit_btn_child",
           "variant": "primary",
           "action": {
@@ -155,16 +164,16 @@
               "name": "submit_alignment",
               "context": {
                 "choice": {
-                  "path": "/choice"
+                  "@path": "/choice"
                 },
                 "notes": {
-                  "path": "/notes"
+                  "@path": "/notes"
                 },
                 "moreInfo": {
-                  "path": "/moreInfo"
+                  "@path": "/moreInfo"
                 },
                 "defer": {
-                  "path": "/defer"
+                  "@path": "/defer"
                 }
               }
             }
@@ -173,19 +182,13 @@
         {
           "id": "submit_btn_child",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/submitLabel"
+            "@path": "/submitLabel"
           }
         }
-      ]
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateDataModel": {
-      "surfaceId": "consequence_cards",
-      "path": "/",
-      "value": {
+      ],
+      "dataModel": {
         "question": "**Context**: `OrderRepository` writes only to `legacy_orders`. Which cutover strategy should we use for `orders_v2`?",
         "options": [
           {

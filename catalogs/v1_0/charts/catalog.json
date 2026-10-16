@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v1_0/catalogs/charts/catalog.json",
+  "protocolVersion": "1.0",
+  "title": "A2UI Charts Component Catalog",
+  "description": "Interactive SVG chart components for A2UI v1.0 surfaces.",
+  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/charts/catalog.json",
+  "components": {
+    "Chart": {
+      "type": "object",
+      "description": "Renders an interactive bar, stacked-bar, horizontal-bar, line, area, pie, donut, or scatter chart.",
+      "properties": {
+        "component": {
+          "const": "Chart"
+        },
+        "variant": {
+          "type": "string",
+          "description": "Visual chart layout variant.",
+          "enum": [
+            "bar",
+            "stacked-bar",
+            "horizontal-bar",
+            "line",
+            "area",
+            "pie",
+            "donut",
+            "scatter"
+          ]
+        },
+        "series": {
+          "$ref": "#/$defs/DynamicChartSeriesList",
+          "description": "One or more data series to plot. Each series has a name, numeric values (or {x, y} points for scatter), and an optional color."
+        },
+        "labels": {
+          "$ref": "common_types.json#/$defs/DynamicStringList",
+          "description": "Category labels along the X axis (or slice labels for pie and donut charts)."
+        },
+        "title": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Optional chart heading rendered above the plot area."
+        },
+        "xAxisLabel": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Optional caption rendered below the horizontal axis."
+        },
+        "yAxisLabel": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Optional caption rendered beside the vertical axis."
+        },
+        "height": {
+          "$ref": "common_types.json#/$defs/DynamicNumber",
+          "description": "Plot height in CSS pixels (defaults to 220)."
+        },
+        "showLegend": {
+          "$ref": "common_types.json#/$defs/DynamicBoolean",
+          "description": "Whether to render the series or slice legend."
+        },
+        "showGrid": {
+          "$ref": "common_types.json#/$defs/DynamicBoolean",
+          "description": "Whether to render background grid lines on Cartesian charts."
+        },
+        "selected": {
+          "$ref": "common_types.json#/$defs/DynamicValue",
+          "description": "Two-way bound selection state ({seriesIndex, pointIndex, label, value, seriesName}) updated when the user clicks or activates a datum."
+        },
+        "action": {
+          "$ref": "common_types.json#/$defs/Action",
+          "description": "Action dispatched when the user clicks or activates a bar, point, or slice."
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column."
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes"
+        }
+      },
+      "required": ["component", "variant", "series"],
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "ChartPoint": {
+      "oneOf": [
+        { "type": "number" },
+        {
+          "type": "object",
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "label": { "type": "string" }
+          },
+          "required": ["x", "y"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ChartSeries": {
+      "type": "object",
+      "properties": {
+        "name": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "values": {
+          "oneOf": [
+            {
+              "type": "array",
+              "items": { "$ref": "#/$defs/ChartPoint" }
+            },
+            { "$ref": "common_types.json#/$defs/DataBinding" },
+            { "$ref": "common_types.json#/$defs/FunctionCall" }
+          ]
+        },
+        "color": { "$ref": "common_types.json#/$defs/DynamicString" }
+      },
+      "required": ["name", "values"],
+      "additionalProperties": false
+    },
+    "DynamicChartSeriesList": {
+      "oneOf": [
+        {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ChartSeries" }
+        },
+        { "$ref": "common_types.json#/$defs/DataBinding" },
+        { "$ref": "common_types.json#/$defs/FunctionCall" }
+      ]
+    },
+    "anyComponent": {
+      "oneOf": [{ "$ref": "#/components/Chart" }],
+      "discriminator": {
+        "propertyName": "component"
+      }
+    }
+  }
+}

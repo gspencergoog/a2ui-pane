@@ -19,7 +19,10 @@ const worker = new ExpressWorker({
   pythonBin: process.env.A2UI_PANE_PYTHON,
   agentSdkPath: process.env.A2UI_PANE_AGENT_SDK_PATH,
   workerScript: resolve(pkgRoot, 'python', 'express_worker.py'),
-  catalogPath: resolve(repoRoot, 'catalogs', 'v0_9_1', 'basic', 'catalog.json'),
+  catalogPaths: [
+    resolve(repoRoot, 'catalogs', 'v1_0', 'basic', 'catalog.json'),
+    resolve(repoRoot, 'catalogs', 'v1_0', 'charts', 'catalog.json'),
+  ],
   log: () => {},
 });
 

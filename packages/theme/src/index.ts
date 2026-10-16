@@ -47,6 +47,17 @@ export const HOST_THEME_CSS = `:root {
   --a2ui-choicepicker-chip-font-size: 13px;
   --a2ui-choicepicker-chip-font-weight: 500;
   --a2ui-choicepicker-chip-padding: 5px 12px;
+
+  --a2ui-chart-color-1: var(--primary, #0b57d0);
+  --a2ui-chart-color-2: #00897b;
+  --a2ui-chart-color-3: #e65100;
+  --a2ui-chart-color-4: #8e24aa;
+  --a2ui-chart-color-5: #c62828;
+  --a2ui-chart-color-6: #2e7d32;
+  --a2ui-chart-color-7: #f9a825;
+  --a2ui-chart-color-8: #0277bd;
+  --a2ui-chart-grid-color: rgba(128, 134, 139, 0.22);
+  --a2ui-chart-axis-color: rgba(128, 134, 139, 0.55);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -62,6 +73,17 @@ export const HOST_THEME_CSS = `:root {
     --a2ui-color-primary-hover: var(--primary-hover, #c2e7ff);
     --a2ui-color-on-primary: #041e49;
     --a2ui-color-border: var(--border, #3c4043);
+
+    --a2ui-chart-color-1: var(--primary, #8ab4f8);
+    --a2ui-chart-color-2: #4db6ac;
+    --a2ui-chart-color-3: #ffb74d;
+    --a2ui-chart-color-4: #ce93d8;
+    --a2ui-chart-color-5: #ef9a9a;
+    --a2ui-chart-color-6: #81c784;
+    --a2ui-chart-color-7: #fff176;
+    --a2ui-chart-color-8: #4fc3f7;
+    --a2ui-chart-grid-color: rgba(154, 160, 166, 0.2);
+    --a2ui-chart-axis-color: rgba(154, 160, 166, 0.5);
   }
 }
 

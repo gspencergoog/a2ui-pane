@@ -1,0 +1,11 @@
+$/title = "### Q3 Latency & Throughput"
+$/subtitle = "Select a stage to inspect its trace."
+$/kpis = [{label: "P50 Latency", value: "**14.2 ms**", delta: "-18% vs baseline"}, {label: "P99 Latency", value: "**41.8 ms**", delta: "-24% vs baseline"}, {label: "Peak QPS", value: "**2,450**", delta: "+31% vs baseline"}]
+$/chartTitle = "Stage Throughput (req/s)"
+$/xAxisLabel = "Pipeline Stage"
+$/yAxisLabel = "req/s"
+$/labels = ["Parse", "Bind", "Layout", "Paint"]
+$/series = [{name: "v0.9", values: [420, 380, 310, 290]}, {name: "v1.0", values: [510, 490, 430, 405]}]
+$/selected = null
+$/note = "Check Layout allocation spike"
+$/submitLabel = "Inspect Stage"

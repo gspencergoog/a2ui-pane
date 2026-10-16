@@ -1,25 +1,20 @@
 [
   {
-    "version": "v0.9",
+    "version": "v1.0",
     "createSurface": {
       "surfaceId": "state_walkthrough",
-      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
-      "sendDataModel": true
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateComponents": {
-      "surfaceId": "state_walkthrough",
+      "sendDataModel": true,
       "components": [
         {
           "id": "root",
           "component": "Card",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "child": "sm_col"
         },
         {
           "id": "sm_col",
           "component": "Column",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "sm_title",
             "sm_diagram",
@@ -32,24 +27,28 @@
         {
           "id": "sm_title",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/title"
+            "@path": "/title"
           }
         },
         {
           "id": "sm_diagram",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/diagram"
+            "@path": "/diagram"
           }
         },
         {
           "id": "sm_top_divider",
-          "component": "Divider"
+          "component": "Divider",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
         },
         {
           "id": "transition_tabs",
           "component": "Tabs",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "tabs": [
             {
               "title": "⚡ E1: Lease Expired",
@@ -68,6 +67,7 @@
         {
           "id": "tab_t1",
           "component": "Column",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "t1_desc",
             "t1_policy_picker",
@@ -78,13 +78,15 @@
         {
           "id": "t1_desc",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/transitions/t1/desc"
+            "@path": "/transitions/t1/desc"
           }
         },
         {
           "id": "t1_policy_picker",
           "component": "ChoicePicker",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": "Fencing Strategy",
           "variant": "mutuallyExclusive",
           "options": [
@@ -102,35 +104,38 @@
             }
           ],
           "value": {
-            "path": "/transitions/t1/policy"
+            "@path": "/transitions/t1/policy"
           },
           "displayStyle": "chips"
         },
         {
           "id": "t1_slider",
           "component": "Slider",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": {
-            "path": "/labels/slider1"
+            "@path": "/labels/slider1"
           },
           "min": 0,
           "max": 10,
           "value": {
-            "path": "/transitions/t1/maxRetries"
+            "@path": "/transitions/t1/maxRetries"
           }
         },
         {
           "id": "t1_flag",
           "component": "CheckBox",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": {
-            "path": "/labels/flag1"
+            "@path": "/labels/flag1"
           },
           "value": {
-            "path": "/transitions/t1/flag"
+            "@path": "/transitions/t1/flag"
           }
         },
         {
           "id": "tab_t2",
           "component": "Column",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "t2_desc",
             "t2_policy_picker",
@@ -140,13 +145,15 @@
         {
           "id": "t2_desc",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/transitions/t2/desc"
+            "@path": "/transitions/t2/desc"
           }
         },
         {
           "id": "t2_policy_picker",
           "component": "ChoicePicker",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": "Partial Failure Semantics",
           "variant": "mutuallyExclusive",
           "options": [
@@ -164,25 +171,27 @@
             }
           ],
           "value": {
-            "path": "/transitions/t2/policy"
+            "@path": "/transitions/t2/policy"
           },
           "displayStyle": "chips"
         },
         {
           "id": "t2_slider",
           "component": "Slider",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": {
-            "path": "/labels/slider2"
+            "@path": "/labels/slider2"
           },
           "min": 0,
           "max": 10,
           "value": {
-            "path": "/transitions/t2/maxRetries"
+            "@path": "/transitions/t2/maxRetries"
           }
         },
         {
           "id": "tab_t3",
           "component": "Column",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "t3_desc",
             "t3_policy_picker",
@@ -192,13 +201,15 @@
         {
           "id": "t3_desc",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/transitions/t3/desc"
+            "@path": "/transitions/t3/desc"
           }
         },
         {
           "id": "t3_policy_picker",
           "component": "ChoicePicker",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": "Poison Pill Handling",
           "variant": "mutuallyExclusive",
           "options": [
@@ -216,27 +227,30 @@
             }
           ],
           "value": {
-            "path": "/transitions/t3/policy"
+            "@path": "/transitions/t3/policy"
           },
           "displayStyle": "chips"
         },
         {
           "id": "t3_flag",
           "component": "CheckBox",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": {
-            "path": "/labels/flag3"
+            "@path": "/labels/flag3"
           },
           "value": {
-            "path": "/transitions/t3/flag"
+            "@path": "/transitions/t3/flag"
           }
         },
         {
           "id": "sm_bottom_divider",
-          "component": "Divider"
+          "component": "Divider",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
         },
         {
           "id": "sm_footer",
           "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "submit_btn"
           ],
@@ -246,6 +260,7 @@
         {
           "id": "submit_btn",
           "component": "Button",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "child": "submit_btn_child",
           "variant": "primary",
           "action": {
@@ -253,7 +268,7 @@
               "name": "submit_state_machine",
               "context": {
                 "transitions": {
-                  "path": "/transitions"
+                  "@path": "/transitions"
                 }
               }
             }
@@ -262,19 +277,13 @@
         {
           "id": "submit_btn_child",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/submitLabel"
+            "@path": "/submitLabel"
           }
         }
-      ]
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateDataModel": {
-      "surfaceId": "state_walkthrough",
-      "path": "/",
-      "value": {
+      ],
+      "dataModel": {
         "title": "### Template 4: Failure-Mode & State-Machine Walkthrough",
         "diagram": "Verify transition policies and retry bounds:\n\n$$T_{\text{backoff}}(k) = \\min\\left(T_{\\max},\\; T_0 \\cdot 2^k + \\mathcal{U}(0, J)\right)$$\n\n```mermaid\nstateDiagram-v2\n    [*] --> Queued\n    Queued --> Leasing: acquire_lease()\n    Leasing --> Running: lease_granted\n    Running --> Retrying: transient_error (E_NET)\n    Retrying --> Queued: backoff_elapsed\n    Running --> DeadLetter: k >= K_max (E_POISON)\n    Running --> Completed: ack_success\n```",
         "transitions": {

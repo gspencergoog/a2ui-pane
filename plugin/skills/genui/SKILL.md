@@ -20,14 +20,14 @@ This skill decides _which_ channel fits and _how_ to build an A2UI surface with 
 
 ## 1. Pick the channel
 
-| Need                                                                               | Channel                                                                              | Signal to pick it                                                   |
-| :--------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------- | :------------------------------------------------------------------ |
-| Short answer, status line, small table                                             | Chat Markdown                                                                        | Default. Nothing to collect back.                                   |
-| Report, plan, analysis, anything the user returns to                               | Markdown artifact                                                                    | Long-lived and linkable; no interaction needed.                     |
-| One or two inputs or decisions, structured answer needed back                      | A2UI inline card (`mode: "inline"`)                                                  | Fits under the 500px host cap; the answer changes what you do next. |
-| Many items, lists, diagrams, multi-turn updates, live progress                     | A2UI pane (`mode: "pane"`)                                                           | Needs scrolling, modals, tabs, or in-place updates.                 |
-| Free-form visualization the catalog cannot express (charts, canvas, custom layout) | HTML via the built-in `generative_ui` skill                                          | Read-mostly; no typed round trip.                                   |
-| Single self-contained choice, or the `a2ui-pane` tools are not available           | Host interactive question tool (`ask_question` / `AskUserQuestion`) or numbered chat | Consequences are obvious from a one-line label.                     |
+| Need                                                                     | Channel                                                                              | Signal to pick it                                                   |
+| :----------------------------------------------------------------------- | :----------------------------------------------------------------------------------- | :------------------------------------------------------------------ |
+| Short answer, status line, small table                                   | Chat Markdown                                                                        | Default. Nothing to collect back.                                   |
+| Report, plan, analysis, anything the user returns to                     | Markdown artifact                                                                    | Long-lived and linkable; no interaction needed.                     |
+| One or two inputs or decisions, structured answer needed back            | A2UI inline card (`mode: "inline"`)                                                  | Fits under the 500px host cap; the answer changes what you do next. |
+| Many items, lists, charts, diagrams, multi-turn updates, live progress   | A2UI pane (`mode: "pane"`)                                                           | Needs scrolling, modals, tabs, `Chart`, or in-place updates.        |
+| Free-form 3D/canvas visualization the catalogs cannot express            | HTML via the built-in `generative_ui` skill                                          | Read-mostly; no typed round trip.                                   |
+| Single self-contained choice, or the `a2ui-pane` tools are not available | Host interactive question tool (`ask_question` / `AskUserQuestion`) or numbered chat | Consequences are obvious from a one-line label.                     |
 
 Do not render a card where a sentence would do. Render a surface when you collect multiple decisions, show structure that prose hides, gate a consequential action, or track state across turns.
 
@@ -55,7 +55,8 @@ When `render_a2ui` is neither a native tool nor a lazily loaded MCP tool on `a2u
 - One primary action per surface; name the event for what it decides (`confirm_assumptions`, `submit_triage_matrix`).
 - Keep inline cards compact: at most two questions, short consequence text, no scrolling.
 - Put background in the chat message with clickable `[file](file:///...)` links; put the decision controls in the surface.
-- Use Markdown inside `Text` for emphasis, code spans, LaTeX, and ` ```mermaid ` diagrams (`flowchart`, `stateDiagram-v2`, `sequenceDiagram`).
+- Use `Chart(variant, series, labels=_, title=_, xAxisLabel=_, yAxisLabel=_, height=_, showLegend=_, showGrid=_, selected=_, action=_)` for interactive bar, stacked-bar, horizontal-bar, line, area, pie, donut, and scatter charts, or the `metrics_dashboard` template.
+- Use Markdown inside `Text` for emphasis, code spans, LaTeX, and ` ```mermaid ` diagrams (`flowchart`, `stateDiagram-v2`, `sequenceDiagram`, `pie`, `xychart-beta`).
 
 ## 5. Handle the answer
 

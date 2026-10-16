@@ -1,4 +1,4 @@
-import { MessageProcessor } from '@a2ui/web_core/v0_9';
+import { MessageProcessor } from '@a2ui/web_core/v1_0';
 import { A2uiServerMessage, isValidId } from '@a2ui-pane/protocol';
 import { CatalogRegistry } from './catalog-registry.js';
 import { StoreWriter } from './store-writer.js';
@@ -84,10 +84,11 @@ export class ConversationState {
     }
 
     const deletes: A2uiServerMessage[] = [];
-    for (const existingId of Array.from(this.processor.getSurfaces().keys())) {
+    for (const [existingId, existingSurface] of this.processor.getSurfaces().entries()) {
       if (!batchSurfaceIds.has(existingId)) {
+        const ver = existingSurface?.defaultCatalog?.protocolVersion === '1.0' ? 'v1.0' : 'v0.9';
         deletes.push({
-          version: 'v0.9',
+          version: ver as any,
           deleteSurface: { surfaceId: existingId },
         });
       }

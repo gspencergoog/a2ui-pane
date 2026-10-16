@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { MessageProcessor, basicCatalog } from '@a2ui/web_core/v0_9';
+import { MessageProcessor } from '@a2ui/web_core/v0_9';
+import { basicCatalog as v1BasicCatalog } from '@a2ui/web_core/v1_0';
+import { chartsSchemaCatalog } from '@a2ui-pane/renderer';
 import { ExpressWorker } from '../src/express-worker.js';
 import { TemplateRegistry } from '../src/template-registry.js';
 import { mergeRootDataUpdates } from '../src/tools/render.js';
@@ -9,7 +11,8 @@ import { mergeRootDataUpdates } from '../src/tools/render.js';
 const REPO_ROOT = resolve(__dirname, '..', '..', '..');
 const TEMPLATES_DIR = resolve(REPO_ROOT, 'plugin', 'skills', 'genui', 'templates');
 const FIXTURES_DIR = resolve(__dirname, 'fixtures', 'templates');
-const CATALOG = resolve(REPO_ROOT, 'catalogs', 'v0_9_1', 'basic', 'catalog.json');
+const CATALOG = resolve(REPO_ROOT, 'catalogs', 'v1_0', 'basic', 'catalog.json');
+const CHARTS_CATALOG = resolve(REPO_ROOT, 'catalogs', 'v1_0', 'charts', 'catalog.json');
 const WORKER = resolve(__dirname, '..', 'python', 'express_worker.py');
 
 const pythonBin = process.env.A2UI_PANE_PYTHON;
@@ -21,6 +24,7 @@ const EXPECTED_TEMPLATES = [
   'confirm_gate',
   'consequence_cards',
   'contract_workbench',
+  'metrics_dashboard',
   'progress_board',
   'state_walkthrough',
   'triage_matrix',
@@ -57,7 +61,7 @@ describe.skipIf(!pythonBin && !agentSdkPath)('bundled genui templates (compiled 
       agentSdkPath,
       uvBin: process.env.A2UI_PANE_UV,
       workerScript: WORKER,
-      catalogPath: CATALOG,
+      catalogPaths: [CATALOG, CHARTS_CATALOG],
       startupTimeoutMs: 60_000,
       log: () => {},
     });
@@ -66,14 +70,18 @@ describe.skipIf(!pythonBin && !agentSdkPath)('bundled genui templates (compiled 
   afterAll(() => worker.dispose());
 
   function validate(messages: unknown[]): void {
-    const processor = new MessageProcessor([basicCatalog as any], () => {}, {
-      validationConfig: {
-        allowUnknownElements: false,
-        allowOrphanComponents: false,
-        allowDanglingReferences: false,
-        allowMissingRoot: false,
+    const processor = new MessageProcessor(
+      [v1BasicCatalog as any, chartsSchemaCatalog as any],
+      () => {},
+      {
+        validationConfig: {
+          allowUnknownElements: false,
+          allowOrphanComponents: false,
+          allowDanglingReferences: false,
+          allowMissingRoot: false,
+        },
       },
-    });
+    );
     processor.processMessages(messages as any);
   }
 
@@ -104,7 +112,9 @@ describe.skipIf(!pythonBin && !agentSdkPath)('bundled genui templates (compiled 
       registry.inflate('confirm_gate', 'g', { callerDsl: '$/title = "### Custom"' }),
       'g',
     );
-    const dataModel = (messages.find((m: any) => m.updateDataModel) as any).updateDataModel.value;
+    const dataModel =
+      (messages[0] as any).createSurface?.dataModel ??
+      (messages.find((m: any) => m.updateDataModel) as any)?.updateDataModel?.value;
     expect(dataModel.title).toBe('### Custom');
     expect(dataModel.confirmed).toBe(false);
   });
@@ -126,7 +136,7 @@ describe.skipIf(!pythonBin && !agentSdkPath)('bundled genui templates (compiled 
     const messages = await worker.compile('$/title = "### New"\n$/note = "x"', 'live');
     expect(messages).toEqual([
       {
-        version: 'v0.9',
+        version: 'v1.0',
         updateDataModel: { surfaceId: 'live', path: '/', value: { title: '### New', note: 'x' } },
       },
     ]);

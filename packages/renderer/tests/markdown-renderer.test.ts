@@ -139,10 +139,49 @@ describe('markdown-renderer', () => {
       expect(svgLr).toContain('<path d="M ');
     });
 
+    it('renders pie diagrams with title, showData, wedges, and legend', () => {
+      const svg = renderMermaidSvg(`
+        pie showData
+          title Pet Adoption Share
+          "Dogs" : 386
+          "Cats" : 85
+          "Rats" : 15
+      `);
+      expect(svg).toContain('<svg class="a2ui-mermaid-svg"');
+      expect(svg).toContain('Pet Adoption Share');
+      expect(svg).toContain('Dogs (386)');
+      expect(svg).toContain('Cats (85)');
+      expect(svg).toContain('79%');
+    });
+
+    it('renders xychart-beta diagrams with bar and line series, x-axis, and y-axis', () => {
+      const svg = renderMermaidSvg(`
+        xychart-beta
+          title "Quarterly Latency (ms)"
+          x-axis [Q1, Q2, Q3, Q4]
+          y-axis "Latency (ms)" 0 --> 200
+          bar [142, 118, 96, 84]
+          line [150, 125, 102, 88]
+      `);
+      expect(svg).toContain('<svg class="a2ui-mermaid-svg"');
+      expect(svg).toContain('Quarterly Latency (ms)');
+      expect(svg).toContain('Latency (ms)');
+      expect(svg).toContain('Q1');
+      expect(svg).toContain('Q4');
+      expect(svg).toContain('<rect ');
+      expect(svg).toContain('<polyline ');
+    });
+
     it('falls back to escaped <pre> block for unknown or empty diagram types', () => {
-      const unknown = renderMermaidSvg('pie title Pets\n  "Dogs" : 386');
+      const unknown = renderMermaidSvg('gantt\n  title A Gantt Diagram');
       expect(unknown).toContain('<pre class="a2ui-mermaid-fallback"><code>');
-      expect(unknown).toContain('pie title Pets');
+      expect(unknown).toContain('gantt');
+
+      const emptyPie = renderMermaidSvg('pie title Empty\n  %% no slices');
+      expect(emptyPie).toContain('<pre class="a2ui-mermaid-fallback">');
+
+      const emptyXy = renderMermaidSvg('xychart-beta\n  title Empty');
+      expect(emptyXy).toContain('<pre class="a2ui-mermaid-fallback">');
 
       const emptyFlow = renderMermaidSvg('flowchart TD\n  %% only comments');
       expect(emptyFlow).toContain('<pre class="a2ui-mermaid-fallback">');

@@ -11,6 +11,7 @@ import { existsSync, writeFileSync } from 'node:fs';
 
 const mode = process.env.FAKE_WORKER_MODE || 'normal';
 const crashMarker = process.env.FAKE_WORKER_CRASH_MARKER || '';
+let workerVersion = 'v1.0';
 
 const rl = createInterface({ input: process.stdin });
 rl.on('line', (line) => {
@@ -25,6 +26,7 @@ rl.on('line', (line) => {
     return;
   }
   if (req.op === 'init') {
+    workerVersion = req.version || 'v1.0';
     if (mode === 'init-exit') {
       process.exit(2);
     }
@@ -34,9 +36,10 @@ rl.on('line', (line) => {
           JSON.stringify({
             id: req.id,
             ok: true,
-            version: req.version || 'v0.9',
-            componentCount: 18,
+            version: workerVersion,
+            componentCount: 19,
             catalogId: 'basic',
+            catalogIds: ['basic', 'charts'],
           }) + '\n',
         );
       }, 120);
@@ -56,9 +59,10 @@ rl.on('line', (line) => {
       JSON.stringify({
         id: req.id,
         ok: true,
-        version: req.version || 'v0.9',
-        componentCount: 18,
+        version: workerVersion,
+        componentCount: 19,
         catalogId: 'basic',
+        catalogIds: ['basic', 'charts'],
       }) + '\n',
     );
     return;
@@ -68,6 +72,7 @@ rl.on('line', (line) => {
     return;
   }
   if (req.op === 'compile') {
+    const msgVersion = req.version || workerVersion || 'v1.0';
     if (mode === 'crash-always') process.exit(3);
     if (mode === 'crash-once' && crashMarker && !existsSync(crashMarker)) {
       writeFileSync(crashMarker, 'crashed');
@@ -97,7 +102,7 @@ rl.on('line', (line) => {
           error: {
             kind: 'ExpressCompilerError',
             message: "Property 'foo' is not a valid property of component 'Text'.",
-            help: "Component 'Text' accepts properties: text, usageHint",
+            help: "Component 'Text' accepts properties: text, variant",
           },
         }) + '\n',
       );
@@ -121,8 +126,38 @@ rl.on('line', (line) => {
           ok: true,
           messages: [
             {
-              version: 'v0.9',
+              version: msgVersion,
               updateDataModel: { surfaceId: req.surfaceId || 'main', path: '/', value },
+            },
+          ],
+        }) + '\n',
+      );
+      return;
+    }
+    if (msgVersion === 'v0.9') {
+      process.stdout.write(
+        JSON.stringify({
+          id: req.id,
+          ok: true,
+          messages: [
+            {
+              version: 'v0.9',
+              createSurface: { surfaceId: req.surfaceId || 'main', catalogId: 'basic' },
+            },
+            {
+              version: 'v0.9',
+              updateComponents: {
+                surfaceId: req.surfaceId || 'main',
+                components: [{ id: 'root', component: 'Text', text: String(req.dsl).slice(0, 20) }],
+              },
+            },
+            {
+              version: 'v0.9',
+              updateDataModel: {
+                surfaceId: req.surfaceId || 'main',
+                path: '/',
+                value: { title: 'Default title', note: '' },
+              },
             },
           ],
         }) + '\n',
@@ -135,22 +170,18 @@ rl.on('line', (line) => {
         ok: true,
         messages: [
           {
-            version: 'v0.9',
-            createSurface: { surfaceId: req.surfaceId || 'main', catalogId: 'basic' },
-          },
-          {
-            version: 'v0.9',
-            updateComponents: {
+            version: 'v1.0',
+            createSurface: {
               surfaceId: req.surfaceId || 'main',
-              components: [{ id: 'root', component: 'Text', text: String(req.dsl).slice(0, 20) }],
-            },
-          },
-          {
-            version: 'v0.9',
-            updateDataModel: {
-              surfaceId: req.surfaceId || 'main',
-              path: '/',
-              value: { title: 'Default title', note: '' },
+              components: [
+                {
+                  id: 'root',
+                  component: 'Text',
+                  catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+                  text: String(req.dsl).slice(0, 20),
+                },
+              ],
+              dataModel: { title: 'Default title', note: '' },
             },
           },
         ],

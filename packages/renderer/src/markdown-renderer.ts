@@ -1,4 +1,11 @@
 import { renderMarkdown } from '@a2ui/markdown-it';
+import {
+  computeNiceTicks,
+  describeSectorPath,
+  formatTickNumber,
+  polarToCartesian,
+  resolveSeriesColor,
+} from './chart-math.js';
 
 /** Configuration options for the rich Markdown, MathML, and Mermaid renderer. */
 export interface RichMarkdownOptions {
@@ -1023,6 +1030,219 @@ function renderSequenceSvg(lines: string[]): string {
  * Renders a Mermaid diagram definition (`flowchart`/`graph`, `stateDiagram`/`stateDiagram-v2`,
  * or `sequenceDiagram`) to an inline SVG.
  */
+
+function renderPieSvg(header: string, lines: string[]): string {
+  let title = '';
+  const showData = /\bshowData\b/i.test(header);
+  const inlineTitle = /^pie(?:\s+showData)?\s+title\s+(.+)$/i.exec(header);
+  if (inlineTitle) {
+    title = inlineTitle[1].trim().replace(/^"(.*)"$/, '$1');
+  }
+  const slices: Array<{ label: string; value: number }> = [];
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    const titleMatch = /^title\s+(.+)$/i.exec(line);
+    if (titleMatch) {
+      title = titleMatch[1].trim().replace(/^"(.*)"$/, '$1');
+      continue;
+    }
+    const sliceMatch = /^"([^"]+)"\s*:\s*([+-]?\d+(?:\.\d+)?)$/.exec(line);
+    if (sliceMatch) {
+      const value = Number(sliceMatch[2]);
+      if (Number.isFinite(value) && value >= 0) {
+        slices.push({ label: sliceMatch[1], value });
+      }
+    }
+  }
+  if (slices.length === 0) {
+    return `<pre class="a2ui-mermaid-fallback"><code>${escapeHtml([header, ...lines].join('\n'))}</code></pre>`;
+  }
+  const total = slices.reduce((acc, s) => acc + s.value, 0) || 1;
+  const width = 440;
+  const titleOffset = title ? 26 : 6;
+  const cx = 130;
+  const cy = titleOffset + 100;
+  const radius = 82;
+  const height = titleOffset + 200;
+
+  let angle = 0;
+  const paths: string[] = [];
+  const legendItems: string[] = [];
+  slices.forEach((s, idx) => {
+    const span = (s.value / total) * 360;
+    const start = angle;
+    const end = angle + span;
+    angle = end;
+    const color = resolveSeriesColor(idx);
+    const d = describeSectorPath(cx, cy, radius, 0, start, end);
+    const pct = Math.round((s.value / total) * 100);
+    const mid = start + span / 2;
+    const labelPos = polarToCartesian(cx, cy, radius * 0.65, mid);
+    paths.push(
+      `<path d="${d}" fill="${color}" stroke="var(--a2ui-color-surface, #ffffff)" stroke-width="1.5" />`,
+    );
+    if (pct >= 8) {
+      paths.push(
+        `<text x="${labelPos.x}" y="${labelPos.y + 4}" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="600">${pct}%</text>`,
+      );
+    }
+    const displaySuffix = showData ? ` (${formatTickNumber(s.value)})` : ` (${pct}%)`;
+    const ly = titleOffset + 28 + idx * 22;
+    legendItems.push(
+      `<rect x="242" y="${ly - 9}" width="11" height="11" rx="2" fill="${color}" />` +
+        `<text x="259" y="${ly}" fill="var(--a2ui-text-color-text, #1f1f1f)" font-size="12">${escapeHtml(s.label + displaySuffix)}</text>`,
+    );
+  });
+
+  const titleEl = title
+    ? `<text x="${width / 2}" y="18" text-anchor="middle" fill="var(--a2ui-text-color-text, #1f1f1f)" font-size="13" font-weight="600">${escapeHtml(title)}</text>`
+    : '';
+
+  return `<div class="a2ui-mermaid"><svg class="a2ui-mermaid-svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="${escapeHtml(title || 'Pie chart')}">${titleEl}${paths.join('')}${legendItems.join('')}</svg></div>`;
+}
+
+function parseBracketList(raw: string): string[] {
+  const inner = raw.trim().replace(/^\[/, '').replace(/\]$/, '');
+  if (!inner.trim()) return [];
+  return inner.split(',').map((item) =>
+    item
+      .trim()
+      .replace(/^"(.*)"$/, '$1')
+      .replace(/^'(.*)'$/, '$1'),
+  );
+}
+
+function renderXyChartSvg(lines: string[]): string {
+  let title = '';
+  let xCategories: string[] = [];
+  let yAxisTitle = '';
+  let explicitMin: number | undefined;
+  let explicitMax: number | undefined;
+  const series: Array<{ kind: 'bar' | 'line'; values: number[] }> = [];
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    const titleMatch = /^title\s+(.+)$/i.exec(line);
+    if (titleMatch) {
+      title = titleMatch[1].trim().replace(/^"(.*)"$/, '$1');
+      continue;
+    }
+    const xAxisMatch = /^x-axis\s+(?:"[^"]*"\s+)?(\[.*\])$/i.exec(line);
+    if (xAxisMatch) {
+      xCategories = parseBracketList(xAxisMatch[1]);
+      continue;
+    }
+    const yAxisMatch =
+      /^y-axis\s+(?:"([^"]*)"\s*)?(?:([+-]?\d+(?:\.\d+)?)\s*-->\s*([+-]?\d+(?:\.\d+)?))?$/i.exec(
+        line,
+      );
+    if (yAxisMatch) {
+      if (yAxisMatch[1]) yAxisTitle = yAxisMatch[1];
+      if (yAxisMatch[2] !== undefined && yAxisMatch[3] !== undefined) {
+        explicitMin = Number(yAxisMatch[2]);
+        explicitMax = Number(yAxisMatch[3]);
+      }
+      continue;
+    }
+    const seriesMatch = /^(bar|line)\s+(?:"[^"]*"\s+)?(\[.*\])$/i.exec(line);
+    if (seriesMatch) {
+      const kind = seriesMatch[1].toLowerCase() as 'bar' | 'line';
+      const vals = parseBracketList(seriesMatch[2])
+        .map((v) => Number(v))
+        .filter((n) => Number.isFinite(n));
+      if (vals.length > 0) {
+        series.push({ kind, values: vals });
+      }
+    }
+  }
+
+  if (series.length === 0) {
+    return `<pre class="a2ui-mermaid-fallback"><code>${escapeHtml(['xychart-beta', ...lines].join('\n'))}</code></pre>`;
+  }
+
+  const allVals = series.flatMap((s) => s.values);
+  const minVal = explicitMin ?? Math.min(0, ...allVals);
+  const maxVal = explicitMax ?? Math.max(0, ...allVals);
+  const scale = computeNiceTicks(minVal, maxVal, 5, explicitMin === undefined);
+  const span = scale.max - scale.min || 1;
+
+  const width = 480;
+  const height = 230;
+  const padLeft = yAxisTitle ? 54 : 42;
+  const padRight = 18;
+  const padTop = title ? 30 : 14;
+  const padBottom = 30;
+  const plotW = width - padLeft - padRight;
+  const plotH = height - padTop - padBottom;
+  const yFor = (v: number) => padTop + plotH - ((v - scale.min) / span) * plotH;
+  const zeroY = yFor(Math.max(0, scale.min));
+
+  const maxPoints = Math.max(xCategories.length, ...series.map((s) => s.values.length), 1);
+  const slotW = plotW / maxPoints;
+  const barSeries = series.filter((s) => s.kind === 'bar');
+  const barWidth = Math.max(6, (slotW * 0.65) / Math.max(1, barSeries.length));
+
+  const parts: string[] = [];
+  if (title) {
+    parts.push(
+      `<text x="${width / 2}" y="18" text-anchor="middle" fill="var(--a2ui-text-color-text, #1f1f1f)" font-size="13" font-weight="600">${escapeHtml(title)}</text>`,
+    );
+  }
+  for (const tick of scale.ticks) {
+    const y = Number(yFor(tick).toFixed(2));
+    parts.push(
+      `<line x1="${padLeft}" y1="${y}" x2="${padLeft + plotW}" y2="${y}" stroke="var(--a2ui-chart-grid-color, rgba(128,134,139,0.22))" stroke-dasharray="3 3" />`,
+      `<text x="${padLeft - 6}" y="${y + 4}" text-anchor="end" fill="var(--a2ui-text-caption-color, #70757a)" font-size="11">${formatTickNumber(tick)}</text>`,
+    );
+  }
+  parts.push(
+    `<line x1="${padLeft}" y1="${padTop}" x2="${padLeft}" y2="${padTop + plotH}" stroke="var(--a2ui-chart-axis-color, rgba(128,134,139,0.55))" />`,
+    `<line x1="${padLeft}" y1="${Number(zeroY.toFixed(2))}" x2="${padLeft + plotW}" y2="${Number(zeroY.toFixed(2))}" stroke="var(--a2ui-chart-axis-color, rgba(128,134,139,0.55))" />`,
+  );
+
+  let barIdx = 0;
+  series.forEach((s, sIdx) => {
+    const color = resolveSeriesColor(sIdx);
+    if (s.kind === 'bar') {
+      const bOffset = barIdx++;
+      s.values.forEach((v, idx) => {
+        const groupStart = padLeft + idx * slotW + slotW * 0.175;
+        const x = groupStart + bOffset * barWidth;
+        const yTop = v >= 0 ? yFor(v) : zeroY;
+        const yBot = v >= 0 ? zeroY : yFor(v);
+        const h = Math.max(2, Math.abs(yBot - yTop));
+        parts.push(
+          `<rect x="${Number(x.toFixed(2))}" y="${Number(Math.min(yTop, yBot).toFixed(2))}" width="${Number(barWidth.toFixed(2))}" height="${Number(h.toFixed(2))}" rx="2" fill="${color}" />`,
+        );
+      });
+    } else {
+      const pts = s.values.map((v, idx) => {
+        const x = Number((padLeft + (idx + 0.5) * slotW).toFixed(2));
+        const y = Number(yFor(v).toFixed(2));
+        return { x, y };
+      });
+      parts.push(
+        `<polyline fill="none" stroke="${color}" stroke-width="2.2" points="${pts.map((p) => `${p.x},${p.y}`).join(' ')}" />`,
+      );
+      for (const p of pts) {
+        parts.push(`<circle cx="${p.x}" cy="${p.y}" r="3.5" fill="${color}" />`);
+      }
+    }
+  });
+
+  for (let i = 0; i < maxPoints; i++) {
+    const lbl = xCategories[i] ?? String(i + 1);
+    const cx = Number((padLeft + (i + 0.5) * slotW).toFixed(2));
+    parts.push(
+      `<text x="${cx}" y="${padTop + plotH + 16}" text-anchor="middle" fill="var(--a2ui-text-caption-color, #70757a)" font-size="11">${escapeHtml(lbl)}</text>`,
+    );
+  }
+
+  return `<div class="a2ui-mermaid"><svg class="a2ui-mermaid-svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="${escapeHtml(title || 'XY chart')}">${parts.join('')}</svg></div>`;
+}
+
 export function renderMermaidSvg(code: string): string {
   const rawLines = code
     .trim()
@@ -1039,6 +1259,12 @@ export function renderMermaidSvg(code: string): string {
   }
   if (/^sequenceDiagram\b/i.test(header)) {
     return renderSequenceSvg(rawLines.slice(1));
+  }
+  if (/^pie\b/i.test(header)) {
+    return renderPieSvg(header, rawLines.slice(1));
+  }
+  if (/^xychart(?:-beta)?\b/i.test(header)) {
+    return renderXyChartSvg(rawLines.slice(1));
   }
   return `<pre class="a2ui-mermaid-fallback"><code>${escapeHtml(code.trim())}</code></pre>`;
 }

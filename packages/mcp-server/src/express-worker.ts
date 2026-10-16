@@ -16,6 +16,7 @@ export type WorkerRequest = {
   id: number;
   op: 'init' | 'ping' | 'compile' | 'instructions' | 'decompile';
   catalogPath?: string;
+  catalogPaths?: string[];
   version?: string;
   dsl?: string;
   surfaceId?: string;
@@ -39,9 +40,11 @@ export interface ExpressWorkerOptions {
   agentSdkSpec?: string;
   /** Absolute path to `express_worker.py`. */
   workerScript: string;
-  /** Absolute path to the basic catalog JSON. */
-  catalogPath: string;
-  /** Protocol version passed to the compiler (`v0.9`, `v0.9.1`, `v1.0`). */
+  /** Absolute path to the primary catalog JSON (retained for single-catalog callers). */
+  catalogPath?: string;
+  /** Ordered list of catalog JSON paths loaded into the Express compiler and prompt generator. */
+  catalogPaths?: string[];
+  /** Protocol version passed to the compiler (`v0.9`, `v0.9.1`, `v1.0`). Defaults to `v1.0`. */
   defaultVersion?: string;
   startupTimeoutMs?: number;
   requestTimeoutMs?: number;
@@ -142,9 +145,17 @@ export class ExpressWorker {
   private unavailableReason = '';
   private disposed = false;
   private readonly log: (line: string) => void;
+  private readonly catalogPaths: string[];
 
   constructor(private readonly opts: ExpressWorkerOptions) {
     this.log = opts.log ?? ((line) => console.error(`[express-worker] ${line}`));
+    if (opts.catalogPaths && opts.catalogPaths.length > 0) {
+      this.catalogPaths = [...opts.catalogPaths];
+    } else if (opts.catalogPath) {
+      this.catalogPaths = [opts.catalogPath];
+    } else {
+      this.catalogPaths = [];
+    }
   }
 
   /** Reason the worker is unavailable, or an empty string. */
@@ -310,9 +321,6 @@ export class ExpressWorker {
         if (line.trim()) this.log(line);
       }
     });
-    // A write that races the child's exit surfaces as an 'error' on stdin (EPIPE). Without
-    // a listener Node would raise it as an uncaught exception and take the server down;
-    // the 'exit' handler below already restarts the worker and retries the request.
     child.stdin.on('error', (err: Error) => {
       this.log(`stdin error: ${err.message}`);
     });
@@ -326,8 +334,9 @@ export class ExpressWorker {
     const initRequest: WorkerRequest = {
       id: 0,
       op: 'init',
-      catalogPath: this.opts.catalogPath,
-      version: this.opts.defaultVersion ?? 'v0.9',
+      catalogPath: this.catalogPaths[0],
+      catalogPaths: this.catalogPaths,
+      version: this.opts.defaultVersion ?? 'v1.0',
     };
     try {
       const response = await this.enqueue(initRequest, true, startupTimeoutMs);

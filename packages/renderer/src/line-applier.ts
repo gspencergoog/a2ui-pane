@@ -1,4 +1,4 @@
-import { MessageProcessor } from '@a2ui/web_core/v0_9';
+import { MessageProcessor } from '@a2ui/web_core/v1_0';
 import { StoreLine } from '@a2ui-pane/protocol';
 import { createProcessor, ActionHandler } from './processor.js';
 
@@ -79,8 +79,13 @@ export class LineApplier {
 
       try {
         const msg = line.message as Record<string, unknown>;
+        const cs =
+          msg && typeof msg === 'object'
+            ? (msg.createSurface as Record<string, unknown> | undefined)
+            : undefined;
+        const inferredVer = cs && Array.isArray(cs.components) && !cs.catalogId ? 'v1.0' : 'v0.9';
         const versionedMsg =
-          msg && typeof msg === 'object' && !msg.version ? { version: 'v0.9', ...msg } : msg;
+          msg && typeof msg === 'object' && !msg.version ? { version: inferredVer, ...msg } : msg;
 
         this.processor.processMessages([versionedMsg as any]);
         this.lastAppliedSeq = line.seq;

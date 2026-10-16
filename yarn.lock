@@ -26,7 +26,7 @@ __metadata:
   dependencies:
     "@a2ui-pane/protocol": "workspace:*"
     "@a2ui-pane/theme": "workspace:*"
-    "@a2ui/web_core": "npm:^0.12.0"
+    "@a2ui/web_core": "npm:^0.13.0"
     "@modelcontextprotocol/sdk": "npm:^1.6.0"
     esbuild: "npm:^0.25.0"
     vitest: "npm:^3.0.5"
@@ -63,9 +63,9 @@ __metadata:
   dependencies:
     "@a2ui-pane/protocol": "workspace:*"
     "@a2ui-pane/theme": "workspace:*"
-    "@a2ui/lit": "npm:^0.12.0"
-    "@a2ui/markdown-it": "npm:^0.1.0"
-    "@a2ui/web_core": "npm:^0.12.0"
+    "@a2ui/lit": "npm:^0.13.0"
+    "@a2ui/markdown-it": "npm:^0.2.1"
+    "@a2ui/web_core": "npm:^0.13.0"
     "@lit-labs/signals": "npm:^0.3.0"
     "@lit/context": "npm:^1.1.6"
     happy-dom: "npm:^17.4.0"
@@ -95,48 +95,49 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/lit@npm:^0.12.0":
-  version: 0.12.0
-  resolution: "@a2ui/lit@npm:0.12.0"
+"@a2ui/lit@npm:^0.13.0":
+  version: 0.13.0
+  resolution: "@a2ui/lit@npm:0.13.0"
   dependencies:
-    "@a2ui/web_core": "npm:^0.12.0"
+    "@a2ui/web_core": "npm:^0.13.0"
     "@lit-labs/signals": "npm:^0.3.0"
     "@lit/context": "npm:^1.1.6"
     lit: "npm:^3.3.3"
     signal-utils: "npm:^0.21.1"
     zod: "npm:^3.25.76"
   peerDependencies:
-    "@a2ui/markdown-it": ^0.2.0
+    "@a2ui/markdown-it": ^0.2.1
   peerDependenciesMeta:
     "@a2ui/markdown-it":
       optional: true
-  checksum: 10c0/a49a97443cf4c5985620fba27c751113e67c14ffb13898c3df58c454a914080947fe52b0150852f7951b0d951e9c5ae7aaf0f557eb2a972d289525425d77711d
+  checksum: 10c0/e94fddf380700dca27df9d60df4d05a20da9e16331db9fc93210a64829fd0b486b73f5384910860160242b06298f3911291b979e658e888ab43bdbbe253b5196
   languageName: node
   linkType: hard
 
-"@a2ui/markdown-it@npm:^0.1.0":
-  version: 0.1.2
-  resolution: "@a2ui/markdown-it@npm:0.1.2"
+"@a2ui/markdown-it@npm:^0.2.1":
+  version: 0.2.1
+  resolution: "@a2ui/markdown-it@npm:0.2.1"
   dependencies:
     dompurify: "npm:3.4.11"
     markdown-it: "npm:^14.2.0"
   peerDependencies:
-    "@a2ui/web_core": ^0.11.0
-  checksum: 10c0/0e70f82125d7e784d9bdfa51851790ffdf4779c2632c5b8aeaaa6c188275527d4f6c346ca91182385e4869d2178bc2a8134e3d9cba8034f9dbef4914d3a4a373
+    "@a2ui/web_core": ^0.13.0
+  checksum: 10c0/05d7e2e804048a2d20021a44ab2e650b37ead262852997bbad630859b1e753f6edf64cb20285eb9af3e53aa24f3064dc0ffcdcb78410b75a4bf6b2d3ecdce7e8
   languageName: node
   linkType: hard
 
-"@a2ui/web_core@npm:^0.12.0":
-  version: 0.12.0
-  resolution: "@a2ui/web_core@npm:0.12.0"
+"@a2ui/web_core@npm:^0.13.0":
+  version: 0.13.0
+  resolution: "@a2ui/web_core@npm:0.13.0"
   dependencies:
     "@lit/context": "npm:^1.1.6"
     "@preact/signals-core": "npm:^1.14.2"
     lit: "npm:^3.3.3"
+    redos-detector: "npm:^6.1.4"
     validate-color: "npm:^2.2.4"
     zod: "npm:^3.25.76"
     zod-to-json-schema: "npm:^3.25.2"
-  checksum: 10c0/2bebee6cfd60e450f0b8fc7a8256d7723658d06359e6905d03464708db108fca17b32454da4d691b982ccf524f825c484a1e29e0affab9f2b09cd1b0c31dfa0f
+  checksum: 10c0/b1bf8c56e7509a48c03894c9133b853bdd11e83ddb79ba7f5da0a152c3c4f6991d4f5ff7b6b32baa5a8ef93b6c032ebd1bca4954d744ce0a7a398c745d8f8615
   languageName: node
   linkType: hard
 
@@ -2693,6 +2694,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"jsesc@npm:~3.1.0":
+  version: 3.1.0
+  resolution: "jsesc@npm:3.1.0"
+  bin:
+    jsesc: bin/jsesc
+  checksum: 10c0/531779df5ec94f47e462da26b4cbf05eb88a83d9f08aac2ba04206508fc598527a153d08bd462bae82fc78b3eaa1a908e1a4a79f886e9238641c4cdefaf118b1
+  languageName: node
+  linkType: hard
+
 "json-buffer@npm:3.0.1":
   version: 3.0.1
   resolution: "json-buffer@npm:3.0.1"
@@ -3249,6 +3259,28 @@ __metadata:
     iconv-lite: "npm:~0.7.0"
     unpipe: "npm:~1.0.0"
   checksum: 10c0/d266678d08e1e7abea62c0ce5864344e980fa81c64f6b481e9842c5beaed2cdcf975f658a3ccd67ad35fc919c1f6664ccc106067801850286a6cbe101de89f29
+  languageName: node
+  linkType: hard
+
+"redos-detector@npm:^6.1.4":
+  version: 6.1.4
+  resolution: "redos-detector@npm:6.1.4"
+  dependencies:
+    regjsparser: "npm:0.13.0"
+  bin:
+    redos-detector: bin.js
+  checksum: 10c0/5119a875985da41a83883f533cd5117048ba2f418a0f4f00aa8825489ee3bdc391c47ead0d1936e64edc584c47a4997fe85d671037a539ee926f883a67a44c60
+  languageName: node
+  linkType: hard
+
+"regjsparser@npm:0.13.0":
+  version: 0.13.0
+  resolution: "regjsparser@npm:0.13.0"
+  dependencies:
+    jsesc: "npm:~3.1.0"
+  bin:
+    regjsparser: bin/parser
+  checksum: 10c0/4702f85cda09f67747c1b2fb673a0f0e5d1ba39d55f177632265a0be471ba59e3f320623f411649141f752b126b8126eac3ff4c62d317921e430b0472bfc6071
   languageName: node
   linkType: hard
 

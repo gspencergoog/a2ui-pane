@@ -1,25 +1,20 @@
 [
   {
-    "version": "v0.9",
+    "version": "v1.0",
     "createSurface": {
       "surfaceId": "assumption_ledger",
-      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
-      "sendDataModel": true
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateComponents": {
-      "surfaceId": "assumption_ledger",
+      "sendDataModel": true,
       "components": [
         {
           "id": "root",
           "component": "Card",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "child": "ledger_col"
         },
         {
           "id": "ledger_col",
           "component": "Column",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "ledger_header",
             "ledger_intro",
@@ -32,25 +27,29 @@
         {
           "id": "ledger_header",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/title"
+            "@path": "/title"
           }
         },
         {
           "id": "ledger_intro",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/intro"
+            "@path": "/intro"
           },
           "variant": "caption"
         },
         {
           "id": "ledger_top_divider",
-          "component": "Divider"
+          "component": "Divider",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
         },
         {
           "id": "ledger_rows",
           "component": "Column",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": {
             "path": "/assumptions",
             "componentId": "ledger_row"
@@ -59,6 +58,7 @@
         {
           "id": "ledger_row",
           "component": "Column",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "ledger_row_head",
             "ledger_row_override"
@@ -67,6 +67,7 @@
         {
           "id": "ledger_row_head",
           "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "ledger_row_check",
             "ledger_row_source"
@@ -77,36 +78,41 @@
         {
           "id": "ledger_row_check",
           "component": "CheckBox",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": {
-            "path": "claim"
+            "@path": "claim"
           },
           "value": {
-            "path": "holds"
+            "@path": "holds"
           }
         },
         {
           "id": "ledger_row_source",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "source"
+            "@path": "source"
           },
           "variant": "caption"
         },
         {
           "id": "ledger_row_override",
           "component": "TextField",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": "Override or caveat (optional)",
           "value": {
-            "path": "override"
+            "@path": "override"
           }
         },
         {
           "id": "ledger_bottom_divider",
-          "component": "Divider"
+          "component": "Divider",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
         },
         {
           "id": "ledger_footer",
           "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "submit_btn"
           ],
@@ -116,6 +122,7 @@
         {
           "id": "submit_btn",
           "component": "Button",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "child": "submit_btn_child",
           "variant": "primary",
           "action": {
@@ -123,7 +130,7 @@
               "name": "confirm_assumptions",
               "context": {
                 "assumptions": {
-                  "path": "/assumptions"
+                  "@path": "/assumptions"
                 }
               }
             }
@@ -132,19 +139,13 @@
         {
           "id": "submit_btn_child",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/submitLabel"
+            "@path": "/submitLabel"
           }
         }
-      ]
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateDataModel": {
-      "surfaceId": "assumption_ledger",
-      "path": "/",
-      "value": {
+      ],
+      "dataModel": {
         "title": "### Template 1: Assumption & Inferred-Spec Ledger",
         "intro": "Uncheck any inferred assumption that does not hold, or add a constraint override below.",
         "assumptions": [

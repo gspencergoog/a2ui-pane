@@ -1,25 +1,20 @@
 [
   {
-    "version": "v0.9",
+    "version": "v1.0",
     "createSurface": {
       "surfaceId": "triage_matrix",
-      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
-      "sendDataModel": true
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateComponents": {
-      "surfaceId": "triage_matrix",
+      "sendDataModel": true,
       "components": [
         {
           "id": "root",
           "component": "Card",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "child": "triage_col"
         },
         {
           "id": "triage_col",
           "component": "Column",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "triage_title",
             "triage_intro",
@@ -31,21 +26,24 @@
         {
           "id": "triage_title",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/title"
+            "@path": "/title"
           }
         },
         {
           "id": "triage_intro",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/intro"
+            "@path": "/intro"
           },
           "variant": "caption"
         },
         {
           "id": "triage_list",
           "component": "List",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": {
             "path": "/items",
             "componentId": "triage_item_card"
@@ -54,11 +52,13 @@
         {
           "id": "triage_item_card",
           "component": "Card",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "child": "triage_item_col"
         },
         {
           "id": "triage_item_col",
           "component": "Column",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "triage_item_head",
             "triage_item_summary",
@@ -69,6 +69,7 @@
         {
           "id": "triage_item_head",
           "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "triage_item_title_group",
             "triage_item_modal"
@@ -79,6 +80,7 @@
         {
           "id": "triage_item_title_group",
           "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "triage_item_icon",
             "triage_item_title"
@@ -89,28 +91,36 @@
         {
           "id": "triage_item_icon",
           "component": "Icon",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "name": {
-            "path": "icon"
+            "@path": "icon"
           }
         },
         {
           "id": "triage_item_title",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "title"
+            "@call": "formatString",
+            "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+            "args": {
+              "value": "#### ${title}"
+            }
           },
-          "variant": "h4",
+          "variant": "body",
           "weight": 1
         },
         {
           "id": "triage_item_modal",
           "component": "Modal",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "trigger": "trace_trigger",
           "content": "trace_body"
         },
         {
           "id": "trace_trigger",
           "component": "Button",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "child": "trace_trigger_label",
           "variant": "borderless",
           "action": {
@@ -122,27 +132,31 @@
         {
           "id": "trace_trigger_label",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": "🔍 Trace ↗",
           "variant": "caption"
         },
         {
           "id": "trace_body",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "trace"
+            "@path": "trace"
           }
         },
         {
           "id": "triage_item_summary",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "summary"
+            "@path": "summary"
           },
           "variant": "caption"
         },
         {
           "id": "bucket_picker",
           "component": "ChoicePicker",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "variant": "mutuallyExclusive",
           "options": [
             {
@@ -159,25 +173,28 @@
             }
           ],
           "value": {
-            "path": "bucket"
+            "@path": "bucket"
           },
           "displayStyle": "chips"
         },
         {
           "id": "triage_item_note",
           "component": "TextField",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": "Caveat or follow-up target",
           "value": {
-            "path": "note"
+            "@path": "note"
           }
         },
         {
           "id": "triage_divider",
-          "component": "Divider"
+          "component": "Divider",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
         },
         {
           "id": "triage_footer",
           "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "submit_btn"
           ],
@@ -187,6 +204,7 @@
         {
           "id": "submit_btn",
           "component": "Button",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "child": "submit_btn_child",
           "variant": "primary",
           "action": {
@@ -194,7 +212,7 @@
               "name": "submit_triage_matrix",
               "context": {
                 "items": {
-                  "path": "/items"
+                  "@path": "/items"
                 }
               }
             }
@@ -203,19 +221,13 @@
         {
           "id": "submit_btn_child",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/submitLabel"
+            "@path": "/submitLabel"
           }
         }
-      ]
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateDataModel": {
-      "surfaceId": "triage_matrix",
-      "path": "/",
-      "value": {
+      ],
+      "dataModel": {
         "title": "### Template 3: Scope & Edge-Case Triage Matrix",
         "intro": "Classify discovered edge cases into delivery buckets and inspect the source trace for each finding.",
         "items": [

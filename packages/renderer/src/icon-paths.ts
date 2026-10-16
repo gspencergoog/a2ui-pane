@@ -1,5 +1,5 @@
 import { html, nothing } from 'lit';
-import { A2uiIcon, A2uiText, markdown } from '@a2ui/web_core/v0_9/basic_catalog';
+import { A2uiIcon, A2uiText, markdown } from '@a2ui/web_core/catalogs/basic/v1';
 
 /**
  * Standard 24x24 Material Design SVG path data for all 59 A2UI v0.9 Basic Catalog icons.

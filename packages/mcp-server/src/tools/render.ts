@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { isValidId } from '@a2ui-pane/protocol';
-import { MessageProcessor } from '@a2ui/web_core/v0_9';
+import { MessageProcessor } from '@a2ui/web_core/v1_0';
 import { ConversationState } from '../conversation-state.js';
 import { CatalogRegistry } from '../catalog-registry.js';
 import { writeEmbed } from '../embed-writer.js';
@@ -397,7 +397,9 @@ export async function handleRenderA2ui(
       }
 
       try {
-        const versionedMsg = !msg.version ? { version: 'v0.9', ...msg } : msg;
+        const cs = msg.createSurface as Record<string, unknown> | undefined;
+        const inferredVer = cs && Array.isArray(cs.components) && !cs.catalogId ? 'v1.0' : 'v0.9';
+        const versionedMsg = !msg.version ? { version: inferredVer, ...msg } : msg;
         freshProcessor.processMessages([versionedMsg as any]);
       } catch (err: any) {
         return {

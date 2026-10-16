@@ -1,25 +1,20 @@
 [
   {
-    "version": "v0.9",
+    "version": "v1.0",
     "createSurface": {
       "surfaceId": "contract_workbench",
-      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
-      "sendDataModel": true
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateComponents": {
-      "surfaceId": "contract_workbench",
+      "sendDataModel": true,
       "components": [
         {
           "id": "root",
           "component": "Card",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "child": "contract_col"
         },
         {
           "id": "contract_col",
           "component": "Column",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "contract_title",
             "preview_text",
@@ -34,15 +29,18 @@
         {
           "id": "contract_title",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/title"
+            "@path": "/title"
           }
         },
         {
           "id": "preview_text",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "call": "formatString",
+            "@call": "formatString",
+            "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
             "args": {
               "value": "**Preview:** `POST ${/contract/route}` | **Event:** `${/contract/eventName}` | **Timeout:** `${/contract/timeoutSec}s`"
             }
@@ -50,11 +48,13 @@
         },
         {
           "id": "contract_top_divider",
-          "component": "Divider"
+          "component": "Divider",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
         },
         {
           "id": "fields_row",
           "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "route_field",
             "event_field"
@@ -63,20 +63,22 @@
         {
           "id": "route_field",
           "component": "TextField",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": {
-            "path": "/labels/route"
+            "@path": "/labels/route"
           },
           "value": {
-            "path": "/contract/route"
+            "@path": "/contract/route"
           },
           "weight": 1,
           "checks": [
             {
               "condition": {
-                "call": "required",
+                "@call": "required",
+                "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
                 "args": {
                   "value": {
-                    "path": "/contract/route"
+                    "@path": "/contract/route"
                   }
                 }
               },
@@ -84,10 +86,11 @@
             },
             {
               "condition": {
-                "call": "regex",
+                "@call": "regex",
+                "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
                 "args": {
                   "value": {
-                    "path": "/contract/route"
+                    "@path": "/contract/route"
                   },
                   "pattern": "^/[a-z0-9/_-]+$"
                 }
@@ -99,20 +102,22 @@
         {
           "id": "event_field",
           "component": "TextField",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": {
-            "path": "/labels/eventName"
+            "@path": "/labels/eventName"
           },
           "value": {
-            "path": "/contract/eventName"
+            "@path": "/contract/eventName"
           },
           "weight": 1,
           "checks": [
             {
               "condition": {
-                "call": "required",
+                "@call": "required",
+                "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
                 "args": {
                   "value": {
-                    "path": "/contract/eventName"
+                    "@path": "/contract/eventName"
                   }
                 }
               },
@@ -120,10 +125,11 @@
             },
             {
               "condition": {
-                "call": "regex",
+                "@call": "regex",
+                "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
                 "args": {
                   "value": {
-                    "path": "/contract/eventName"
+                    "@path": "/contract/eventName"
                   },
                   "pattern": "^[a-z][a-z0-9_]*$"
                 }
@@ -135,6 +141,7 @@
         {
           "id": "picks_row",
           "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "wire_format_picker",
             "timeout_slider"
@@ -143,8 +150,9 @@
         {
           "id": "wire_format_picker",
           "component": "ChoicePicker",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": {
-            "path": "/labels/wireFormat"
+            "@path": "/labels/wireFormat"
           },
           "variant": "mutuallyExclusive",
           "options": [
@@ -162,7 +170,7 @@
             }
           ],
           "value": {
-            "path": "/contract/wireFormat"
+            "@path": "/contract/wireFormat"
           },
           "displayStyle": "chips",
           "weight": 1
@@ -170,19 +178,21 @@
         {
           "id": "timeout_slider",
           "component": "Slider",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": {
-            "path": "/labels/timeout"
+            "@path": "/labels/timeout"
           },
           "min": 5,
           "max": 300,
           "value": {
-            "path": "/contract/timeoutSec"
+            "@path": "/contract/timeoutSec"
           },
-          "weight": 1
+          "steps": 1
         },
         {
           "id": "flags_row",
           "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "idempotent_check",
             "include_model_check"
@@ -191,32 +201,36 @@
         {
           "id": "idempotent_check",
           "component": "CheckBox",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": {
-            "path": "/labels/idempotent"
+            "@path": "/labels/idempotent"
           },
           "value": {
-            "path": "/contract/idempotent"
+            "@path": "/contract/idempotent"
           },
           "weight": 1
         },
         {
           "id": "include_model_check",
           "component": "CheckBox",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": {
-            "path": "/labels/includeDataModel"
+            "@path": "/labels/includeDataModel"
           },
           "value": {
-            "path": "/contract/includeDataModel"
+            "@path": "/contract/includeDataModel"
           },
           "weight": 1
         },
         {
           "id": "contract_bottom_divider",
-          "component": "Divider"
+          "component": "Divider",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
         },
         {
           "id": "contract_footer",
           "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "submit_btn"
           ],
@@ -226,6 +240,7 @@
         {
           "id": "submit_btn",
           "component": "Button",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "child": "submit_btn_child",
           "variant": "primary",
           "action": {
@@ -233,7 +248,7 @@
               "name": "approve_contract",
               "context": {
                 "contract": {
-                  "path": "/contract"
+                  "@path": "/contract"
                 }
               }
             }
@@ -241,10 +256,11 @@
           "checks": [
             {
               "condition": {
-                "call": "required",
+                "@call": "required",
+                "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
                 "args": {
                   "value": {
-                    "path": "/contract/route"
+                    "@path": "/contract/route"
                   }
                 }
               },
@@ -252,10 +268,11 @@
             },
             {
               "condition": {
-                "call": "required",
+                "@call": "required",
+                "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
                 "args": {
                   "value": {
-                    "path": "/contract/eventName"
+                    "@path": "/contract/eventName"
                   }
                 }
               },
@@ -266,19 +283,13 @@
         {
           "id": "submit_btn_child",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/submitLabel"
+            "@path": "/submitLabel"
           }
         }
-      ]
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateDataModel": {
-      "surfaceId": "contract_workbench",
-      "path": "/",
-      "value": {
+      ],
+      "dataModel": {
         "title": "### Template 2: API & Schema Contract Workbench",
         "contract": {
           "route": "/_sidecar/send-message",

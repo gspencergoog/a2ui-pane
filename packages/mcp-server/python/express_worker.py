@@ -6,8 +6,8 @@ line to stdout. The Node MCP server keeps a single worker alive for its
 lifetime so the import cost of the A2UI agent SDK is paid once.
 
 Request shape:
-    {"id": 1, "op": "init", "catalogPath": "...", "version": "v0.9"}
-    {"id": 2, "op": "compile", "dsl": "...", "surfaceId": "main", "version": "v0.9"}
+    {"id": 1, "op": "init", "catalogPaths": ["...", "..."], "version": "v1.0"}
+    {"id": 2, "op": "compile", "dsl": "...", "surfaceId": "main", "version": "v1.0"}
     {"id": 3, "op": "instructions"}
     {"id": 4, "op": "decompile", "messages": [...]}
     {"id": 5, "op": "ping"}
@@ -38,21 +38,21 @@ class WorkerState:
         self.catalogs: list[Any] = []
         self.compiler: Any = None
         self.prompt_generator: Any = None
-        self.default_version = "v0.9"
+        self.default_version = "v1.0"
 
-    def init(self, catalog_path: str, version: str | None) -> dict[str, Any]:
-        """Loads the catalog schema and initializes the Express compiler and prompt generator.
+    def init(self, catalog_paths: str | list[str], version: str | None) -> dict[str, Any]:
+        """Loads one or more catalog schemas and initializes the Express compiler and prompt generator.
 
         Args:
-            catalog_path: Filesystem path to the catalog JSON file.
+            catalog_paths: Filesystem path or list of paths to catalog JSON files.
             version: Optional protocol version string (defaults to `self.default_version`).
 
         Returns:
-            A dictionary containing `catalogId`, `version`, and `componentCount`.
+            A dictionary containing `catalogId`, `catalogIds`, `version`, and `componentCount`.
 
         Raises:
-            OSError: If `catalog_path` cannot be opened or read.
-            ValueError: If the catalog JSON is invalid.
+            OSError: If a catalog path cannot be opened or read.
+            ValueError: If no catalog paths are provided or a catalog JSON is invalid.
         """
         from a2ui.core import Catalog
         try:
@@ -66,19 +66,30 @@ class WorkerState:
                 ExpressPromptGenerator,
             )
 
+        paths = [catalog_paths] if isinstance(catalog_paths, str) else list(catalog_paths)
+        paths = [p for p in paths if isinstance(p, str) and p.strip()]
+        if not paths:
+            raise ValueError("At least one catalog path is required to initialize the Express worker.")
+
         self.default_version = version or self.default_version
-        with open(catalog_path, "r", encoding="utf-8") as handle:
-            schema = json.load(handle)
-        catalog = Catalog.from_json(schema, protocol_version=self.default_version)
-        self.catalogs = [catalog]
+        loaded_catalogs: list[Any] = []
+        for path in paths:
+            with open(path, "r", encoding="utf-8") as handle:
+                schema = json.load(handle)
+            loaded_catalogs.append(
+                Catalog.from_json(schema, protocol_version=self.default_version)
+            )
+
+        self.catalogs = loaded_catalogs
         self.compiler = ExpressCompiler(self.catalogs, version=self.default_version)
         self.prompt_generator = ExpressPromptGenerator(
             self.catalogs, version=self.default_version
         )
         return {
-            "catalogId": catalog.catalog_id,
+            "catalogId": self.catalogs[0].catalog_id,
+            "catalogIds": [c.catalog_id for c in self.catalogs],
             "version": self.compiler.version,
-            "componentCount": len(catalog.components),
+            "componentCount": sum(len(c.components) for c in self.catalogs),
         }
 
     def compile(self, dsl: str, surface_id: str, version: str | None) -> list[dict]:
@@ -104,7 +115,7 @@ class WorkerState:
         return to_message_dicts(messages)
 
     def instructions(self) -> str:
-        """Generates the A2UI Express authoring prompt for the loaded catalog.
+        """Generates the A2UI Express authoring prompt for the loaded catalogs.
 
         Returns:
             Markdown authoring instructions produced by `ExpressPromptGenerator`.
@@ -156,8 +167,6 @@ def error_payload(exc: BaseException) -> dict[str, Any]:
     """Maps an exception to the wire error shape, extracting line/column and help when present."""
     message = str(exc)
     payload: dict[str, Any] = {"kind": type(exc).__name__, "message": message}
-    # ExpressCompilerError keeps its corrective hint (valid properties, expected
-    # argument shape) in help_message rather than in str(exc).
     help_message = getattr(exc, "help_message", None)
     if isinstance(help_message, str) and help_message and help_message not in message:
         payload["help"] = help_message
@@ -183,7 +192,10 @@ def handle(state: WorkerState, request: dict[str, Any]) -> dict[str, Any]:
         if op == "ping":
             return {"id": request_id, "ok": True, "initialized": state.compiler is not None}
         if op == "init":
-            info = state.init(request["catalogPath"], request.get("version"))
+            catalog_arg = request.get("catalogPaths") or request.get("catalogPath")
+            if not catalog_arg:
+                raise ValueError("Missing 'catalogPaths' or 'catalogPath' in init request.")
+            info = state.init(catalog_arg, request.get("version"))
             return {"id": request_id, "ok": True, **info}
         if op == "compile":
             messages = state.compile(
@@ -227,10 +239,10 @@ def serve(state: WorkerState) -> int:
     return 0
 
 
-def selftest(catalog_path: str, version: str) -> int:
+def selftest(catalog_paths: str | list[str], version: str) -> int:
     """Initializes the worker and compiles a small fixture; exit code reports success."""
     state = WorkerState()
-    info = state.init(catalog_path, version)
+    info = state.init(catalog_paths, version)
     fixture = 'surface("selftest")\nroot = Card(Text("## genui selftest"))\n'
     messages = state.compile(fixture, "selftest", None)
     if not messages or "createSurface" not in messages[0]:
@@ -254,8 +266,12 @@ def main(argv: list[str] | None = None) -> int:
     """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--selftest", action="store_true", help="Compile a fixture and exit.")
-    parser.add_argument("--catalog", help="Catalog JSON path (selftest only).")
-    parser.add_argument("--version", default="v0.9", help="Protocol version (selftest only).")
+    parser.add_argument(
+        "--catalog",
+        action="append",
+        help="Catalog JSON path (may be passed multiple times; selftest only).",
+    )
+    parser.add_argument("--version", default="v1.0", help="Protocol version (selftest only).")
     args = parser.parse_args(argv)
 
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))

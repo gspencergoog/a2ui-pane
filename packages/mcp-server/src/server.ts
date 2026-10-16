@@ -50,10 +50,13 @@ export function createExpressWorkerFromEnv(): ExpressWorker | undefined {
     uvBin: envValue('A2UI_PANE_UV'),
     agentSdkPath,
     workerScript: envValue('A2UI_PANE_WORKER_SCRIPT') ?? path.join(dist, 'express_worker.py'),
-    catalogPath:
-      envValue('A2UI_PANE_CATALOG_PATH') ??
-      path.join(dist, 'catalogs', 'v0_9_1', 'basic', 'catalog.json'),
-    defaultVersion: envValue('A2UI_PANE_PROTOCOL_VERSION') ?? 'v0.9',
+    catalogPaths: envValue('A2UI_PANE_CATALOG_PATH')
+      ? envValue('A2UI_PANE_CATALOG_PATH')!.split(path.delimiter).filter(Boolean)
+      : [
+          path.join(dist, 'catalogs', 'v1_0', 'basic', 'catalog.json'),
+          path.join(dist, 'catalogs', 'v1_0', 'charts', 'catalog.json'),
+        ],
+    defaultVersion: envValue('A2UI_PANE_PROTOCOL_VERSION') ?? 'v1.0',
   });
 }
 

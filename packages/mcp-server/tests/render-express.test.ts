@@ -19,13 +19,23 @@ import {
 import { handleA2uiInstructions } from '../src/tools/instructions.js';
 
 const FAKE = resolve(__dirname, 'fixtures', 'fake_worker.mjs');
-const CATALOG = resolve(__dirname, '..', '..', '..', 'catalogs', 'v0_9_1', 'basic', 'catalog.json');
+const CATALOG = resolve(__dirname, '..', '..', '..', 'catalogs', 'v1_0', 'basic', 'catalog.json');
+const CHARTS_CATALOG = resolve(
+  __dirname,
+  '..',
+  '..',
+  '..',
+  'catalogs',
+  'v1_0',
+  'charts',
+  'catalog.json',
+);
 
 function fakeWorker(mode = 'normal') {
   return new ExpressWorker({
     pythonBin: process.execPath,
     workerScript: FAKE,
-    catalogPath: CATALOG,
+    catalogPaths: [CATALOG, CHARTS_CATALOG],
     requestTimeoutMs: 1000,
     log: () => {},
     spawnFn: ((cmd: string, args: string[], opts: any) =>
@@ -140,7 +150,7 @@ describe('render_a2ui Express paths', () => {
     const result = await resolveMessages({ dsl: 'root = Text(HELPME)' }, { worker, templates });
     const text = (result as any).content[0].text as string;
     expect(text).toContain("Express ExpressCompilerError: Property 'foo' is not a valid property");
-    expect(text).toContain("Help: Component 'Text' accepts properties: text, usageHint");
+    expect(text).toContain("Help: Component 'Text' accepts properties: text, variant");
   });
 
   it('reports an unavailable worker with repair guidance', async () => {

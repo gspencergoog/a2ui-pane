@@ -6,9 +6,11 @@
 surface("review", sendDataModel=true)          // createSurface; omit for the default surfaceId
 $/title = "### Heading"                        // data assignment (updateDataModel at /)
 $/items = [{title: "A", done: true}]           // arrays of maps for list templates
+$/series = [{name: "P95", values: [18, 12]}]   // numeric series for Chart
 root = Card(main)                              // `root` is required for a new surface
-main = Column([header, rows, footer])          // children are variable names
+main = Column([header, chart, rows, footer])   // children are variable names
 header = Text($/title)                         // Markdown, LaTeX, and ```mermaid render inside Text
+chart = Chart("bar", $/series, labels=["v0.9", "v1.0"], selected=$/picked)  // Charts catalog
 rows = Column(_template($/items, row))         // one `row` per item
 row = Row([CheckBox($title, $done)], _, "center")   // relative bindings inside a template body
 field = TextField("Note", $/note, _, _, _, [?required("Required")])   // `_` skips a positional arg

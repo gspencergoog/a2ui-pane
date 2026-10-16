@@ -1,0 +1,240 @@
+[
+  {
+    "version": "v1.0",
+    "createSurface": {
+      "surfaceId": "metrics_dashboard",
+      "sendDataModel": true,
+      "components": [
+        {
+          "id": "root",
+          "component": "Card",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "child": "dash_col"
+        },
+        {
+          "id": "dash_col",
+          "component": "Column",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "children": [
+            "dash_title",
+            "dash_subtitle",
+            "kpi_row",
+            "dash_top_divider",
+            "main_chart",
+            "dash_bottom_divider",
+            "dash_note",
+            "dash_footer"
+          ]
+        },
+        {
+          "id": "dash_title",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@path": "/title"
+          }
+        },
+        {
+          "id": "dash_subtitle",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@path": "/subtitle"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "kpi_row",
+          "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "children": {
+            "path": "/kpis",
+            "componentId": "kpi_card"
+          },
+          "justify": "spaceBetween",
+          "align": "stretch"
+        },
+        {
+          "id": "kpi_card",
+          "component": "Card",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "child": "kpi_col",
+          "weight": 1
+        },
+        {
+          "id": "kpi_col",
+          "component": "Column",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "children": [
+            "kpi_label",
+            "kpi_value",
+            "kpi_delta"
+          ]
+        },
+        {
+          "id": "kpi_label",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@path": "label"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "kpi_value",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@path": "value"
+          }
+        },
+        {
+          "id": "kpi_delta",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@path": "delta"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "dash_top_divider",
+          "component": "Divider",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        },
+        {
+          "id": "main_chart",
+          "component": "Chart",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/charts/catalog.json",
+          "variant": "bar",
+          "series": {
+            "@path": "/series"
+          },
+          "labels": {
+            "@path": "/labels"
+          },
+          "title": {
+            "@path": "/chartTitle"
+          },
+          "xAxisLabel": {
+            "@path": "/xAxisLabel"
+          },
+          "yAxisLabel": {
+            "@path": "/yAxisLabel"
+          },
+          "height": 220,
+          "showLegend": true,
+          "showGrid": true,
+          "selected": {
+            "@path": "/selected"
+          }
+        },
+        {
+          "id": "dash_bottom_divider",
+          "component": "Divider",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        },
+        {
+          "id": "dash_note",
+          "component": "TextField",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "label": "Observation or follow-up question",
+          "value": {
+            "@path": "/note"
+          }
+        },
+        {
+          "id": "dash_footer",
+          "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "children": [
+            "submit_btn"
+          ],
+          "justify": "end",
+          "align": "center"
+        },
+        {
+          "id": "submit_btn",
+          "component": "Button",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "child": "submit_btn_child",
+          "variant": "primary",
+          "action": {
+            "event": {
+              "name": "inspect_metric",
+              "context": {
+                "selected": {
+                  "@path": "/selected"
+                },
+                "note": {
+                  "@path": "/note"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "submit_btn_child",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@path": "/submitLabel"
+          }
+        }
+      ],
+      "dataModel": {
+        "title": "### Q3 Latency & Throughput",
+        "subtitle": "Select a stage to inspect its trace.",
+        "kpis": [
+          {
+            "label": "P50 Latency",
+            "value": "**14.2 ms**",
+            "delta": "-18% vs baseline"
+          },
+          {
+            "label": "P99 Latency",
+            "value": "**41.8 ms**",
+            "delta": "-24% vs baseline"
+          },
+          {
+            "label": "Peak QPS",
+            "value": "**2,450**",
+            "delta": "+31% vs baseline"
+          }
+        ],
+        "chartTitle": "Stage Throughput (req/s)",
+        "xAxisLabel": "Pipeline Stage",
+        "yAxisLabel": "req/s",
+        "labels": [
+          "Parse",
+          "Bind",
+          "Layout",
+          "Paint"
+        ],
+        "series": [
+          {
+            "name": "v0.9",
+            "values": [
+              420,
+              380,
+              310,
+              290
+            ]
+          },
+          {
+            "name": "v1.0",
+            "values": [
+              510,
+              490,
+              430,
+              405
+            ]
+          }
+        ],
+        "selected": null,
+        "note": "Check Layout allocation spike",
+        "submitLabel": "Inspect Stage"
+      }
+    }
+  }
+]

@@ -26,7 +26,7 @@ EOF
 
 AGENT_SDK_PATH="${A2UI_PANE_AGENT_SDK_PATH:-}"
 NO_AGENT_SDK=0
-PROTOCOL_VERSION="${A2UI_PANE_PROTOCOL_VERSION:-v0.9}"
+PROTOCOL_VERSION="${A2UI_PANE_PROTOCOL_VERSION:-v1.0}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --agent-sdk-path) AGENT_SDK_PATH="$2"; shift 2 ;;
@@ -115,7 +115,8 @@ sed \
 # Pre-warm: import the SDK once and compile a fixture so the first render is fast
 if [ -n "${PYTHON_BIN}" ]; then
   "${PYTHON_BIN}" "${REPO_ROOT}/plugin/mcp/dist/express_worker.py" --selftest \
-    --catalog "${REPO_ROOT}/plugin/mcp/dist/catalogs/v0_9_1/basic/catalog.json" \
+    --catalog "${REPO_ROOT}/plugin/mcp/dist/catalogs/v1_0/basic/catalog.json" \
+    --catalog "${REPO_ROOT}/plugin/mcp/dist/catalogs/v1_0/charts/catalog.json" \
     --version "${PROTOCOL_VERSION}" || {
     echo "Express worker selftest failed; check that ${AGENT_SDK_PATH} is synced (uv sync --all-packages)." >&2
     exit 1

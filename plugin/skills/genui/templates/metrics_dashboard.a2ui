@@ -1,0 +1,34 @@
+// @genui id=metrics_dashboard surface=pane
+// @summary Interactive metrics and chart dashboard: a KPI summary row above a reactive Chart component (bar, line, area, pie, donut, scatter) with two-way selection and a follow-up note.
+// @data /title /subtitle /kpis[] {label,value,delta} /chartTitle /xAxisLabel /yAxisLabel /labels[] /series[] {name,values} /selected /note /submitLabel
+// @action inspect_metric
+// @customize main_chart submit_btn
+
+$/title = "### Metrics & Benchmark Dashboard"
+$/subtitle = "Click any bar, point, or slice to select a datum and send it with your note."
+$/kpis = []
+$/chartTitle = "Throughput by Stage"
+$/xAxisLabel = "Stage"
+$/yAxisLabel = "req/s"
+$/labels = ["Ingest", "Parse", "Validate", "Render"]
+$/series = [{name: "Baseline", values: [120, 95, 180, 140]}, {name: "Candidate", values: [155, 130, 210, 175]}]
+$/selected = null
+$/note = ""
+$/submitLabel = "Inspect Selection"
+
+root = Card(dash_col)
+dash_col = Column([dash_title, dash_subtitle, kpi_row, dash_top_divider, main_chart, dash_bottom_divider, dash_note, dash_footer])
+dash_title = Text($/title)
+dash_subtitle = Text($/subtitle, "caption")
+kpi_row = Row(_template($/kpis, kpi_card), "spaceBetween", "stretch")
+kpi_card = Card(kpi_col, 1)
+kpi_col = Column([kpi_label, kpi_value, kpi_delta])
+kpi_label = Text($label, "caption")
+kpi_value = Text($value)
+kpi_delta = Text($delta, "caption")
+dash_top_divider = Divider()
+main_chart = Chart("bar", $/series, $/labels, $/chartTitle, $/xAxisLabel, $/yAxisLabel, 220, true, true, $/selected)
+dash_bottom_divider = Divider()
+dash_note = TextField("Observation or follow-up question", $/note)
+dash_footer = Row([submit_btn], "end", "center")
+submit_btn = Button(Text($/submitLabel), "primary", Event("inspect_metric", {selected: $/selected, note: $/note}))

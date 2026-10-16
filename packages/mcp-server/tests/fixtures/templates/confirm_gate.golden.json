@@ -1,25 +1,20 @@
 [
   {
-    "version": "v0.9",
+    "version": "v1.0",
     "createSurface": {
       "surfaceId": "confirm_gate",
-      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
-      "sendDataModel": true
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateComponents": {
-      "surfaceId": "confirm_gate",
+      "sendDataModel": true,
       "components": [
         {
           "id": "root",
           "component": "Card",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "child": "gate_col"
         },
         {
           "id": "gate_col",
           "component": "Column",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "gate_title",
             "gate_summary",
@@ -31,34 +26,39 @@
         {
           "id": "gate_title",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/title"
+            "@path": "/title"
           }
         },
         {
           "id": "gate_summary",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/summary"
+            "@path": "/summary"
           }
         },
         {
           "id": "gate_divider",
-          "component": "Divider"
+          "component": "Divider",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
         },
         {
           "id": "confirm_check",
           "component": "CheckBox",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "label": {
-            "path": "/confirmLabel"
+            "@path": "/confirmLabel"
           },
           "value": {
-            "path": "/confirmed"
+            "@path": "/confirmed"
           }
         },
         {
           "id": "gate_footer",
           "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "cancel_btn",
             "confirm_btn"
@@ -69,6 +69,7 @@
         {
           "id": "cancel_btn",
           "component": "Button",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "child": "cancel_btn_child",
           "action": {
             "event": {
@@ -79,13 +80,15 @@
         {
           "id": "cancel_btn_child",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/cancelLabel"
+            "@path": "/cancelLabel"
           }
         },
         {
           "id": "confirm_btn",
           "component": "Button",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "child": "confirm_btn_child",
           "variant": "primary",
           "action": {
@@ -93,7 +96,7 @@
               "name": "confirm_gate",
               "context": {
                 "confirmed": {
-                  "path": "/confirmed"
+                  "@path": "/confirmed"
                 }
               }
             }
@@ -101,11 +104,12 @@
           "checks": [
             {
               "condition": {
-                "call": "and",
+                "@call": "and",
+                "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
                 "args": {
                   "values": [
                     {
-                      "path": "/confirmed"
+                      "@path": "/confirmed"
                     },
                     true
                   ]
@@ -118,19 +122,13 @@
         {
           "id": "confirm_btn_child",
           "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "path": "/confirmButtonLabel"
+            "@path": "/confirmButtonLabel"
           }
         }
-      ]
-    }
-  },
-  {
-    "version": "v0.9",
-    "updateDataModel": {
-      "surfaceId": "confirm_gate",
-      "path": "/",
-      "value": {
+      ],
+      "dataModel": {
         "title": "### Delete 3 merged branches?",
         "summary": "The following local branches are merged into `main` and will be deleted:\n\n- `feature/express-worker`\n- `fix/slider-padding`\n- `docs/genui-skill`\n\nRemote tracking refs are left untouched.",
         "confirmLabel": "I understand these branches cannot be recovered from the reflog after 90 days",
