@@ -12,6 +12,7 @@ import { handlePreload } from './preload-route.js';
 import { handleSendMessage, ExecFileFn } from './send-message-route.js';
 import { serveStaticFile } from './static-files.js';
 
+/** Injectable dependencies for `createSidecarServer`. */
 export interface SidecarDeps {
   storeReader: StoreReader;
   notifier: ChangeNotifier;
@@ -86,7 +87,7 @@ export function createSidecarServer(
     const host = req.headers.host || 'localhost';
     const url = new URL(req.url ?? '/', `http://${host}`);
 
-    // Standard CORS headers for local and PEN-proxied sidecar communication
+    // Standard CORS headers for local and reverse-proxied sidecar communication
     const reqOrigin = req.headers.origin;
     res.setHeader('Access-Control-Allow-Origin', reqOrigin || '*');
     if (reqOrigin) {

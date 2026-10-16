@@ -1,6 +1,7 @@
 import { ServerResponse } from 'node:http';
 import fs from 'node:fs';
 
+/** Browser preload shim injected when the host `sidecar_sdk/preload.js` is not installed. */
 export const PRELOAD_SHIM_JS = `// A2UI Pane Preload Shim
 (function() {
   if (window.sidecar) return;
@@ -56,6 +57,9 @@ export const PRELOAD_SHIM_JS = `// A2UI Pane Preload Shim
 
 let cachedSdkPreload: string | null = null;
 
+/**
+ * Resolves and caches `sidecar_sdk/preload.js`, falling back to `PRELOAD_SHIM_JS`.
+ */
 export function loadSdkPreload(resolver?: (specifier: string) => string | undefined): string {
   if (cachedSdkPreload !== null && !resolver) return cachedSdkPreload;
 

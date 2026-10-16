@@ -3,6 +3,7 @@ import path from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { parseStoreLine, StoreLine, isValidId } from '@a2ui-pane/protocol';
 
+/** Incremental batch of parsed `StoreLine` entries and whether the store was reset. */
 export interface ReadResult {
   lines: StoreLine[];
   reset: boolean;

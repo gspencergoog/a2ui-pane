@@ -13,6 +13,7 @@ import { showToast } from './toast.js';
 // Inject host theme CSS variables
 injectHostTheme();
 
+/** Options for initializing the A2UI auxiliary pane application. */
 export interface InitOptions {
   container?: HTMLElement | null;
   search?: string;
@@ -22,6 +23,7 @@ export interface InitOptions {
   onAction?: (action: any, dataModel?: Record<string, unknown>) => void;
 }
 
+/** Handle returned by `initPaneApp` for inspecting and controlling the pane instance. */
 export interface PaneAppInstance {
   applier: LineApplier;
   client?: StreamClient;
@@ -238,6 +240,9 @@ async function resolveConversationId(
   return null;
 }
 
+/**
+ * Initializes the A2UI auxiliary pane DOM, SSE stream client, and action sender.
+ */
 export async function initPaneApp(options: InitOptions = {}): Promise<PaneAppInstance | undefined> {
   const appContainer =
     options.container !== undefined ? options.container : document.getElementById('app');
@@ -494,6 +499,9 @@ export async function initPaneApp(options: InitOptions = {}): Promise<PaneAppIns
   };
 }
 
+/**
+ * Bootstraps `initPaneApp` when the browser DOM is ready unless auto-init is disabled.
+ */
 export function startApp(): void {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   if ((window as any).__A2UI_DISABLE_AUTO_INIT__) return;

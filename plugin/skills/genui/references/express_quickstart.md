@@ -33,4 +33,4 @@ Gotchas that still bite:
 - `Button` takes a component child (`Text(...)` or `Icon(...)`), never a bare string.
 - `and` needs at least two values; use `?and([$/flag, true], msg)` to gate on one boolean.
 - Inside `_template` bodies use `$field`; `$/field` would read the surface root.
-- Keep ids out of your head: the compiler derives component ids from variable names, so reuse the same names when updating.
+- Keep ids out of your head: the compiler derives ids for components from variable names, so reuse the same names when updating.

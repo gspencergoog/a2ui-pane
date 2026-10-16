@@ -10,12 +10,18 @@ export interface A2uiActionDetails {
   [key: string]: unknown;
 }
 
+/**
+ * Envelope emitted inside `<a2ui-action>` tags when the client sends an action.
+ */
 export interface A2uiClientActionPayload {
   version: string;
   action: A2uiActionDetails;
   dataModel?: Record<string, unknown>;
 }
 
+/**
+ * Formatting options for an outgoing A2UI action message.
+ */
 export interface ActionTextOptions {
   /** Descriptive human-readable label of the triggering control (e.g. Button text). */
   label?: string;

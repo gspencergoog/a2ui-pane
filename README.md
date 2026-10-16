@@ -1,16 +1,18 @@
 # a2ui-pane
 
-A plugin for Jetski and Antigravity that renders agent-generated A2UI surfaces in the AuxPane (live and interactive) and inline in chat via `<agent-embed>`, and ships the `genui` skill that teaches the agent when and how to use them.
+A plugin for Antigravity and compatible agent hosts that renders agent-generated A2UI surfaces in the AuxPane or inline in chat via `<agent-embed>`. It also ships the `genui` skill to guide when and how agents use these surfaces.
 
 ## Overview
 
-`a2ui-pane` gives AI coding agents a visual interface:
+`a2ui-pane` gives AI coding agents a visual interface across five components:
 
-- **AuxPane UI:** A live side pane that renders multi-surface A2UI layouts, updates state incrementally (`updateComponents`, `updateDataModel`), and forwards user actions (button clicks, form submits) directly back to the agent as chat turns.
-- **Inline Chat Cards:** Self-contained `<agent-embed>` HTML cards rendered inline in conversation history for compact decisions.
-- **A2UI Express authoring:** `render_a2ui` accepts [A2UI Express](https://github.com/a2ui-project/a2ui/tree/main/specification/proposals/express) (`dsl`) or a named template plus data (`template` + `dsl`) and compiles it with the upstream Python compiler in one persistent worker process, so the agent never writes adjacency-list JSON by hand. Raw `messages` still work.
-- **Validating MCP Server:** Every batch is validated against the basic catalog before it is committed; Express parse errors come back with the line and column, and compiler errors with the compiler's fix hint, so the agent can self-correct.
-- **`genui` skill:** The plugin's `plugin/skills/genui` skill is a "how to show things" router (chat Markdown, artifact, inline card, pane, HTML widget, or the host's interactive question tool / chat prompt) with eight ready-made templates (`assumption_ledger`, `contract_workbench`, `consequence_cards`, `triage_matrix`, `state_walkthrough`, `wave_sequencer`, `confirm_gate`, `progress_board`).
+| Component              | Purpose                                                                                                                                                                                                                                                                                                              |
+| :--------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AuxPane UI             | A live side pane that renders multi-surface A2UI layouts, applies incremental updates (`updateComponents`, `updateDataModel`), and routes user actions back to the agent as chat turns.                                                                                                                              |
+| Inline Chat Cards      | Self-contained `<agent-embed>` HTML cards rendered inline in conversation history for compact decisions.                                                                                                                                                                                                             |
+| A2UI Express Authoring | `render_a2ui` compiles [A2UI Express](https://github.com/a2ui-project/a2ui/tree/main/specification/proposals/express) (`dsl`) or named templates (`template` + `dsl`) through a persistent Python worker. Raw JSON `messages` also work.                                                                             |
+| Validating MCP Server  | Checks every batch against the basic catalog before saving. Express parse errors return line and column numbers, and compiler errors include fix hints for self-correction.                                                                                                                                          |
+| `genui` Skill          | Routes visual output across chat Markdown, artifacts, inline cards, the side pane, HTML widgets, or host question tools, with eight ready-made templates (`assumption_ledger`, `contract_workbench`, `consequence_cards`, `triage_matrix`, `state_walkthrough`, `wave_sequencer`, `confirm_gate`, `progress_board`). |
 
 ## Repository Structure
 
@@ -20,8 +22,8 @@ A plugin for Jetski and Antigravity that renders agent-generated A2UI surfaces i
 - `packages/pane-app`: Vite application served in the AuxPane iframe.
 - `packages/embed`: Self-contained IIFE bundle for inline `<agent-embed>` cards.
 - `packages/sidecar`: Node HTTP server serving the pane app, SSE updates, and action dispatching.
-- `packages/mcp-server`: Stdio MCP server exposing `render_a2ui`, `a2ui_instructions`, and `await_a2ui_action`; `python/express_worker.py` is the Express compile worker it spawns.
-- `plugin/`: Installable plugin folder (manifests, build output, the `genui` skill and its templates, the `genui` rule).
+- `packages/mcp-server`: Stdio MCP server exposing `render_a2ui`, `a2ui_instructions`, and `await_a2ui_action`, plus `python/express_worker.py` for Express compilation.
+- `plugin/`: Installable plugin folder containing manifests, build outputs, the `genui` skill and templates, and the `genui` rule.
 - `catalogs/`: Bundled A2UI component catalog schemas.
 
 ## Quick Install (Pre-built Release)
@@ -36,7 +38,7 @@ curl -fsSL https://raw.githubusercontent.com/gspencergoog/a2ui-pane/main/scripts
 curl -fsSL https://raw.githubusercontent.com/gspencergoog/a2ui-pane/main/scripts/install-remote.sh | bash -s -- --agent-sdk-path ~/code/a2ui/main
 ```
 
-**Prerequisites**: Only `node` (>= 20) and `curl` or `wget` are required.
+Prerequisites: Only `node` (>= 20) and `curl` or `wget` are required.
 
 To update to the latest release at any time, re-run the install command.
 
@@ -82,13 +84,13 @@ Without `--agent-sdk-path` (or `A2UI_PANE_AGENT_SDK_PATH`), pass `--no-agent-sdk
 
 The script writes these into `plugin/mcp_config.json`:
 
-| Variable                     | Meaning                                                                                                                  |
-| :--------------------------- | :----------------------------------------------------------------------------------------------------------------------- |
+| Variable                     | Meaning                                                                                                     |
+| :--------------------------- | :---------------------------------------------------------------------------------------------------------- |
 | `A2UI_PANE_PYTHON`           | Interpreter that can import `a2ui.inference_formats.express` (resolved from the checkout's `uv` workspace). |
-| `A2UI_PANE_AGENT_SDK_PATH`   | The a2ui checkout; used with `uv run --project` if `A2UI_PANE_PYTHON` is unset.                                          |
-| `A2UI_PANE_PROTOCOL_VERSION` | Target protocol version for compiled Express (`v0.9` today; the renderer does not draw v1.0 yet).                        |
+| `A2UI_PANE_AGENT_SDK_PATH`   | The a2ui checkout; used with `uv run --project` if `A2UI_PANE_PYTHON` is unset.                             |
+| `A2UI_PANE_PROTOCOL_VERSION` | Target protocol version for compiled Express (`v0.9` today; the renderer does not draw v1.0 yet).           |
 
-User templates: drop `.a2ui` files into `${PLUGIN_DATA}/templates/` (for Jetski, `~/.gemini/jetski/plugin_data/a2ui-pane/templates/`). They shadow built-in templates with the same id.
+User templates: drop `.a2ui` files into `${PLUGIN_DATA}/templates/`. They shadow built-in templates with the same id.
 
 To remove the plugin:
 

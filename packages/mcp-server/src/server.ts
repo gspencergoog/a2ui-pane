@@ -8,6 +8,7 @@ import { StoreWriter } from './store-writer.js';
 import { ConversationState } from './conversation-state.js';
 import { ActionEndpoint } from './action-endpoint.js';
 import { ExpressWorker } from './express-worker.js';
+/** Re-exported Express worker client for embedding and test harnesses. */
 export { ExpressWorker } from './express-worker.js';
 import { TemplateRegistry } from './template-registry.js';
 import { handleA2uiInstructions, a2uiInstructionsSchema } from './tools/instructions.js';
@@ -16,6 +17,7 @@ import { handleAwaitA2uiAction, awaitA2uiActionSchema } from './tools/await-acti
 
 const MAX_CONVERSATION_STATES = 100;
 
+/** Optional collaborators injected into `createServer`. */
 export interface ServerOptions {
   actionEndpoint?: ActionEndpoint;
   worker?: ExpressWorker;
@@ -134,6 +136,9 @@ export function createServer(dataDir: string, options: ServerOptions = {}) {
   };
 }
 
+/**
+ * Starts the MCP server over stdio, optional loopback action endpoint, and Express worker.
+ */
 export async function run(): Promise<McpServer & { actionEndpoint?: ActionEndpoint }> {
   const dataDir = process.env.A2UI_PANE_DATA || process.env.PLUGIN_DATA;
   if (!dataDir) {

@@ -1,3 +1,4 @@
+/** Validated runtime environment configuration for the sidecar HTTP server. */
 export interface SidecarEnv {
   port: number;
   uiToken?: string;

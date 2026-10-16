@@ -2,35 +2,37 @@
 
 ## 1. Overview
 
-`a2ui-pane` is a plugin for Jetski and Antigravity. It lets the agent display A2UI surfaces to the user and receive the user's actions back as chat turns.
+`a2ui-pane` is a plugin for Antigravity and compatible agent hosts. It lets the agent display A2UI surfaces to the user and receive user actions back as chat turns.
 
 Surfaces appear in two contexts:
 
-- **The AuxPane:** A live UI plugin page displayed in the auxiliary pane beside the conversation. Surfaces update incrementally as the agent sends layout commands, and user clicks/submits route back to the agent without requiring extra user clicks.
-- **Inline in Chat:** Self-contained `<agent-embed>` HTML cards displayed directly in conversation history for snapshot results and single-step forms.
+- The AuxPane renders a live UI plugin page beside the conversation. Surfaces update incrementally as the agent sends layout commands, and user clicks route back to the agent automatically.
+- Inline chat cards render self-contained `<agent-embed>` HTML snapshots directly in the conversation history for single-step forms and compact results.
 
-Both contexts use the standard Lit renderer (`@a2ui/lit`) and state engine (`@a2ui/web_core`). The agent interacts with A2UI exclusively via a validating stdio MCP server (`render_a2ui`), which validates payloads before committing them and returns structured error diagnostics so the model can correct mistakes.
+Both contexts use the standard Lit renderer (`@a2ui/lit`) and state engine (`@a2ui/web_core`). The agent calls a validating stdio MCP server (`render_a2ui`), which checks payloads before saving them and returns structured error diagnostics for self-correction.
 
-Authoring is A2UI Express by default. `render_a2ui` accepts `dsl` (Express source) or `template` plus `dsl` (a named, data-bound template from `plugin/skills/genui/templates` or `${PLUGIN_DATA}/templates`, inflated by concatenation so caller data overrides template defaults). The MCP server compiles Express with the upstream Python compiler running in one persistent child process (`python/express_worker.py`, JSON lines over stdio), paying the SDK import cost once per server lifetime. Raw `messages` remain supported. The `genui` skill shipped in `plugin/skills/genui` tells the agent which display channel fits (chat Markdown, artifact, inline card, pane, HTML widget, or the host's interactive question tool / chat prompt) and how to call the tools.
+Authoring uses A2UI Express by default. `render_a2ui` accepts `dsl` (Express source) or `template` plus `dsl` (a named template from `plugin/skills/genui/templates` or `${PLUGIN_DATA}/templates`). When inflating a template, data assignments from the caller override the defaults in the template.
+
+The MCP server compiles Express with the upstream Python compiler in one persistent child process (`python/express_worker.py`). This process communicates via JSON lines over stdio and pays the SDK import cost once. Raw `messages` remain supported. The `genui` skill in `plugin/skills/genui` guides channel selection and tool calls.
 
 The codebase is structured as a standalone TypeScript monorepo under `packages/*`.
 
 ### 1.1 Goals
 
-- Display A2UI surfaces in Jetski Web, Jetski desktop, and Antigravity.
-- Support full live A2UI semantics in the AuxPane: multiple concurrent surfaces, `createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`, two-way data binding, and local function calls.
+- Display A2UI surfaces in Antigravity and compatible web or desktop agent hosts.
+- Support live A2UI semantics in the AuxPane: multiple concurrent surfaces, `createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`, two-way data binding, and local function calls.
 - Dispatch user interactions back to the conversation as new agent turns without extra confirmation clicks.
-- Validate every layout payload against the catalog schema before committing to disk or forwarding to renderers.
+- Check every layout payload against the catalog schema before writing to disk or forwarding to renderers.
 - Support line-by-line progressive updates across sequential tool calls.
 - Align with the host's light and dark theme tokens.
-- Install cleanly from source into `~/.gemini/config/plugins/` without google3 or BinFS dependencies.
+- Install cleanly from source or release archives into `~/.gemini/config/plugins/`.
 
 ### 1.2 Non-goals
 
-- Modifying host source code in Jetski or Antigravity.
-- Authoring tools (Monaco editor, raw JSON viewer, CL creation).
-- Protocol v0.8 or v1.0 rendering; the renderer targets v0.9 and v0.9.1. The Express worker already compiles to v1.0 behind `A2UI_PANE_PROTOCOL_VERSION`, so the flip is a renderer change (a Lit v1.0 basic catalog) plus switching the validators to the v1.0 `MessageProcessor`.
-- Mid-call token-by-token streaming (Phase 0 verified `agentapi stream-conversation` is unsupported by the host daemon).
+- Modifying host source code.
+- Authoring tools (Monaco editor, raw JSON viewer, or patch generation).
+- Protocol v0.8 or v1.0 rendering; the renderer targets v0.9 and v0.9.1.
+- Mid-call token-by-token streaming (`agentapi stream-conversation` is not supported by the host daemon).
 
 ---
 
@@ -38,7 +40,7 @@ The codebase is structured as a standalone TypeScript monorepo under `packages/*
 
 ```mermaid
 flowchart LR
-    subgraph Host["Jetski / Antigravity"]
+    subgraph Host["Agent Host"]
       Agent[Agent]
       Chat["Chat: agent-embed iframe"]
       subgraph Pane["AuxPane iframe"]
@@ -119,13 +121,13 @@ The repository is organized as Yarn workspaces under `packages/*`:
 
 ### 4.1 Message Store (`${PLUGIN_DATA}/conversations/<conversationId>.jsonl`)
 
-- **Structure:** Exactly one A2UI v0.9 server-to-client message per newline-terminated JSON line.
-- **Envelope:**
+- Structure: One A2UI v0.9 server-to-client message per newline-terminated JSON line.
+- Envelope:
   ```json
   {"seq": 1, "callId": "c_123", "ts": "2026-09-30T20:00:00Z", "message": { ... }}
   ```
-- **Atomicity:** Written using `fs.appendFile` with `O_APPEND`.
-- **Retention:** Files unaccessed for >30 days are purged on sidecar startup.
+- Atomicity: Written using `fs.appendFile` with `O_APPEND`.
+- Retention: Files unaccessed for over 30 days are purged on sidecar startup.
 
 ### 4.2 Sidecar & SSE Transport
 
@@ -139,7 +141,7 @@ The repository is organized as Yarn workspaces under `packages/*`:
 
 ### 4.3 Action Round-Trip
 
-When a user triggers an action (e.g. click), the Lit component emits an `A2uiClientAction`.
+When a user triggers an action (such as a click), the Lit component emits an `A2uiClientAction`.
 The pane formats the action into chat text via `formatActionText`:
 
 ```text
@@ -153,8 +155,21 @@ The pane calls `window.sidecar.agent.sendMessage`, which POSTs to `/_sidecar/sen
 
 For snapshot results, the MCP server writes self-contained HTML files into `${PLUGIN_DATA}/embeds/<convId>/<surfaceId>.html` bundling:
 
-- Inlined ~260 KB minified Lit IIFE bundle.
+- Inlined ~260 KB minified Lit IIFE bundle (~70 KB gzipped).
 - JSON payload in `<script id="a2ui-messages" type="application/json">`.
 - Theme tokens mapped from host document.
 - Resizing via `postMessage({type: 'RESIZE'})`.
-- Actions forwarded via `postMessage({type: 'PROMPT'})`.
+- Actions forwarded via `postMessage({type: 'PROMPT'})` or the sidecar HTTP side-channel.
+
+### 4.5 A2UI Express Worker & Protocol v1.0 Upgrade Path
+
+Importing `a2ui.inference_formats.express` takes ~3.7 s warm with a direct Python interpreter and ~5.3 s via `uv run`. Individual compiles finish in milliseconds, so the MCP server keeps one persistent worker process alive (`python/express_worker.py`) and `install.sh` resolves the interpreter path into `mcp_config.json`.
+
+Template inflation reduces agent token output by 2x to 4x compared to raw JSON. For example, `triage_matrix` shrinks from 4,260 B to 1,486 B, and `consequence_cards` shrinks from 3,080 B to 724 B.
+
+To switch the default protocol target from `v0.9` to `v1.0`:
+
+1. Upgrade `@a2ui/lit` to a release that exports a `v1_0` basic catalog (`@a2ui/web_core` already includes `v1_0`).
+2. Switch `ConversationState` and the inline validator in `tools/render.ts` to the `v1_0` `MessageProcessor` when `A2UI_PANE_PROTOCOL_VERSION=v1.0`, and select the matching renderer in `pane-app` and `embed`.
+3. Regenerate the template golden fixtures with `A2UI_PANE_PROTOCOL_VERSION=v1.0 UPDATE_GOLDENS=1`.
+4. Align the catalog identifier in `CatalogRegistry` with the `v1.0` `catalogId` emitted by the compiler.

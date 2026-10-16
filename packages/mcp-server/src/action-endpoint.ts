@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { formatActionText, type A2uiActionDetails } from '@a2ui-pane/protocol';
 
+/** Configuration options for the loopback HTTP action endpoint. */
 export interface ActionEndpointOptions {
   dataDir: string;
   agentapiExe?: string;
@@ -12,6 +13,7 @@ export interface ActionEndpointOptions {
   sendActionDirectly?: (conversationId: string, text: string) => Promise<void>;
 }
 
+/** Metadata recorded for an active inline `<agent-embed>` surface token. */
 export interface RegisteredEmbed {
   conversationId: string;
   surfaceId: string;
@@ -19,6 +21,7 @@ export interface RegisteredEmbed {
   expiresAt: number;
 }
 
+/** Result returned by `await_a2ui_action` when an action arrives or times out. */
 export interface AwaitActionResult {
   status: 'received' | 'timeout';
   surfaceId?: string;

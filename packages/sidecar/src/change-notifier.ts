@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { isValidId } from '@a2ui-pane/protocol';
 
+/** Listener callback invoked when a watched conversation store file changes on disk. */
 export type ChangeCallback = () => void;
 
 /**

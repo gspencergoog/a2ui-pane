@@ -1,5 +1,0 @@
-{
-  "name": "a2ui-pane-probe",
-  "description": "Probe plugin to inspect host environment, SSE streaming, and plugin variables.",
-  "version": "0.1.0"
-}

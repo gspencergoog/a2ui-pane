@@ -3,6 +3,7 @@ import { formatActionText, A2uiActionDetails, StoreLine } from '@a2ui-pane/proto
 import { LineApplier, A2uiPaneView } from '@a2ui-pane/renderer';
 import { SurfaceResizeObserver } from './surface-resize-observer.js';
 
+/** Side-channel endpoint and routing metadata injected into an inline embed iframe. */
 export interface ActionConfig {
   port?: number;
   key?: string;
@@ -12,6 +13,7 @@ export interface ActionConfig {
   targetOrigin?: string;
 }
 
+/** Options for initializing a standalone A2UI inline embed iframe. */
 export interface InitEmbedOptions {
   container?: HTMLElement;
   messagesJson?: string;
@@ -24,6 +26,7 @@ export interface InitEmbedOptions {
   ) => SurfaceResizeObserver;
 }
 
+/** Handle returned by `initEmbed` for inspecting, unlocking, or destroying the embed view. */
 export interface EmbedInstance {
   applier: LineApplier;
   paneView: A2uiPaneView;
@@ -33,6 +36,9 @@ export interface EmbedInstance {
   destroy: () => void;
 }
 
+/**
+ * Updates the embed container visual lock state and footer note after submission or unlock.
+ */
 export function applySubmittedState(
   paneView: HTMLElement,
   footerNote: HTMLElement,
@@ -341,6 +347,9 @@ export function initEmbed(options: InitEmbedOptions = {}): EmbedInstance | null 
   };
 }
 
+/**
+ * Bootstraps `initEmbed` when the iframe document finishes loading unless disabled.
+ */
 export function autoInit(): void {
   if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     const autoInitDisabled = (window as any).__A2UI_DISABLE_EMBED_AUTO_INIT__;

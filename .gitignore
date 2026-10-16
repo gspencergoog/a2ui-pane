@@ -8,7 +8,6 @@ tmp/
 *.log
 .DS_Store
 plugin/sidecars/*/dist/
-plugin/sidecars/*/web/
 plugin/mcp/dist/
 plugin/mcp_config.json
 coverage/

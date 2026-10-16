@@ -1,8 +1,10 @@
 import { parseStoreLine } from '@a2ui-pane/protocol';
 import { LineApplier } from '@a2ui-pane/renderer';
 
+/** Lifecycle states of the SSE connection to the sidecar stream endpoint. */
 export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 
+/** Configuration options for `StreamClient`. */
 export interface StreamClientOptions {
   conversationId: string;
   token?: string;

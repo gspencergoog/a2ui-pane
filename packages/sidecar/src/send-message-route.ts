@@ -2,8 +2,10 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { execFile } from 'node:child_process';
 import { isValidId } from '@a2ui-pane/protocol';
 
+/** Function signature matching `node:child_process.execFile` for dependency injection. */
 export type ExecFileFn = typeof execFile;
 
+/** Options for routing action messages through the host `agentapi` CLI. */
 export interface SendMessageOptions {
   agentapiExe?: string;
   execFileFn?: ExecFileFn;
@@ -84,7 +86,7 @@ export function handleSendMessage(
     }
 
     const execFn = options.execFileFn ?? execFile;
-    // ANTIGRAVITY_AGENTAPI_EXE points to the language server executable (jetski-hub-server),
+    // ANTIGRAVITY_AGENTAPI_EXE points to the host language server executable,
     // which requires 'agentapi' as argv[1] (matching sidecar_sdk/node/index.mjs).
     const file = options.agentapiExe || 'agentapi';
     const args = options.agentapiExe

@@ -66,10 +66,11 @@ cat > "${STAGING_DIR}/mcp_config.json" << 'EOF'
     "a2ui-pane": {
       "command": "node",
       "args": [
-        "${PLUGIN_DIR}/mcp/dist/server.mjs"
+        "${PLUGIN_ROOT}/mcp/dist/server.mjs"
       ],
       "env": {
-        "A2UI_PANE_DATA": "${PLUGIN_DATA}"
+        "A2UI_PANE_DATA": "${PLUGIN_DATA}",
+        "A2UI_PANE_SIDE_CHANNEL": "1"
       }
     }
   }
@@ -88,17 +89,17 @@ cp "${REPO_ROOT}/packages/mcp-server/dist/express_worker.py" "${STAGING_DIR}/mcp
 cp -R "${REPO_ROOT}/packages/mcp-server/dist/catalogs" "${STAGING_DIR}/mcp/dist/"
 
 # 4. Sidecar server and web application
-mkdir -p "${STAGING_DIR}/sidecars/a2ui-pane/dist"
-mkdir -p "${STAGING_DIR}/sidecars/a2ui-pane/web"
+mkdir -p "${STAGING_DIR}/sidecars/a2ui-pane/dist/pane"
 cp "${REPO_ROOT}/plugin/sidecars/a2ui-pane/sidecar.json" "${STAGING_DIR}/sidecars/a2ui-pane/"
 cp "${REPO_ROOT}/packages/sidecar/dist/main.mjs" "${STAGING_DIR}/sidecars/a2ui-pane/dist/"
-cp -R "${REPO_ROOT}/packages/pane-app/dist"/. "${STAGING_DIR}/sidecars/a2ui-pane/web/"
+cp -R "${REPO_ROOT}/packages/pane-app/dist"/. "${STAGING_DIR}/sidecars/a2ui-pane/dist/pane/"
 
 # Also keep the plugin/ directory in sync
-mkdir -p "${REPO_ROOT}/plugin/sidecars/a2ui-pane/web"
-mkdir -p "${REPO_ROOT}/plugin/sidecars/a2ui-pane/dist"
+rm -rf "${REPO_ROOT}/plugin/sidecars/a2ui-pane/web"
+rm -rf "${REPO_ROOT}/plugin/sidecars/a2ui-pane/dist/pane"
+mkdir -p "${REPO_ROOT}/plugin/sidecars/a2ui-pane/dist/pane"
 mkdir -p "${REPO_ROOT}/plugin/mcp/dist"
-cp -R "${STAGING_DIR}/sidecars/a2ui-pane/web"/. "${REPO_ROOT}/plugin/sidecars/a2ui-pane/web/"
+cp -R "${STAGING_DIR}/sidecars/a2ui-pane/dist/pane"/. "${REPO_ROOT}/plugin/sidecars/a2ui-pane/dist/pane/"
 cp "${STAGING_DIR}/sidecars/a2ui-pane/dist/main.mjs" "${REPO_ROOT}/plugin/sidecars/a2ui-pane/dist/"
 cp "${STAGING_DIR}/mcp/dist/server.mjs" "${REPO_ROOT}/plugin/mcp/dist/"
 

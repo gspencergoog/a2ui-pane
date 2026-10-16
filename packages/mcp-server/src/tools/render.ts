@@ -14,6 +14,9 @@ import {
 } from '../express-worker.js';
 import type { TemplateRegistry } from '../template-registry.js';
 
+/**
+ * Reads `sidecar-endpoint.json` from `dataDir` and returns the authenticated `/_sidecar/send-message` URL if available.
+ */
 export function readSidecarSendMessageUrl(dataDir: string): string | undefined {
   try {
     const endpointFile = path.join(dataDir, 'sidecar-endpoint.json');
@@ -42,6 +45,9 @@ export function readSidecarSendMessageUrl(dataDir: string): string | undefined {
   return undefined;
 }
 
+/**
+ * Returns whether the auxiliary pane is currently open and visible for `conversationId`.
+ */
 export function isPaneVisibleForConversation(dataDir: string, conversationId: string): boolean {
   try {
     const endpointFile = path.join(dataDir, 'sidecar-endpoint.json');
@@ -55,12 +61,13 @@ export function isPaneVisibleForConversation(dataDir: string, conversationId: st
   }
 }
 
+/** Zod parameter schema for the `render_a2ui` MCP tool. */
 export const renderA2uiSchema = {
   conversationId: z
     .string()
     .optional()
     .describe(
-      'Your current conversation ID. Required unless the host passes ANTIGRAVITY_CONVERSATION_ID to the MCP server (Jetski does not); the call fails with "Missing required conversationId" otherwise.',
+      'Your current conversation ID. Required unless the host passes ANTIGRAVITY_CONVERSATION_ID to the MCP server; the call fails with "Missing required conversationId" otherwise.',
     ),
   messages: z
     .union([
@@ -110,8 +117,10 @@ export const renderA2uiSchema = {
     ),
 };
 
+/** Factory that returns the `ConversationState` instance for a given `conversationId`. */
 export type ConversationStateFactory = (conversationId: string) => ConversationState;
 
+/** Input arguments accepted by `handleRenderA2ui`. */
 export interface RenderA2uiArgs {
   conversationId?: string;
   messages?: unknown[] | string;
@@ -123,6 +132,7 @@ export interface RenderA2uiArgs {
   mode?: 'pane' | 'inline';
 }
 
+/** Optional Express compiler and template registry collaborators for `handleRenderA2ui`. */
 export interface RenderA2uiDeps {
   worker?: ExpressWorker;
   templates?: TemplateRegistry;
@@ -294,6 +304,9 @@ export function mergeRootDataUpdates(
   });
 }
 
+/**
+ * Compiles, validates, and renders A2UI surfaces either to the live auxiliary pane or to an inline `<agent-embed>` file.
+ */
 export async function handleRenderA2ui(
   args: RenderA2uiArgs,
   getState: ConversationStateFactory,

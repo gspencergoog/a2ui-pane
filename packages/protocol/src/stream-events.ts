@@ -1,9 +1,15 @@
 import { StoreLine } from './store.js';
 
+/** SSE event type emitted when a new JSONL store line arrives. */
 export const STREAM_EVENT_LINE = 'line';
+
+/** SSE event type emitted when the store file is truncated or replaced. */
 export const STREAM_EVENT_RESET = 'reset';
+
+/** Interval in milliseconds between SSE keepalive comment frames. */
 export const KEEPALIVE_INTERVAL_MS = 15_000;
 
+/** Discriminated union of Server-Sent Events emitted by `/api/stream`. */
 export type StreamEvent =
   { type: typeof STREAM_EVENT_LINE; line: StoreLine } | { type: typeof STREAM_EVENT_RESET };
 

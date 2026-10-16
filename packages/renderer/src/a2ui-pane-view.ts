@@ -9,17 +9,20 @@ import { MessageProcessor } from '@a2ui/web_core/v0_9';
 installIconSvgRenderer();
 installRichTextVariantRenderer();
 
+/** Event detail dispatched when a surface is created or deleted. */
 export interface SurfaceChangedDetail {
   surfaceId: string;
   action: 'created' | 'deleted';
 }
 
+/** Event detail dispatched when a surface's submission status changes. */
 export interface SurfaceSubmissionChangedDetail {
   surfaceId: string;
   status: 'active' | 'submitted' | 'dismissed';
   label?: string;
 }
 
+/** Event detail dispatched when a user explicitly dismisses a surface. */
 export interface SurfaceDismissedDetail {
   surfaceId: string;
 }

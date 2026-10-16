@@ -6,13 +6,14 @@
 #   curl -fsSL https://raw.githubusercontent.com/gspencergoog/a2ui-pane/main/scripts/install-remote.sh | bash
 #
 # Options:
-#   --version <tag>         Install specific release tag (default: latest)
-#   --repo <owner/repo>     GitHub repository (default: gspencergoog/a2ui-pane)
-#   --target-dir <path>     Target installation directory (default: ~/.gemini/config/plugins/a2ui-pane)
-#   --tarball-url <url>     Direct URL to tarball archive
-#   --tarball-path <path>   Local tarball archive to install from (for testing/offline)
-#   --agent-sdk-path <path> Path to a2ui checkout for Python Express authoring
-#   --no-agent-sdk          Explicitly disable Express authoring (raw messages only)
+#   --version <tag>           Install specific release tag (default: latest)
+#   --repo <owner/repo>       GitHub repository (default: gspencergoog/a2ui-pane)
+#   --target-dir <path>       Target installation directory (default: ~/.gemini/config/plugins/a2ui-pane)
+#   --tarball-url <url>       Direct URL to tarball archive
+#   --tarball-path <path>     Local tarball archive to install from (for testing/offline)
+#   --agent-sdk-path <path>   Path to a2ui checkout for Python Express authoring
+#   --no-agent-sdk            Explicitly disable Express authoring (raw messages only)
+#   --protocol-version <ver>  Target protocol version for compiled Express (default: v0.9)
 #
 
 set -euo pipefail
@@ -24,6 +25,7 @@ TARBALL_URL=""
 TARBALL_PATH=""
 AGENT_SDK_PATH="${A2UI_PANE_AGENT_SDK_PATH:-}"
 NO_AGENT_SDK=0
+PROTOCOL_VERSION="${A2UI_PANE_PROTOCOL_VERSION:-v0.9}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -51,23 +53,28 @@ while [[ $# -gt 0 ]]; do
       AGENT_SDK_PATH="$2"
       shift 2
       ;;
-    --no-agent-sdk)
+    --no-agent-sdk|--raw-only)
       NO_AGENT_SDK=1
       shift
+      ;;
+    --protocol-version)
+      PROTOCOL_VERSION="$2"
+      shift 2
       ;;
     -h|--help)
       cat << 'EOF'
 Usage: install-remote.sh [OPTIONS]
 
 Options:
-  --version <tag>         Install a specific release version (default: latest)
-  --repo <owner/repo>     GitHub repository (default: gspencergoog/a2ui-pane)
-  --target-dir <path>     Target directory (default: ~/.gemini/config/plugins/a2ui-pane)
-  --tarball-url <url>     Download directly from a custom URL
-  --tarball-path <path>   Install from a local .tar.gz archive
-  --agent-sdk-path <path> Path to a2ui checkout for Python Express authoring
-  --no-agent-sdk          Explicitly disable Express authoring (raw messages only)
-  -h, --help              Show this help message
+  --version <tag>           Install a specific release version (default: latest)
+  --repo <owner/repo>       GitHub repository (default: gspencergoog/a2ui-pane)
+  --target-dir <path>       Target directory (default: ~/.gemini/config/plugins/a2ui-pane)
+  --tarball-url <url>       Download directly from a custom URL
+  --tarball-path <path>     Install from a local .tar.gz archive
+  --agent-sdk-path <path>   Path to a2ui checkout for Python Express authoring
+  --no-agent-sdk            Explicitly disable Express authoring (raw messages only)
+  --protocol-version <ver>  Target protocol version for compiled Express (default: v0.9)
+  -h, --help                Show this help message
 EOF
       exit 0
       ;;
@@ -81,7 +88,7 @@ done
 echo "=== Installing A2UI Pane Plugin ==="
 
 # 1. Check prerequisite tools
-NODE_BIN="$(command -v node 2>/dev/null || true)"
+NODE_BIN="${A2UI_PANE_NODE:-$(command -v node 2>/dev/null || true)}"
 if [[ -z "${NODE_BIN}" ]]; then
   echo "Error: 'node' executable not found in PATH." >&2
   echo "Node.js (>=20) is required to run the A2UI Pane sidecar and MCP server." >&2
@@ -204,11 +211,15 @@ if [[ -n "${AGENT_SDK_PATH}" && "${NO_AGENT_SDK}" -eq 0 ]]; then
   fi
   if [[ -z "${UV_BIN}" ]]; then
     echo "Warning: 'uv' not found. Disabling Express worker." >&2
+    AGENT_SDK_PATH=""
   elif [[ ! -f "${AGENT_SDK_PATH}/python/a2ui_agent/pyproject.toml" ]]; then
     echo "Warning: ${AGENT_SDK_PATH} is missing python/a2ui_agent/pyproject.toml. Disabling Express worker." >&2
+    AGENT_SDK_PATH=""
   else
     PYTHON_BIN="$("${UV_BIN}" run --project "${AGENT_SDK_PATH}" --package a2ui-agent-sdk python -c 'import sys; print(sys.executable)' 2>/dev/null || true)"
   fi
+else
+  AGENT_SDK_PATH=""
 fi
 
 # 5. Generate mcp_config.json from template
@@ -216,34 +227,57 @@ TEMPLATE="${TARGET_DIR}/mcp_config.template.json"
 TARGET_CONFIG="${TARGET_DIR}/mcp_config.json"
 
 if [[ -f "${TEMPLATE}" ]]; then
-  if [[ -n "${PYTHON_BIN}" ]]; then
-    EXPRESS_CMD="${PYTHON_BIN} -m a2ui_agent.express_worker"
-  else
-    EXPRESS_CMD=""
-  fi
+  command python3 - "${TEMPLATE}" "${TARGET_CONFIG}" "${NODE_BIN}" "${PYTHON_BIN}" "${AGENT_SDK_PATH}" "${PROTOCOL_VERSION}" << 'EOF'
+import sys
 
-  command python3 - "${TEMPLATE}" "${TARGET_CONFIG}" "${NODE_BIN}" "${EXPRESS_CMD}" << 'EOF'
-import sys, json
-
-template_path, target_path, node_bin, express_cmd = sys.argv[1:5]
+template_path, target_path, node_bin, python_bin, agent_sdk_path, protocol_version = sys.argv[1:7]
 with open(template_path, "r", encoding="utf-8") as f:
-    cfg = json.load(f)
+    raw = f.read()
 
-server = cfg.get("mcpServers", {}).get("a2ui-pane", {})
-server["command"] = node_bin
-env = server.get("env", {})
-if express_cmd:
-    env["A2UI_PANE_EXPRESS_CMD"] = express_cmd
-else:
-    env.pop("A2UI_PANE_EXPRESS_CMD", None)
+rendered = (
+    raw.replace("@NODE@", node_bin)
+    .replace("@PLUGIN_DIR@", "${PLUGIN_ROOT}")
+    .replace("@PYTHON@", python_bin)
+    .replace("@AGENT_SDK_PATH@", agent_sdk_path)
+    .replace("@PROTOCOL_VERSION@", protocol_version)
+)
 
 with open(target_path, "w", encoding="utf-8") as f:
-    json.dump(cfg, f, indent=2)
+    f.write(rendered)
 EOF
 fi
 
+# Pre-warm: import the SDK once and compile a fixture so the first render is fast
+if [[ -n "${PYTHON_BIN}" && -f "${TARGET_DIR}/mcp/dist/express_worker.py" ]]; then
+  "${PYTHON_BIN}" "${TARGET_DIR}/mcp/dist/express_worker.py" --selftest \
+    --catalog "${TARGET_DIR}/mcp/dist/catalogs/v0_9_1/basic/catalog.json" \
+    --version "${PROTOCOL_VERSION}" || {
+    echo "Warning: Express worker selftest failed; check that ${AGENT_SDK_PATH} is synced (uv sync --all-packages)." >&2
+  }
+fi
+
+# Update version / timestamp in sidecar.json to trigger reload
+SIDECAR_JSON="${TARGET_DIR}/sidecars/a2ui-pane/sidecar.json"
+if [[ -f "${SIDECAR_JSON}" ]]; then
+  BUILD_TIME="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  tmp_json="$(mktemp)"
+  "${NODE_BIN}" -e '
+    const fs = require("fs");
+    const p = process.argv[1];
+    const buildTime = process.argv[2];
+    const out = process.argv[3];
+    const raw = fs.readFileSync(p, "utf8");
+    const updated = raw.replace(
+      /"description":\s*"[^"]*"/,
+      "\"description\": \"Interactive A2UI surfaces sidecar (built " + buildTime + ")\"",
+    );
+    fs.writeFileSync(out, updated);
+  ' "${SIDECAR_JSON}" "${BUILD_TIME}" "${tmp_json}"
+  mv "${tmp_json}" "${SIDECAR_JSON}"
+fi
+
 # 6. Signal Language Server & update config.json
-echo "Registering plugin with Antigravity / Jetski..."
+echo "Registering plugin with host..."
 pkill -f "a2ui-pane/mcp/dist/server.mjs" 2>/dev/null || true
 
 command python3 -c '

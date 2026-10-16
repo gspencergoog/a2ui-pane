@@ -1,8 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+/** Target rendering surface declared by a template's `@genui surface=...` header. */
 export type TemplateSurface = 'inline' | 'pane' | 'either';
 
+/** Parsed metadata and file location for a registered `.a2ui` template. */
 export interface TemplateEntry {
   id: string;
   path: string;

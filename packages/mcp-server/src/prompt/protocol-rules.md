@@ -5,7 +5,7 @@ A2UI is a declarative, streaming-friendly UI protocol for generating and updatin
 ## 1. Message Structure
 
 All interactions consist of a sequence of layout operations targeting one or more surfaces.
-Each operation object must declare `"version": "v0.9"` and contain exactly one of the following commands:
+Each operation object must declare `"version": "v0.9"` and contain one of the following commands:
 
 - `createSurface`: Initializes a surface.
 
@@ -20,7 +20,7 @@ Each operation object must declare `"version": "v0.9"` and contain exactly one o
   }
   ```
 
-  Set `"sendDataModel": true` to receive the surface's bound data model state back whenever the user triggers an action.
+  Set `"sendDataModel": true` to receive the bound state of the surface back whenever the user triggers an action.
 
 - `updateComponents`: Declares or updates components on a surface.
 
@@ -88,10 +88,10 @@ Each operation object must declare `"version": "v0.9"` and contain exactly one o
 
 ## 2. Key Hierarchy Rules
 
-1. **Root Component:** Every surface MUST declare a component with `id: "root"`. The renderer begins rendering the tree at `root`.
-2. **Flat Component Array:** Components are supplied as a flat array. Parent components reference their children by ID (e.g. `children: ["child1", "child2"]`).
-3. **Valid Identifiers:** Every component must have a unique non-empty string `id`.
-4. **Catalog Conformance:** All component properties must strictly conform to the catalog schema for that component type.
+1. Every surface MUST declare a root component with `id: "root"`. The renderer begins rendering the tree at `root`.
+2. Components are supplied as a flat array, and parent components reference their children by ID (such as `children: ["child1", "child2"]`).
+3. Every component must have a unique non-empty string `id`.
+4. All component properties must conform to the catalog schema for that component type.
 
 ## 3. Handling User Actions & Two-Way Binding
 
@@ -105,4 +105,4 @@ When a user interacts with a control (such as clicking a Button), the client sen
 When you receive this message:
 
 - Treat the contents as user input.
-- **Update the SAME surface:** Do NOT create a new surface unless you intend to display an additional separate panel. Instead, issue `updateDataModel` or `updateComponents` targeting the existing `surfaceId` (e.g. updating a message label or toggling button states).
+- Update the existing surface rather than creating a new one unless you want a separate panel. Issue `updateDataModel` or `updateComponents` targeting the existing `surfaceId` (for example, updating a message label or toggling button states).

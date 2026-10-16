@@ -1,6 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface, type Interface } from 'node:readline';
 
+/** Structured compile or validation error returned by the Python Express worker. */
 export interface WorkerError {
   kind: string;
   message: string;
@@ -10,6 +11,7 @@ export interface WorkerError {
   help?: string;
 }
 
+/** JSON-lines request envelope sent to the Python Express worker over stdin. */
 export type WorkerRequest = {
   id: number;
   op: 'init' | 'ping' | 'compile' | 'instructions' | 'decompile';
@@ -20,10 +22,12 @@ export type WorkerRequest = {
   messages?: unknown[];
 };
 
+/** JSON-lines response envelope emitted by the Python Express worker over stdout. */
 export type WorkerResponse =
   | { id: number | null; ok: true; messages?: unknown[]; text?: string; [key: string]: unknown }
   | { id: number | null; ok: false; error: WorkerError };
 
+/** Configuration options for spawning and communicating with the Python Express worker. */
 export interface ExpressWorkerOptions {
   /** Interpreter that already has the A2UI agent SDK importable (`A2UI_PANE_PYTHON`). */
   pythonBin?: string;
@@ -47,6 +51,7 @@ export interface ExpressWorkerOptions {
   log?: (line: string) => void;
 }
 
+/** Default PEP 508 package specifier passed to `uv run --with` when no local SDK is set. */
 export const DEFAULT_AGENT_SDK_SPEC = 'a2ui-agent-sdk>0.8.0';
 const UNAVAILABLE_MEMO_MS = 60_000;
 
@@ -157,6 +162,7 @@ export class ExpressWorker {
     }
   }
 
+  /** Compiles A2UI Express DSL source into protocol messages for `surfaceId`. */
   async compile(dsl: string, surfaceId: string, version?: string): Promise<unknown[]> {
     const res = await this.send({
       id: 0,
@@ -168,11 +174,13 @@ export class ExpressWorker {
     return (res.messages as unknown[]) ?? [];
   }
 
+  /** Generates the catalog-derived A2UI Express authoring instructions. */
   async instructions(): Promise<string> {
     const res = await this.send({ id: 0, op: 'instructions' });
     return String(res.text ?? '');
   }
 
+  /** Decompiles an array of A2UI protocol messages back into A2UI Express source. */
   async decompile(messages: unknown[]): Promise<string> {
     const res = await this.send({ id: 0, op: 'decompile', messages });
     return String(res.text ?? '');

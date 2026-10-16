@@ -5,6 +5,7 @@ import { HOST_RULES } from '../prompt/host-rules.js';
 import type { ExpressWorker } from '../express-worker.js';
 import type { TemplateRegistry } from '../template-registry.js';
 
+/** Zod parameter schema for the `a2ui_instructions` MCP tool. */
 export const a2uiInstructionsSchema = {
   catalogIds: z
     .array(z.string())
@@ -20,6 +21,7 @@ export const a2uiInstructionsSchema = {
     ),
 };
 
+/** Collaborators used by `handleA2uiInstructions` to build Express and template documentation. */
 export interface InstructionsDeps {
   worker?: ExpressWorker;
   templates?: TemplateRegistry;

@@ -3,6 +3,7 @@ import { formatSseEvent, formatSseKeepalive, KEEPALIVE_INTERVAL_MS } from '@a2ui
 import { StoreReader } from './store-reader.js';
 import { ChangeNotifier } from './change-notifier.js';
 
+/** Configuration options for the `/api/stream` SSE handler. */
 export interface SseStreamOptions {
   keepaliveIntervalMs?: number;
 }

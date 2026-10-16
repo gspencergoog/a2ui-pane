@@ -3,12 +3,14 @@ import { A2uiServerMessage, isValidId } from '@a2ui-pane/protocol';
 import { CatalogRegistry } from './catalog-registry.js';
 import { StoreWriter } from './store-writer.js';
 
+/** Diagnostic issue reported when an A2UI message fails validation. */
 export interface ValidationIssue {
   messageIndex: number;
   path?: string;
   message: string;
 }
 
+/** Outcome of validating and applying a batch of A2UI messages. */
 export type ApplyResult =
   { ok: true; surfaceIds: string[] } | { ok: false; issues: ValidationIssue[] };
 

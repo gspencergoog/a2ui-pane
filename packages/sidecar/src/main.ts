@@ -6,6 +6,9 @@ import { cleanupOldFiles } from './cleanup.js';
 import { readSidecarEnv, SidecarEnv } from './env.js';
 import { createSidecarServer } from './server.js';
 
+/**
+ * Returns whether the current module is being executed directly as the Node entrypoint.
+ */
 export function isMainModule(): boolean {
   if (!process.argv[1]) return false;
   try {
@@ -17,6 +20,9 @@ export function isMainModule(): boolean {
   }
 }
 
+/**
+ * Writes `sidecar-endpoint.json` with mode `0600` so the MCP server can discover the running sidecar.
+ */
 export function writeSidecarEndpointFile(
   dataDir: string,
   port: number,
@@ -36,6 +42,9 @@ export function writeSidecarEndpointFile(
   }
 }
 
+/**
+ * Queries the host language server `GetSidecars` RPC for the browser-reachable base URL of this sidecar.
+ */
 export async function resolveSidecarBaseUrl(
   env: SidecarEnv,
   fetchFn: typeof fetch = fetch,
@@ -78,6 +87,9 @@ function removeSidecarEndpointFile(dataDir: string): void {
   }
 }
 
+/**
+ * Starts the sidecar HTTP server, runs initial file cleanup, and registers shutdown signal handlers.
+ */
 export function run(): void {
   try {
     const env = readSidecarEnv();

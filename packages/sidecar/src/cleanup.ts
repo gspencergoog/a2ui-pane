@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+/** Summary counts returned after sweeping stale conversation and embed files. */
 export interface CleanupResult {
   deleted: number;
   errors: number;

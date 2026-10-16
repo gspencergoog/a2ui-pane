@@ -2,11 +2,13 @@ import { MessageProcessor } from '@a2ui/web_core/v0_9';
 import { StoreLine } from '@a2ui-pane/protocol';
 import { createProcessor, ActionHandler } from './processor.js';
 
+/** Recorded failure from applying a single `StoreLine` to the processor. */
 export interface LineApplyError {
   seq: number;
   error: string;
 }
 
+/** Callback invoked when the processor is reset with a fresh instance. */
 export type ResetListener = (newProcessor: MessageProcessor<any>) => void;
 
 const MAX_ERRORS = 50;

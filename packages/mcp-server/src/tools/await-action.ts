@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { isValidId } from '@a2ui-pane/protocol';
 import type { ActionEndpoint, AwaitActionResult } from '../action-endpoint.js';
 
+/** Zod parameter schema for the `await_a2ui_action` MCP tool. */
 export const awaitA2uiActionSchema = {
   conversationId: z.string().describe('Conversation ID owning the active A2UI surface.'),
   surfaceId: z.string().describe('Surface ID to wait for an action on.'),
@@ -13,12 +14,16 @@ export const awaitA2uiActionSchema = {
     .describe('Timeout in seconds to wait for user interaction (default: 300).'),
 };
 
+/** Input arguments accepted by `handleAwaitA2uiAction`. */
 export type AwaitA2uiActionArgs = {
   conversationId: string;
   surfaceId: string;
   timeoutSeconds?: number;
 };
 
+/**
+ * Waits for a user action on `surfaceId` via the loopback `ActionEndpoint` and returns the payload.
+ */
 export async function handleAwaitA2uiAction(
   args: AwaitA2uiActionArgs,
   endpoint?: ActionEndpoint,

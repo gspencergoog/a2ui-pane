@@ -494,7 +494,7 @@ describe('MCP Server Tools and Entrypoint', () => {
         JSON.stringify({
           port: 39027,
           uiToken: 'ui-tok-123',
-          baseUrl: 'https://test.proxy.googlers.com?token=ui-tok-123',
+          baseUrl: 'https://sidecar.example.com?token=ui-tok-123',
         }),
       );
 
@@ -520,9 +520,7 @@ describe('MCP Server Tools and Entrypoint', () => {
       const embedMatch = result.content[0].text.match(/src="file:\/\/([^"]+)"/);
       expect(embedMatch).not.toBeNull();
       const html = readFileSync(embedMatch![1], 'utf-8');
-      expect(html).toContain(
-        'https://test.proxy.googlers.com/_sidecar/send-message?token=ui-tok-123',
-      );
+      expect(html).toContain('https://sidecar.example.com/_sidecar/send-message?token=ui-tok-123');
 
       await ep.close();
 

@@ -41,6 +41,19 @@ class WorkerState:
         self.default_version = "v0.9"
 
     def init(self, catalog_path: str, version: str | None) -> dict[str, Any]:
+        """Loads the catalog schema and initializes the Express compiler and prompt generator.
+
+        Args:
+            catalog_path: Filesystem path to the catalog JSON file.
+            version: Optional protocol version string (defaults to `self.default_version`).
+
+        Returns:
+            A dictionary containing `catalogId`, `version`, and `componentCount`.
+
+        Raises:
+            OSError: If `catalog_path` cannot be opened or read.
+            ValueError: If the catalog JSON is invalid.
+        """
         from a2ui.core import Catalog
         try:
             from a2ui.inference_formats.express import (
@@ -69,6 +82,19 @@ class WorkerState:
         }
 
     def compile(self, dsl: str, surface_id: str, version: str | None) -> list[dict]:
+        """Compiles A2UI Express DSL text into a list of A2UI message dictionaries.
+
+        Args:
+            dsl: Raw A2UI Express source text (with or without `<a2ui>` sentinels).
+            surface_id: Default surface identifier when `surface(...)` is omitted.
+            version: Optional target protocol version override.
+
+        Returns:
+            List of serialized A2UI server-to-client message dictionaries.
+
+        Raises:
+            RuntimeError: If `init` has not been called on this worker state.
+        """
         from a2ui.parser.messages import to_message_dicts
 
         self._require_init()
@@ -78,10 +104,29 @@ class WorkerState:
         return to_message_dicts(messages)
 
     def instructions(self) -> str:
+        """Generates the A2UI Express authoring prompt for the loaded catalog.
+
+        Returns:
+            Markdown authoring instructions produced by `ExpressPromptGenerator`.
+
+        Raises:
+            RuntimeError: If `init` has not been called on this worker state.
+        """
         self._require_init()
         return self.prompt_generator.generate()
 
     def decompile(self, messages: list[dict]) -> str:
+        """Decompiles A2UI message dictionaries back into A2UI Express source text.
+
+        Args:
+            messages: List of A2UI server-to-client message dictionaries.
+
+        Returns:
+            Decompiled A2UI Express DSL string.
+
+        Raises:
+            RuntimeError: If `init` has not been called on this worker state.
+        """
         try:
             from a2ui.inference_formats.express import ExpressDecompiler
         except ImportError:
@@ -199,6 +244,14 @@ def selftest(catalog_path: str, version: str) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Parses CLI arguments and runs either `--selftest` or the stdio JSON-lines loop.
+
+    Args:
+        argv: Optional list of CLI arguments (defaults to `sys.argv[1:]`).
+
+    Returns:
+        Process exit code (`0` on success, non-zero on failure).
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--selftest", action="store_true", help="Compile a fixture and exit.")
     parser.add_argument("--catalog", help="Catalog JSON path (selftest only).")

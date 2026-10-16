@@ -1,6 +1,7 @@
 import { formatActionText, A2uiActionDetails } from '@a2ui-pane/protocol';
 import { showToast } from './toast.js';
 
+/** Configuration and dependency injection hooks for `ActionSender`. */
 export interface ActionSenderOptions {
   conversationId?: string | null;
   onPendingChange?: (pendingComponents: ReadonlySet<string>) => void;

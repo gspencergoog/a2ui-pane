@@ -349,8 +349,8 @@ describe('initEmbed', () => {
         port: 54321,
         key: 'loopback-key',
         surfaceId: 'surfSidecarUrl',
-        conversationId: 'conv-pen-1',
-        sidecarUrl: 'https://pen.proxy.googlers.com/_sidecar/send-message?token=tok1',
+        conversationId: 'conv-proxy-1',
+        sidecarUrl: 'https://sidecar.example.com/_sidecar/send-message?token=tok1',
       },
       fetchFn: mockFetch as any,
     });
@@ -359,12 +359,12 @@ describe('initEmbed', () => {
 
     // 1. Primary path: sidecarUrl succeeds
     await surface?.dispatchAction({
-      name: 'penClick',
-      context: { label: 'PEN Button' },
+      name: 'proxyClick',
+      context: { label: 'Proxy Button' },
     });
     expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockFetch).toHaveBeenLastCalledWith(
-      'https://pen.proxy.googlers.com/_sidecar/send-message?token=tok1',
+      'https://sidecar.example.com/_sidecar/send-message?token=tok1',
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',

@@ -2,7 +2,7 @@
  * Host-specific rules appended to the Express prompt by a2ui_instructions.
  * Embedded as a TypeScript constant so the standalone bundle has no filesystem dependency.
  */
-export const HOST_RULES = `# Host Rules for \`render_a2ui\` (Jetski / Antigravity)
+export const HOST_RULES = `# Host Rules for \`render_a2ui\`
 
 These rules describe how the \`a2ui-pane\` plugin renders what you author. Read them together with the A2UI Express contract above.
 
@@ -16,7 +16,7 @@ Pass exactly one authoring input:
 
 Other parameters:
 
-- \`conversationId\`: your current conversation ID. Always pass it; the call fails with "Missing required conversationId" on hosts (including Jetski) that do not hand the MCP server \`ANTIGRAVITY_CONVERSATION_ID\`.
+- \`conversationId\`: your current conversation ID. Always pass it; the call fails with "Missing required conversationId" on hosts that do not pass \`ANTIGRAVITY_CONVERSATION_ID\` to the MCP server.
 - \`mode\`: \`"pane"\` (default) renders in the live AuxPane; \`"inline"\` returns an \`<agent-embed src="file://...">\` tag to place in your reply.
 - \`replace: true\`: deletes any surface that the batch re-creates before applying it, instead of failing with "Surface already exists". It does not touch other surfaces. Express's own \`deleteSurface("id")\` statement works too.
 - \`stack: true\`: keeps the other surfaces already in the pane. By default, creating a surface clears every other surface from the pane; pass \`stack: true\` with a distinct \`surfaceId\` to add a surface alongside existing ones, or \`replace: true, stack: true\` to re-create one surface in a stacked pane.

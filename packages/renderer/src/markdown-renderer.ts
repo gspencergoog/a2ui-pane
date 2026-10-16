@@ -1,5 +1,6 @@
 import { renderMarkdown } from '@a2ui/markdown-it';
 
+/** Configuration options for the rich Markdown, MathML, and Mermaid renderer. */
 export interface RichMarkdownOptions {
   tagClassMap?: Record<string, string[]>;
   mermaidRenderer?: (code: string) => Promise<string> | string;

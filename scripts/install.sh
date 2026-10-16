@@ -170,7 +170,7 @@ env_token = os.environ.get("ANTIGRAVITY_CSRF_TOKEN")
 if env_addr and env_token:
     instances.append((env_addr, env_token))
 
-# 2. Linux /proc scan (Jetski / Cloudtop)
+# 2. Linux /proc scan
 for env_file in glob.glob("/proc/[0-9]*/environ"):
     try:
         raw = open(env_file, "rb").read().decode("utf-8", errors="ignore")

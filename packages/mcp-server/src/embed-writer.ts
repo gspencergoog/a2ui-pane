@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { isValidId } from '@a2ui-pane/protocol';
 import { HOST_THEME_CSS } from '@a2ui-pane/theme';
 
+/** Options for generating a self-contained inline embed HTML document. */
 export interface EmbedWriterOptions {
   embedBundleJs?: string;
   embedBundlePath?: string;
@@ -21,6 +22,9 @@ export interface EmbedWriterOptions {
 let cachedBundleContent: string | null = null;
 let cachedBundleMtimeMs = 0;
 
+/**
+ * Loads and caches the compiled `embed.iife.js` runtime bundle from disk.
+ */
 export function loadEmbedBundle(customPath?: string): string {
   if (customPath && fs.existsSync(customPath)) {
     return fs.readFileSync(customPath, 'utf-8');

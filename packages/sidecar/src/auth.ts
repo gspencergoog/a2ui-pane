@@ -1,6 +1,7 @@
 import { IncomingMessage } from 'node:http';
 import crypto from 'node:crypto';
 
+/** Options controlling fallback behavior when no UI token is configured. */
 export interface CheckTokenOptions {
   allowUnauthenticated?: boolean;
 }

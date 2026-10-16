@@ -2,6 +2,7 @@ import { Catalog, MessageProcessor } from '@a2ui/web_core/v0_9';
 import { basicCatalog } from '@a2ui/lit/v0_9';
 import { A2uiActionDetails } from '@a2ui-pane/protocol';
 
+/** Callback invoked when a user interacts with an A2UI surface component. */
 export type ActionHandler = (
   action: A2uiActionDetails,
   dataModel?: Record<string, unknown>,

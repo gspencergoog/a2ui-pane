@@ -1,5 +1,5 @@
 {
   "name": "a2ui-pane",
-  "description": "Interactive Agent-to-User Interface (A2UI) viewer for Jetski and Antigravity, supporting live AuxPane rendering and inline embeds.",
+  "description": "Interactive Agent-to-User Interface (A2UI) viewer for Antigravity, supporting live AuxPane rendering and inline embeds.",
   "version": "0.1.0"
 }

@@ -16,11 +16,13 @@
  * Copied with attribution from A2UI Composer (bridge/src/surface-resize-observer.ts).
  */
 
+/** Measured height and width of the rendered embed surface in CSS pixels. */
 export interface SurfaceDimensions {
   height: number;
   width: number;
 }
 
+/** Callback invoked when the rendered surface dimensions change. */
 export type SurfaceResizeCallback = (dimensions: SurfaceDimensions) => void;
 
 /**

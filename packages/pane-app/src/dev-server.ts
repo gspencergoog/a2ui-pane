@@ -2,6 +2,7 @@ import { Plugin } from 'vite';
 import fs from 'node:fs';
 import path from 'node:path';
 
+/** Options for the standalone Vite development server plugin. */
 export interface DevServerOptions {
   fixturePath?: string;
 }

@@ -22,7 +22,7 @@ describe('sidecar index and main', () => {
           {
             sidecarId: 'a2ui-pane/a2ui-pane',
             webPort: 39027,
-            baseUrl: 'https://test.proxy.googlers.com?token=abc',
+            baseUrl: 'https://sidecar.example.com?token=abc',
           },
         ],
       }),
@@ -37,7 +37,7 @@ describe('sidecar index and main', () => {
       },
       mockFetchOk as any,
     );
-    expect(url).toBe('https://test.proxy.googlers.com?token=abc');
+    expect(url).toBe('https://sidecar.example.com?token=abc');
 
     const mockFetchNotOk = vi.fn().mockResolvedValue({ ok: false });
     expect(
