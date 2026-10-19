@@ -36,3 +36,11 @@ Gotchas that still bite:
 - `and` needs at least two values; use `?and([$/flag, true], msg)` to gate on one boolean.
 - Inside `_template` bodies use `$field`; `$/field` would read the surface root.
 - Keep ids out of your head: the compiler derives ids for components from variable names, so reuse the same names when updating.
+
+Compact inline chart (`mode: "inline"`, fits well under the 500px inline height cap):
+
+````text
+$/series = [{name: "Score", values: [28, 22, 19, 16, 12]}]
+$/labels = ["parseExpr", "compileDsl", "validate", "renderSvg", "inflate"]
+root = Card(Chart("horizontal-bar", $/series, $/labels, "Top Functions by Cognitive Complexity", "Score", _, 190))
+````

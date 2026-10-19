@@ -1,17 +1,17 @@
 ---
 name: genui
 description: >-
-  Shows information to the user through the right channel and collects
-  structured input back: chat Markdown, Markdown artifacts, interactive A2UI
-  surfaces (inline cards or the live side pane) authored in A2UI Express or
-  from named templates, HTML widgets via the generative_ui skill, or the host's
-  interactive question tool (ask_question or AskUserQuestion) and chat prompts
-  as the fallback. Use whenever you need to present a dashboard, form,
-  decision, triage list, progress board, confirmation gate, comparison, or any
-  UI beyond plain text, whenever you are about to ask the user more than one
-  question, and whenever another skill (grill-me, just-brainstorm, plan,
-  code-merge, pr-review, code-review, ship-it, commit-changes, branch-cleanup,
-  what-if, api-review) says "render with genui".
+  Presents information through the right channel and collects structured input
+  back: chat Markdown, Markdown artifacts, interactive A2UI surfaces (inline
+  cards or the live side pane) in A2UI Express or from named templates, HTML
+  widgets via generative_ui, or the host's question tool (ask_question or
+  AskUserQuestion) and chat prompts as the fallback. Use when presenting a
+  chart, dashboard, form, decision, triage list, progress board, confirmation
+  gate, or comparison, when asking more than one question, or when another skill
+  (grill-me, just-brainstorm, plan, code-merge, pr-review, code-review,
+  ship-it, commit-changes, branch-cleanup, what-if, api-review,
+  estimate-conversation-tokens, cognitive-complexity, conversation-auditor,
+  cost-optimization, duckdb) says "render with genui".
 ---
 
 # genui: How to Show Things
@@ -20,16 +20,16 @@ This skill decides _which_ channel fits and _how_ to build an A2UI surface with 
 
 ## 1. Pick the channel
 
-| Need                                                                     | Channel                                                                              | Signal to pick it                                                   |
-| :----------------------------------------------------------------------- | :----------------------------------------------------------------------------------- | :------------------------------------------------------------------ |
-| Short answer, status line, small table                                   | Chat Markdown                                                                        | Default. Nothing to collect back.                                   |
-| Report, plan, analysis, anything the user returns to                     | Markdown artifact                                                                    | Long-lived and linkable; no interaction needed.                     |
-| One or two inputs or decisions, structured answer needed back            | A2UI inline card (`mode: "inline"`)                                                  | Fits under the 500px host cap; the answer changes what you do next. |
-| Many items, lists, charts, diagrams, multi-turn updates, live progress   | A2UI pane (`mode: "pane"`)                                                           | Needs scrolling, modals, tabs, `Chart`, or in-place updates.        |
-| Free-form 3D/canvas visualization the catalogs cannot express            | HTML via the built-in `generative_ui` skill                                          | Read-mostly; no typed round trip.                                   |
-| Single self-contained choice, or the `a2ui-pane` tools are not available | Host interactive question tool (`ask_question` / `AskUserQuestion`) or numbered chat | Consequences are obvious from a one-line label.                     |
+| Need                                                                     | Channel                                                                              | Signal to pick it                                                                  |
+| :----------------------------------------------------------------------- | :----------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------- |
+| Short answer, status line, small table, 1–3 scalar metrics               | Chat Markdown                                                                        | Default. Nothing to collect back and no visual shape to plot.                      |
+| Report, plan, analysis, anything the user returns to                     | Markdown artifact                                                                    | Long-lived and linkable; no interaction needed.                                    |
+| One or two inputs/decisions, or a single compact `Chart`                 | A2UI inline card (`mode: "inline"`)                                                  | Fits under the 500px host cap; shows a focused chart or collects a decision.       |
+| Larger charts, KPI dashboards, many items, tabs, or live progress        | A2UI pane (`mode: "pane"`)                                                           | Needs >500px height, scrolling, modals, tabs, `metrics_dashboard`, or live updates. |
+| Free-form 3D/canvas visualization the catalogs cannot express            | HTML via the built-in `generative_ui` skill                                          | Read-mostly; no typed round trip.                                                  |
+| Single self-contained choice, or the `a2ui-pane` tools are not available | Host interactive question tool (`ask_question` / `AskUserQuestion`) or numbered chat | Consequences are obvious from a one-line label.                                    |
 
-Do not render a card where a sentence would do. Render a surface when you collect multiple decisions, show structure that prose hides, gate a consequential action, or track state across turns.
+Do not render a card where a sentence would do. Render a surface when you collect multiple decisions, show quantitative or structural patterns that prose hides, gate a consequential action, or track state across turns.
 
 ## 2. Fallback chain
 
@@ -55,8 +55,37 @@ When `render_a2ui` is neither a native tool nor a lazily loaded MCP tool on `a2u
 - One primary action per surface; name the event for what it decides (`confirm_assumptions`, `submit_triage_matrix`).
 - Keep inline cards compact: at most two questions, short consequence text, no scrolling.
 - Put background in the chat message with clickable `[file](file:///...)` links; put the decision controls in the surface.
-- Use `Chart(variant, series, labels=_, title=_, xAxisLabel=_, yAxisLabel=_, height=_, showLegend=_, showGrid=_, selected=_, action=_)` for interactive bar, stacked-bar, horizontal-bar, line, area, pie, donut, and scatter charts, or the `metrics_dashboard` template.
+- Use `Chart(variant, series, labels=_, title=_, xAxisLabel=_, yAxisLabel=_, height=_, showLegend=_, showGrid=_, selected=_, action=_)` for interactive charts when data passes the **Visual Worthiness Gate** below.
 - Use Markdown inside `Text` for emphasis, code spans, LaTeX, and ` ```mermaid ` diagrams (`flowchart`, `stateDiagram-v2`, `sequenceDiagram`, `pie`, `xychart-beta`).
+
+### When to Chart vs. Table (Visual Worthiness Gate)
+
+Render a `Chart` only when the data meets all three requirements:
+
+1. **Shared unit axis**: Every datum in a series measures the same unit (`ms`, `tokens`, `bytes`, `req/s`, `%`, or complexity score).
+2. **Minimum cardinality**: At least **4 data points** in a single series, or **2+ series compared across 3+ categories**.
+3. **Visual shape**: The user benefits from seeing distribution skew, hotspots, trajectories over steps/time, part-to-whole share, or 2D tradeoffs.
+
+**Suppress charts (keep in plain Markdown)** when any of the following hold:
+
+- **1 to 3 scalar values** or a single before/after pair (state the numbers and delta in prose).
+- **Mixed units** (`4 files`, `120 lines`, `94% coverage`, `1.4s` do not share a scale; use prose, a table, or KPI cards).
+- **String-heavy lookup tables** where the user needs exact file paths, commit SHAs, flags, or error messages.
+- **Brief factual lookups, simple status checks, or one-off clarifications** where rendering overhead slows the turn.
+
+**Inline vs. Pane sizing**:
+
+- Prefer `mode: "inline"` when a standalone chart fits comfortably inside the 500px inline height cap (`root = Card(Chart(..., height=180))` or `height=200`).
+- Use `mode: "pane"` (with `template: "metrics_dashboard"` or custom `dsl`) when the chart needs more vertical room, pairs with KPI summary cards and follow-up controls, or stacks alongside other surfaces. Always pair a chart with a short takeaway or summary table in chat.
+
+| Data shape                                                                  | Variant          | Example                                                                        |
+| :-------------------------------------------------------------------------- | :--------------- | :----------------------------------------------------------------------------- |
+| Ranked items or hotspots with long labels (function, tool, or file names)   | `horizontal-bar` | Top functions by cognitive complexity; slowest commands in a session audit.    |
+| Multi-part composition across categories or turns                           | `stacked-bar`    | Per-step tokens split into `cached_input`, `uncached_input`, and `output`.     |
+| Side-by-side comparison of 2 to 3 series across categories                  | `bar`            | Benchmark throughput (`Baseline` vs. `Candidate`, or `aot`/`jit`/`wasm`).      |
+| Trajectory or cumulative growth over ordered steps or time                  | `line` or `area` | Cumulative context window fill across steps `1..N`; latency over time.         |
+| Part-to-whole share of a single total (4 to 7 slices)                       | `donut`          | Token spend share by category; bundle size breakdown by package.               |
+| Two-dimensional numeric tradeoff ($x$ vs. $y$ points per candidate)         | `scatter`        | Model/effort sweep plotting cost per task ($x$) against eval pass rate ($y$).  |
 
 ## 5. Handle the answer
 

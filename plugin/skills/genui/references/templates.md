@@ -38,6 +38,7 @@ Notes:
 - `bucket`, `choice`, `wave`, `verification`, and `policy` are string arrays even for single selection.
 - `ChoicePicker` options and `Tabs` titles are static in A2UI Express, which is why those variables appear under Customize instead of in the data.
 - Event names are literal in v0.9; to change one, redefine the button.
+- For a single compact chart without KPI cards or a note field, prefer an inline surface (`mode: "inline"`, `root = Card(Chart(..., height=190))`) so it renders directly in chat under the 500px cap; reach for `metrics_dashboard` (`mode: "pane"`) when combining KPI cards, a larger chart, and interactive selection/notes.
 
 ## Worked example: `triage_matrix`
 
