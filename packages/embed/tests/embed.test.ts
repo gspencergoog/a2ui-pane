@@ -484,21 +484,22 @@ describe('initEmbed', () => {
 
     const surface = instance?.applier.getProcessor().getSurface('surfFail');
 
-    // 1. Non-ok response falls back to PROMPT and leaves card unlocked
+    // 1. Non-ok response falls back to PROMPT and locks one-shot card
     await surface?.dispatchAction({ name: 'action1' });
     expect(postedEvents.some((e) => e.type === 'PROMPT')).toBe(true);
-    expect(instance?.isSubmitted()).toBe(false);
-    expect(instance?.paneView.style.pointerEvents).toBe('');
+    expect(instance?.isSubmitted()).toBe(true);
+    expect(instance?.paneView.style.pointerEvents).toBe('none');
     expect(consoleWarnSpy).toHaveBeenCalledWith(
       expect.stringContaining('Side channel returned HTTP 500'),
     );
 
-    // 2. Network error / rejection falls back to PROMPT and leaves card unlocked
+    // Unlock and test 2. Network error / rejection falls back to PROMPT and locks one-shot card
+    instance?.setSubmittedState(false);
     postedEvents.length = 0;
     await surface?.dispatchAction({ name: 'action2' });
     expect(postedEvents.some((e) => e.type === 'PROMPT')).toBe(true);
-    expect(instance?.isSubmitted()).toBe(false);
-    expect(instance?.paneView.style.pointerEvents).toBe('');
+    expect(instance?.isSubmitted()).toBe(true);
+    expect(instance?.paneView.style.pointerEvents).toBe('none');
     expect(consoleWarnSpy).toHaveBeenCalledWith(
       expect.stringContaining('Side channel fetch failed'),
       expect.any(Error),
@@ -552,5 +553,115 @@ describe('initEmbed', () => {
     instance2?.destroy();
     badScript.remove();
     consoleErrorSpy.mockRestore();
+  });
+
+  it('restores submittedComponents and submittedGroups from actionConfig on startup, unlocks via Edit/Resubmit, and keeps repeatable actions unlocked', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    const messages = [
+      {
+        version: 'v0.9',
+        createSurface: { surfaceId: 'surfPersist', catalogId: 'basic' },
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'surfPersist',
+          components: [
+            { id: 'root', component: 'Row', children: ['submit_btn', 'helper_btn'] },
+            { id: 'submit_txt', component: 'Text', text: 'Submit' },
+            { id: 'helper_txt', component: 'Text', text: 'Refresh' },
+            {
+              id: 'submit_btn',
+              component: 'Button',
+              variant: 'primary',
+              child: 'submit_txt',
+              action: {
+                event: {
+                  name: 'submit_form',
+                  context: { _oneShot: true, _group: 'form_group' },
+                },
+              },
+            },
+            {
+              id: 'helper_btn',
+              component: 'Button',
+              variant: 'borderless',
+              child: 'helper_txt',
+              action: {
+                event: {
+                  name: 'refresh_data',
+                  context: { _oneShot: false },
+                },
+              },
+            },
+          ],
+        },
+      },
+    ];
+
+    const instance = initEmbed({
+      container,
+      messagesJson: JSON.stringify(messages),
+      actionConfig: {
+        port: 54321,
+        key: 'persist-key',
+        surfaceId: 'surfPersist',
+        embedFile: 'embed_surfPersist_1700000000000_abcdef0123456789.html',
+        submittedComponents: ['submit_btn'],
+        submittedGroups: ['form_group'],
+      },
+      fetchFn: mockFetch as any,
+    });
+
+    expect(instance?.isSubmitted()).toBe(true);
+    await instance!.paneView.updateComplete;
+    const surfaceEl = instance!.paneView.shadowRoot!.querySelector('a2ui-surface')!;
+    await (surfaceEl as any).updateComplete;
+    await new Promise((r) => setTimeout(r, 30));
+
+    const buttonHosts = Array.from(surfaceEl.shadowRoot!.querySelectorAll('a2ui-basic-button'));
+    for (const host of buttonHosts) {
+      await (host as any).updateComplete;
+    }
+
+    const submitBtn = buttonHosts[0].querySelector('button') as HTMLButtonElement;
+    const helperBtn = buttonHosts[1].querySelector('button') as HTMLButtonElement;
+    expect(submitBtn.disabled).toBe(true);
+    expect(helperBtn.disabled).toBe(false);
+
+    // Click "Edit / Resubmit" -> unlocks card and re-enables submitBtn
+    const resubmitBtn = container.querySelector('.a2ui-embed-resubmit-btn') as HTMLButtonElement;
+    resubmitBtn.click();
+    for (const host of buttonHosts) {
+      await (host as any).updateComplete;
+    }
+
+    expect(instance?.isSubmitted()).toBe(false);
+    expect(submitBtn.disabled).toBe(false);
+
+    // Clicking repeatable helper button sends action without locking card or passing sourceComponentId
+    helperBtn.click();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(instance?.isSubmitted()).toBe(false);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const helperPayload = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(helperPayload.embedFile).toBe('embed_surfPersist_1700000000000_abcdef0123456789.html');
+    expect(helperPayload.sourceComponentId).toBeUndefined();
+
+    // Clicking one-shot submit button disables it, locks card, and sends sourceComponentId + group
+    submitBtn.click();
+    await new Promise((r) => setTimeout(r, 10));
+    for (const host of buttonHosts) {
+      await (host as any).updateComplete;
+    }
+    expect(instance?.isSubmitted()).toBe(true);
+    expect(submitBtn.disabled).toBe(true);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const submitPayload = JSON.parse(mockFetch.mock.calls[1][1].body);
+    expect(submitPayload.embedFile).toBe('embed_surfPersist_1700000000000_abcdef0123456789.html');
+    expect(submitPayload.sourceComponentId).toBe('submit_btn');
+    expect(submitPayload.group).toBe('form_group');
+
+    instance?.destroy();
   });
 });

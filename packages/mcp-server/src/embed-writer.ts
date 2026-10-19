@@ -16,8 +16,14 @@ export interface EmbedWriterOptions {
     conversationId?: string;
     sidecarUrl?: string;
     targetOrigin?: string;
+    embedFile?: string;
+    submittedComponents?: string[];
+    submittedGroups?: string[];
   };
 }
+
+/** Valid filename pattern for generated inline embed HTML documents. */
+export const EMBED_FILE_REGEX = /^embed_[A-Za-z0-9_-]+_\d+_[a-f0-9]+\.html$/;
 
 let cachedBundleContent: string | null = null;
 let cachedBundleMtimeMs = 0;
@@ -102,7 +108,7 @@ export function writeEmbed(
   // Escape < and > to prevent script tag injection breakout
   const sanitizedMessagesJson = escapeJsonForScript(messages);
   const sanitizedActionConfigJson = options.actionConfig
-    ? escapeJsonForScript(options.actionConfig)
+    ? escapeJsonForScript({ ...options.actionConfig, embedFile: fileName })
     : null;
 
   const html = `<!DOCTYPE html>
@@ -156,4 +162,80 @@ ${bundleJs}
 
   fs.writeFileSync(filePath, html, { mode: 0o600 });
   return filePath;
+}
+
+/** Options for recording submitted button state inside an existing embed HTML file on disk. */
+export interface StampEmbedSubmittedOptions {
+  dataDir: string;
+  conversationId: string;
+  embedFile: string;
+  componentId?: string;
+  group?: string;
+}
+
+const ACTION_CONFIG_SCRIPT_RE =
+  /(<script id="a2ui-action-config" type="application\/json">\r?\n)([\s\S]*?)(\r?\n\s*<\/script>)/;
+
+function appendUniqueString(existing: unknown, candidate?: string): string[] | undefined {
+  const trimmed = typeof candidate === 'string' ? candidate.trim() : '';
+  if (!trimmed) return undefined;
+  const list = Array.isArray(existing) ? existing : [];
+  return list.includes(trimmed) ? list : [...list, trimmed];
+}
+
+function updateActionConfigJson(
+  rawJson: string,
+  componentId?: string,
+  group?: string,
+): string | null {
+  let parsed: Record<string, any>;
+  try {
+    parsed = JSON.parse(rawJson);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return null;
+  }
+
+  const nextComponents = appendUniqueString(parsed.submittedComponents, componentId);
+  if (nextComponents) parsed.submittedComponents = nextComponents;
+
+  const nextGroups = appendUniqueString(parsed.submittedGroups, group);
+  if (nextGroups) parsed.submittedGroups = nextGroups;
+
+  return escapeJsonForScript(parsed);
+}
+
+/**
+ * Updates the `<script id="a2ui-action-config">` JSON block inside an existing `embed_*.html` file
+ * on disk to record `submittedComponents` and `submittedGroups` so remounted iframes stay disabled.
+ */
+export function stampEmbedSubmitted(opts: StampEmbedSubmittedOptions): boolean {
+  if (!opts.dataDir || !isValidId(opts.conversationId)) {
+    return false;
+  }
+  if (!opts.embedFile || !EMBED_FILE_REGEX.test(opts.embedFile)) {
+    return false;
+  }
+
+  const filePath = path.resolve(opts.dataDir, 'embeds', opts.conversationId, opts.embedFile);
+  if (!fs.existsSync(filePath)) {
+    return false;
+  }
+
+  try {
+    const html = fs.readFileSync(filePath, 'utf-8');
+    const match = ACTION_CONFIG_SCRIPT_RE.exec(html);
+    if (!match) return false;
+
+    const updatedJson = updateActionConfigJson(match[2], opts.componentId, opts.group);
+    if (!updatedJson) return false;
+
+    const updatedHtml = html.replace(ACTION_CONFIG_SCRIPT_RE, `$1${updatedJson}$3`);
+    fs.writeFileSync(filePath, updatedHtml, { mode: 0o600 });
+    return true;
+  } catch {
+    return false;
+  }
 }

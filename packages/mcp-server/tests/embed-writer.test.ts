@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { writeEmbed, loadEmbedBundle } from '../src/embed-writer.js';
+import { writeEmbed, loadEmbedBundle, stampEmbedSubmitted } from '../src/embed-writer.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -102,5 +102,65 @@ describe('embed-writer', () => {
     });
     const html = fs.readFileSync(writtenPath, 'utf-8');
     expect(html).toContain('console.log("custom bundle");');
+  });
+
+  it('includes embedFile in actionConfig and stamps submittedComponents and submittedGroups idempotently', () => {
+    const filePath = writeEmbed(tmpDir, 'conv_stamp', ['surf_gate'], [], {
+      actionConfig: {
+        port: 9999,
+        key: 'k_stamp',
+        surfaceId: 'surf_gate',
+        conversationId: 'conv_stamp',
+      },
+    });
+    const embedFile = path.basename(filePath);
+    const initialHtml = fs.readFileSync(filePath, 'utf-8');
+    expect(initialHtml).toContain(`"embedFile":"${embedFile}"`);
+
+    const ok1 = stampEmbedSubmitted({
+      dataDir: tmpDir,
+      conversationId: 'conv_stamp',
+      embedFile,
+      componentId: 'confirm_btn',
+      group: 'gate_decision',
+    });
+    expect(ok1).toBe(true);
+
+    // Duplicate stamp is idempotent
+    const ok2 = stampEmbedSubmitted({
+      dataDir: tmpDir,
+      conversationId: 'conv_stamp',
+      embedFile,
+      componentId: 'confirm_btn',
+      group: 'gate_decision',
+    });
+    expect(ok2).toBe(true);
+
+    const stampedHtml = fs.readFileSync(filePath, 'utf-8');
+    const match = stampedHtml.match(
+      /<script id="a2ui-action-config" type="application\/json">\r?\n([\s\S]*?)\r?\n\s*<\/script>/,
+    );
+    expect(match).not.toBeNull();
+    const parsedConfig = JSON.parse(match![1]);
+    expect(parsedConfig.submittedComponents).toEqual(['confirm_btn']);
+    expect(parsedConfig.submittedGroups).toEqual(['gate_decision']);
+
+    // Rejects path-traversal or invalid filenames
+    expect(
+      stampEmbedSubmitted({
+        dataDir: tmpDir,
+        conversationId: 'conv_stamp',
+        embedFile: '../evil.html',
+        componentId: 'btn',
+      }),
+    ).toBe(false);
+    expect(
+      stampEmbedSubmitted({
+        dataDir: tmpDir,
+        conversationId: '../bad',
+        embedFile,
+        componentId: 'btn',
+      }),
+    ).toBe(false);
   });
 });

@@ -68,6 +68,8 @@ interface PersistedSurfaceEntry {
   status: 'submitted' | 'dismissed';
   label?: string;
   seq: number;
+  components?: string[];
+  groups?: string[];
 }
 
 type PersistedStateMap = Record<string, PersistedSurfaceEntry>;
@@ -102,6 +104,29 @@ function writePersistedState(conversationId: string | null, state: PersistedStat
   }
 }
 
+function restorePersistedSurfaceEntry(
+  paneView: A2uiPaneView,
+  sid: string,
+  entry: PersistedSurfaceEntry,
+): void {
+  if (entry.status === 'dismissed') {
+    paneView.dismissSurface(sid);
+    return;
+  }
+  const comps = entry.components ?? [];
+  const groups = entry.groups ?? [];
+  if (comps.length > 0 || groups.length > 0) {
+    for (const compId of comps) {
+      paneView.markComponentSubmitted(sid, compId);
+    }
+    for (const grp of groups) {
+      paneView.markComponentSubmitted(sid, undefined, grp);
+    }
+    return;
+  }
+  paneView.markComponentSubmitted(sid);
+}
+
 function syncLinesWithPersistedState(
   lines: StoreLine[],
   prevLastSeq: number,
@@ -127,15 +152,39 @@ function syncLinesWithPersistedState(
       delete persisted[sid];
       changed = true;
       paneView.unsubmitSurface(sid);
-    } else if (entry.status === 'submitted') {
-      paneView.markSurfaceSubmitted(sid, entry.label);
-    } else if (entry.status === 'dismissed') {
-      paneView.dismissSurface(sid);
+    } else {
+      restorePersistedSurfaceEntry(paneView, sid, entry);
     }
   }
   if (changed) {
     writePersistedState(conversationId, persisted);
   }
+}
+
+function recordSubmittedComponentState(
+  persistedState: PersistedStateMap,
+  conversationId: string | null,
+  surfaceId: string,
+  seq: number,
+  sourceComponentId?: string,
+  group?: string,
+): void {
+  const prev = persistedState[surfaceId];
+  const comps = new Set(prev?.status === 'submitted' ? (prev.components ?? []) : []);
+  const groups = new Set(prev?.status === 'submitted' ? (prev.groups ?? []) : []);
+  if (sourceComponentId) {
+    comps.add(sourceComponentId);
+  }
+  if (group) {
+    groups.add(group);
+  }
+  persistedState[surfaceId] = {
+    status: 'submitted',
+    seq,
+    components: Array.from(comps),
+    groups: Array.from(groups),
+  };
+  writePersistedState(conversationId, persistedState);
 }
 
 function applyPaneSubmittedState(
@@ -394,22 +443,34 @@ export async function initPaneApp(options: InitOptions = {}): Promise<PaneAppIns
       if (targetSurfaceId && paneView.isSurfaceDismissed(targetSurfaceId)) return;
       if (!targetSurfaceId && submittedState) return;
 
+      const isOneShot = action?.oneShot !== false;
       actionSender
         .sendAction(action, dataModel)
         .then((sent) => {
           if (sent) {
-            submittedState = true;
-            if (targetSurfaceId) {
-              paneView.dismissSurface(targetSurfaceId);
-            } else {
-              setSubmittedState(true);
+            if (isOneShot) {
+              submittedState = true;
+              if (targetSurfaceId) {
+                recordSubmittedComponentState(
+                  persistedState,
+                  conversationId,
+                  targetSurfaceId,
+                  applier.getLastAppliedSeq(),
+                  typeof action.sourceComponentId === 'string'
+                    ? action.sourceComponentId
+                    : undefined,
+                  typeof action.group === 'string' ? action.group : undefined,
+                );
+              } else {
+                setSubmittedState(true);
+              }
+              try {
+                (window as any).sidecar?.ui?.toggleAuxPane?.({ open: false });
+              } catch {
+                // Ignore host bridge errors
+              }
             }
             showToast('Submitted to agent', false);
-            try {
-              (window as any).sidecar?.ui?.toggleAuxPane?.({ open: false });
-            } catch {
-              // Ignore host bridge errors
-            }
           }
         })
         .catch((err) => {

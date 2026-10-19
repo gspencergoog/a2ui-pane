@@ -511,6 +511,71 @@ describe('SidecarServer', () => {
       });
       expect(res2.status).toBe(400);
     });
+
+    it('stamps submittedComponents and submittedGroups into embed_*.html on disk when embedFile is passed', async () => {
+      const embedDir = path.join(tmpDir, 'embeds', 'default-conv-id');
+      fs.mkdirSync(embedDir, { recursive: true });
+      const embedFile = 'embed_surf1_1700000000000_abcdef0123456789.html';
+      const embedPath = path.join(embedDir, embedFile);
+      fs.writeFileSync(
+        embedPath,
+        `<!DOCTYPE html><html><body>
+  <script id="a2ui-action-config" type="application/json">
+{"surfaceId":"surf1","conversationId":"default-conv-id","embedFile":"${embedFile}"}
+  </script>
+</body></html>`,
+      );
+
+      const fakeExec = vi.fn((_f: any, _a: any, _o: any, cb: any) => {
+        cb(null, '{"ok":true}', '');
+      }) as any;
+
+      const custom = createSidecarServer(env, {
+        storeReader,
+        notifier,
+        staticDir,
+        execFileFn: fakeExec,
+      });
+
+      let p = 0;
+      await new Promise<void>((resolve) => {
+        custom.listen(0, '127.0.0.1', () => {
+          p = (custom.address() as any).port;
+          resolve();
+        });
+      });
+
+      try {
+        const resp = await new Promise<{ status: number; body: string }>((resolve) => {
+          const req = http.request(
+            `http://127.0.0.1:${p}/_sidecar/send-message?token=test-secret-token`,
+            { method: 'POST', headers: { 'Content-Type': 'application/json' } },
+            (r) => {
+              let d = '';
+              r.on('data', (c) => (d += c));
+              r.on('end', () => resolve({ status: r.statusCode ?? 0, body: d }));
+            },
+          );
+          req.write(
+            JSON.stringify({
+              conversationId: 'default-conv-id',
+              message: '[A2UI] Triggered "Approve"',
+              embedFile,
+              sourceComponentId: 'confirm_btn',
+              group: 'gate_decision',
+            }),
+          );
+          req.end();
+        });
+
+        expect(resp.status).toBe(200);
+        const updatedHtml = fs.readFileSync(embedPath, 'utf-8');
+        expect(updatedHtml).toContain('"submittedComponents":["confirm_btn"]');
+        expect(updatedHtml).toContain('"submittedGroups":["gate_decision"]');
+      } finally {
+        await new Promise<void>((resolve) => custom.close(() => resolve()));
+      }
+    });
   });
 
   it('exercises preload cache on repeated calls', async () => {

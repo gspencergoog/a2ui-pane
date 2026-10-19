@@ -31,4 +31,4 @@ main_chart = Chart("bar", $/series, $/labels, $/chartTitle, $/xAxisLabel, $/yAxi
 dash_bottom_divider = Divider()
 dash_note = TextField("Observation or follow-up question", $/note)
 dash_footer = Row([submit_btn], "end", "center")
-submit_btn = Button(Text($/submitLabel), "primary", Event("inspect_metric", {selected: $/selected, note: $/note}))
+submit_btn = Button(Text($/submitLabel), "primary", Event("inspect_metric", {selected: $/selected, note: $/note, _oneShot: false}))

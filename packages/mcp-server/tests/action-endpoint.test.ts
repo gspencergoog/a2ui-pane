@@ -396,4 +396,43 @@ describe('ActionEndpoint', () => {
       if (savedLsAddr !== undefined) process.env.ANTIGRAVITY_LS_ADDRESS = savedLsAddr;
     }
   });
+
+  it('stamps submittedComponents into embed_*.html on disk when action arrives with embedFile', async () => {
+    const { writeEmbed } = await import('../src/embed-writer.js');
+    endpoint = new ActionEndpoint({
+      dataDir: tempDir,
+      sendActionDirectly: async () => {},
+    });
+    const port = await endpoint.start();
+    const key = endpoint.registerEmbed('conv_stamp_ep', 'surf_stamp_ep');
+
+    const embedPath = writeEmbed(tempDir, 'conv_stamp_ep', ['surf_stamp_ep'], [], {
+      actionConfig: {
+        port,
+        key,
+        surfaceId: 'surf_stamp_ep',
+        conversationId: 'conv_stamp_ep',
+      },
+    });
+    const embedFile = embedPath.split('/').pop()!;
+
+    const res = await fetch(`http://127.0.0.1:${port}/action`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-A2UI-Key': key,
+      },
+      body: JSON.stringify({
+        action: { name: 'submitForm' },
+        embedFile,
+        sourceComponentId: 'submit_btn',
+        group: 'main_group',
+      }),
+    });
+    expect(res.status).toBe(200);
+
+    const updatedHtml = readFileSync(embedPath, 'utf-8');
+    expect(updatedHtml).toContain('"submittedComponents":["submit_btn"]');
+    expect(updatedHtml).toContain('"submittedGroups":["main_group"]');
+  });
 });

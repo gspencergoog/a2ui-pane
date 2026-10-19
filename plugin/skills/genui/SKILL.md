@@ -20,14 +20,14 @@ This skill decides _which_ channel fits and _how_ to build an A2UI surface with 
 
 ## 1. Pick the channel
 
-| Need                                                                     | Channel                                                                              | Signal to pick it                                                                  |
-| :----------------------------------------------------------------------- | :----------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------- |
-| Short answer, status line, small table, 1–3 scalar metrics               | Chat Markdown                                                                        | Default. Nothing to collect back and no visual shape to plot.                      |
-| Report, plan, analysis, anything the user returns to                     | Markdown artifact                                                                    | Long-lived and linkable; no interaction needed.                                    |
-| One or two inputs/decisions, or a single compact `Chart`                 | A2UI inline card (`mode: "inline"`)                                                  | Fits under the 500px host cap; shows a focused chart or collects a decision.       |
+| Need                                                                     | Channel                                                                              | Signal to pick it                                                                   |
+| :----------------------------------------------------------------------- | :----------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------- |
+| Short answer, status line, small table, 1–3 scalar metrics               | Chat Markdown                                                                        | Default. Nothing to collect back and no visual shape to plot.                       |
+| Report, plan, analysis, anything the user returns to                     | Markdown artifact                                                                    | Long-lived and linkable; no interaction needed.                                     |
+| One or two inputs/decisions, or a single compact `Chart`                 | A2UI inline card (`mode: "inline"`)                                                  | Fits under the 500px host cap; shows a focused chart or collects a decision.        |
 | Larger charts, KPI dashboards, many items, tabs, or live progress        | A2UI pane (`mode: "pane"`)                                                           | Needs >500px height, scrolling, modals, tabs, `metrics_dashboard`, or live updates. |
-| Free-form 3D/canvas visualization the catalogs cannot express            | HTML via the built-in `generative_ui` skill                                          | Read-mostly; no typed round trip.                                                  |
-| Single self-contained choice, or the `a2ui-pane` tools are not available | Host interactive question tool (`ask_question` / `AskUserQuestion`) or numbered chat | Consequences are obvious from a one-line label.                                    |
+| Free-form 3D/canvas visualization the catalogs cannot express            | HTML via the built-in `generative_ui` skill                                          | Read-mostly; no typed round trip.                                                   |
+| Single self-contained choice, or the `a2ui-pane` tools are not available | Host interactive question tool (`ask_question` / `AskUserQuestion`) or numbered chat | Consequences are obvious from a one-line label.                                     |
 
 Do not render a card where a sentence would do. Render a surface when you collect multiple decisions, show quantitative or structural patterns that prose hides, gate a consequential action, or track state across turns.
 
@@ -52,7 +52,7 @@ When `render_a2ui` is neither a native tool nor a lazily loaded MCP tool on `a2u
 ## 4. Design rules
 
 - Pre-populate your recommendation in the data so the user edits exceptions instead of filling in blanks.
-- One primary action per surface; name the event for what it decides (`confirm_assumptions`, `submit_triage_matrix`).
+- One primary action per surface; name the event for what it decides (`confirm_assumptions`, `submit_triage_matrix`). Primary buttons disable after one click by default. Pass `_oneShot: false` in `Event("name", { _oneShot: false })` for repeatable actions, or `_oneShot: true, _group: "<group>"` on paired decision buttons so clicking either disables both.
 - Keep inline cards compact: at most two questions, short consequence text, no scrolling.
 - Put background in the chat message with clickable `[file](file:///...)` links; put the decision controls in the surface.
 - Use `Chart(variant, series, labels=_, title=_, xAxisLabel=_, yAxisLabel=_, height=_, showLegend=_, showGrid=_, selected=_, action=_)` for interactive charts when data passes the **Visual Worthiness Gate** below.
@@ -78,14 +78,14 @@ Render a `Chart` only when the data meets all three requirements:
 - Prefer `mode: "inline"` when a standalone chart fits comfortably inside the 500px inline height cap (`root = Card(Chart(..., height=180))` or `height=200`).
 - Use `mode: "pane"` (with `template: "metrics_dashboard"` or custom `dsl`) when the chart needs more vertical room, pairs with KPI summary cards and follow-up controls, or stacks alongside other surfaces. Always pair a chart with a short takeaway or summary table in chat.
 
-| Data shape                                                                  | Variant          | Example                                                                        |
-| :-------------------------------------------------------------------------- | :--------------- | :----------------------------------------------------------------------------- |
-| Ranked items or hotspots with long labels (function, tool, or file names)   | `horizontal-bar` | Top functions by cognitive complexity; slowest commands in a session audit.    |
-| Multi-part composition across categories or turns                           | `stacked-bar`    | Per-step tokens split into `cached_input`, `uncached_input`, and `output`.     |
-| Side-by-side comparison of 2 to 3 series across categories                  | `bar`            | Benchmark throughput (`Baseline` vs. `Candidate`, or `aot`/`jit`/`wasm`).      |
-| Trajectory or cumulative growth over ordered steps or time                  | `line` or `area` | Cumulative context window fill across steps `1..N`; latency over time.         |
-| Part-to-whole share of a single total (4 to 7 slices)                       | `donut`          | Token spend share by category; bundle size breakdown by package.               |
-| Two-dimensional numeric tradeoff ($x$ vs. $y$ points per candidate)         | `scatter`        | Model/effort sweep plotting cost per task ($x$) against eval pass rate ($y$).  |
+| Data shape                                                                | Variant          | Example                                                                       |
+| :------------------------------------------------------------------------ | :--------------- | :---------------------------------------------------------------------------- |
+| Ranked items or hotspots with long labels (function, tool, or file names) | `horizontal-bar` | Top functions by cognitive complexity; slowest commands in a session audit.   |
+| Multi-part composition across categories or turns                         | `stacked-bar`    | Per-step tokens split into `cached_input`, `uncached_input`, and `output`.    |
+| Side-by-side comparison of 2 to 3 series across categories                | `bar`            | Benchmark throughput (`Baseline` vs. `Candidate`, or `aot`/`jit`/`wasm`).     |
+| Trajectory or cumulative growth over ordered steps or time                | `line` or `area` | Cumulative context window fill across steps `1..N`; latency over time.        |
+| Part-to-whole share of a single total (4 to 7 slices)                     | `donut`          | Token spend share by category; bundle size breakdown by package.              |
+| Two-dimensional numeric tradeoff ($x$ vs. $y$ points per candidate)       | `scatter`        | Model/effort sweep plotting cost per task ($x$) against eval pass rate ($y$). |
 
 ## 5. Handle the answer
 

@@ -73,7 +73,11 @@
           "child": "cancel_btn_child",
           "action": {
             "event": {
-              "name": "cancel_confirm_gate"
+              "name": "cancel_confirm_gate",
+              "context": {
+                "_oneShot": true,
+                "_group": "gate_decision"
+              }
             }
           }
         },
@@ -97,7 +101,9 @@
               "context": {
                 "confirmed": {
                   "@path": "/confirmed"
-                }
+                },
+                "_oneShot": true,
+                "_group": "gate_decision"
               }
             }
           },

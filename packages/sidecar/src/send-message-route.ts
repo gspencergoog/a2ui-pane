@@ -1,5 +1,7 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { execFile } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 import { isValidId } from '@a2ui-pane/protocol';
 
 /** Function signature matching `node:child_process.execFile` for dependency injection. */
@@ -9,6 +11,66 @@ export type ExecFileFn = typeof execFile;
 export interface SendMessageOptions {
   agentapiExe?: string;
   execFileFn?: ExecFileFn;
+  dataDir?: string;
+}
+
+const EMBED_FILE_REGEX = /^embed_[A-Za-z0-9_-]+_\d+_[a-f0-9]+\.html$/;
+const ACTION_CONFIG_SCRIPT_RE =
+  /(<script id="a2ui-action-config" type="application\/json">\r?\n)([\s\S]*?)(\r?\n\s*<\/script>)/;
+
+function appendUniqueString(existing: unknown, candidate?: string): string[] | undefined {
+  const trimmed = typeof candidate === 'string' ? candidate.trim() : '';
+  if (!trimmed) return undefined;
+  const list = Array.isArray(existing) ? existing : [];
+  return list.includes(trimmed) ? list : [...list, trimmed];
+}
+
+function updateActionConfigJson(
+  rawJson: string,
+  componentId?: string,
+  group?: string,
+): string | null {
+  let parsed: Record<string, any>;
+  try {
+    parsed = JSON.parse(rawJson);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+
+  const nextComponents = appendUniqueString(parsed.submittedComponents, componentId);
+  if (nextComponents) parsed.submittedComponents = nextComponents;
+
+  const nextGroups = appendUniqueString(parsed.submittedGroups, group);
+  if (nextGroups) parsed.submittedGroups = nextGroups;
+
+  return JSON.stringify(parsed).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
+}
+
+function stampEmbedActionConfig(
+  dataDir: string,
+  conversationId: string,
+  embedFile?: string,
+  componentId?: string,
+  group?: string,
+): void {
+  if (!dataDir || !embedFile || !EMBED_FILE_REGEX.test(embedFile)) return;
+  const filePath = path.resolve(dataDir, 'embeds', conversationId, embedFile);
+  if (!fs.existsSync(filePath)) return;
+
+  try {
+    const html = fs.readFileSync(filePath, 'utf-8');
+    const match = ACTION_CONFIG_SCRIPT_RE.exec(html);
+    if (!match) return;
+
+    const updatedJson = updateActionConfigJson(match[2], componentId, group);
+    if (!updatedJson) return;
+
+    const updatedHtml = html.replace(ACTION_CONFIG_SCRIPT_RE, `$1${updatedJson}$3`);
+    fs.writeFileSync(filePath, updatedHtml, { mode: 0o600 });
+  } catch {
+    // Ignore filesystem errors during best-effort embed stamping
+  }
 }
 
 const MAX_BODY_BYTES = 120 * 1024; // 120 KB (below Linux MAX_ARG_STRLEN 128 KB)
@@ -83,6 +145,16 @@ export function handleSendMessage(
       res.writeHead(400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: "Missing required 'message' string content" }));
       return;
+    }
+
+    if (options.dataDir && typeof parsed?.embedFile === 'string') {
+      stampEmbedActionConfig(
+        options.dataDir,
+        conversationId,
+        parsed.embedFile,
+        typeof parsed.sourceComponentId === 'string' ? parsed.sourceComponentId : undefined,
+        typeof parsed.group === 'string' ? parsed.group : undefined,
+      );
     }
 
     const execFn = options.execFileFn ?? execFile;

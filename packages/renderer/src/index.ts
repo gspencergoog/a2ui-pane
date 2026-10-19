@@ -1,4 +1,18 @@
-export { createProcessor, type ActionHandler } from './processor.js';
+export {
+  createProcessor,
+  markComponentSubmitted,
+  clearSubmittedState,
+  type ActionHandler,
+  type DispatchedActionDetails,
+} from './processor.js';
+export {
+  installButtonStateRenderer,
+  isOneShotButton,
+  isComponentSubmitted,
+  type ButtonComponentModelLike,
+  type SurfaceDataModelLike,
+  type ButtonOneShotConfig,
+} from './button-state.js';
 export { LineApplier, type LineApplyError, type ResetListener } from './line-applier.js';
 export {
   A2uiPaneView,

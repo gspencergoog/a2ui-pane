@@ -410,7 +410,7 @@ describe('initPaneApp', () => {
     );
   });
 
-  it('clears surface immediately after action submission, notifies agent on X dismiss button click, and restores dismissed state from sessionStorage', async () => {
+  it('keeps surface visible with one-shot button disabled after action submission, notifies agent on X dismiss button click, and restores submitted and dismissed state from sessionStorage', async () => {
     const toggleSpy = vi.fn();
     const sentMessages: string[] = [];
     (window as any).sidecar = { ui: { toggleAuxPane: toggleSpy } };
@@ -436,25 +436,78 @@ describe('initPaneApp', () => {
           createSurface: { surfaceId: 'surfLock', catalogId: 'basic' },
         },
       },
+      {
+        seq: 2,
+        ts: new Date().toISOString(),
+        callId: 'c1',
+        message: {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'surfLock',
+            components: [
+              { id: 'root', component: 'Row', children: ['submit_btn', 'helper_btn'] },
+              { id: 'submit_txt', component: 'Text', text: 'Submit Alignment' },
+              { id: 'helper_txt', component: 'Text', text: 'Filter' },
+              {
+                id: 'submit_btn',
+                component: 'Button',
+                variant: 'primary',
+                child: 'submit_txt',
+                action: {
+                  event: {
+                    name: 'submit_alignment',
+                    context: { label: 'Submit Alignment', _group: 'align_grp' },
+                  },
+                },
+              },
+              {
+                id: 'helper_btn',
+                component: 'Button',
+                variant: 'borderless',
+                child: 'helper_txt',
+                action: {
+                  event: {
+                    name: 'filter_items',
+                    context: { _oneShot: false },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
     ]);
 
     const paneView = container.querySelector('#pane-view') as A2uiPaneView;
     await paneView.updateComplete;
 
     const surface = instance!.applier.getProcessor().getSurface('surfLock');
-    surface?.dispatchAction({ name: 'submit_alignment', context: { label: 'Submit Alignment' } });
+
+    // Repeatable helper button does not close AuxPane or set submittedState
+    surface?.dispatchAction({ name: 'filter_items', context: { _oneShot: false } }, 'helper_btn');
+    await new Promise((r) => setTimeout(r, 20));
+    expect(instance!.isSubmitted()).toBe(false);
+    expect(toggleSpy).not.toHaveBeenCalled();
+
+    // One-shot primary button disables button while keeping surface visible
+    surface?.dispatchAction(
+      { name: 'submit_alignment', context: { label: 'Submit Alignment', _group: 'align_grp' } },
+      'submit_btn',
+    );
     await new Promise((r) => setTimeout(r, 20));
     await paneView.updateComplete;
 
     expect(instance!.isSubmitted()).toBe(true);
-    expect(paneView.isSurfaceDismissed('surfLock')).toBe(true);
-    expect(paneView.shadowRoot!.querySelector('.a2ui-empty-state')).not.toBeNull();
+    expect(paneView.isSurfaceDismissed('surfLock')).toBe(false);
+    expect(paneView.shadowRoot!.querySelector('[data-surface-id="surfLock"]')).not.toBeNull();
+    expect(surface?.dataModel.get('/_submitted/submit_btn')).toBe(true);
+    expect(surface?.dataModel.get('/_submitted/_group/align_grp')).toBe(true);
     expect(toggleSpy).toHaveBeenCalledWith({ open: false });
 
     // Apply a new surface surfLock2 -> renders with X dismiss button
     instance!.applier.apply([
       {
-        seq: 2,
+        seq: 3,
         ts: new Date().toISOString(),
         callId: 'c2',
         message: {
@@ -465,25 +518,22 @@ describe('initPaneApp', () => {
     ]);
     await paneView.updateComplete;
     expect(instance!.isSubmitted()).toBe(false);
-    expect(paneView.shadowRoot!.querySelector('[data-surface-id="surfLock"]')).toBeNull();
     expect(paneView.shadowRoot!.querySelector('[data-surface-id="surfLock2"]')).not.toBeNull();
 
     // Clicking the built-in X dismiss button clears surfLock2 and notifies the agent
-    const closeBtn = paneView.shadowRoot!.querySelector(
-      '.a2ui-surface-close-btn',
-    ) as HTMLButtonElement;
-    expect(closeBtn).not.toBeNull();
-    closeBtn.click();
+    const closeBtns = paneView.shadowRoot!.querySelectorAll('.a2ui-surface-close-btn');
+    const closeBtn2 = closeBtns[closeBtns.length - 1] as HTMLButtonElement;
+    expect(closeBtn2).not.toBeNull();
+    closeBtn2.click();
     await new Promise((r) => setTimeout(r, 20));
     await paneView.updateComplete;
 
     expect(paneView.isSurfaceDismissed('surfLock2')).toBe(true);
-    expect(paneView.shadowRoot!.querySelector('.a2ui-empty-state')).not.toBeNull();
     expect(sentMessages.some((m) => m.includes('dismiss_surface') && m.includes('surfLock2'))).toBe(
       true,
     );
 
-    // Reload initPaneApp to verify sessionStorage keeps surfLock2 dismissed on history replay
+    // Reload initPaneApp to verify sessionStorage restores surfLock's disabled button and surfLock2's dismissed state
     const reloadedContainer = document.createElement('div');
     document.body.appendChild(reloadedContainer);
     const reloaded = await initPaneApp({
@@ -493,7 +543,38 @@ describe('initPaneApp', () => {
     });
     reloaded!.applier.apply([
       {
+        seq: 1,
+        ts: new Date().toISOString(),
+        callId: 'c1',
+        message: {
+          version: 'v0.9',
+          createSurface: { surfaceId: 'surfLock', catalogId: 'basic' },
+        },
+      },
+      {
         seq: 2,
+        ts: new Date().toISOString(),
+        callId: 'c1',
+        message: {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'surfLock',
+            components: [
+              { id: 'root', component: 'Row', children: ['submit_btn'] },
+              { id: 'submit_txt', component: 'Text', text: 'Submit Alignment' },
+              {
+                id: 'submit_btn',
+                component: 'Button',
+                variant: 'primary',
+                child: 'submit_txt',
+                action: { event: { name: 'submit_alignment' } },
+              },
+            ],
+          },
+        },
+      },
+      {
+        seq: 3,
         ts: new Date().toISOString(),
         callId: 'c2',
         message: {
@@ -504,15 +585,26 @@ describe('initPaneApp', () => {
     ]);
     const reloadedPaneView = reloadedContainer.querySelector('#pane-view') as A2uiPaneView;
     await reloadedPaneView.updateComplete;
+    const reloadedSurfLock = reloaded!.applier.getProcessor().getSurface('surfLock');
+    expect(reloadedSurfLock?.dataModel.get('/_submitted/submit_btn')).toBe(true);
+    expect(reloadedSurfLock?.dataModel.get('/_submitted/_group/align_grp')).toBe(true);
     expect(reloadedPaneView.isSurfaceDismissed('surfLock2')).toBe(true);
-    expect(reloadedPaneView.shadowRoot!.querySelector('.a2ui-empty-state')).not.toBeNull();
 
-    // Applying a newer seq (seq 3) for surfLock2 clears the persisted dismissed state
+    // Applying a newer seq (seq 4) for surfLock and surfLock2 clears their persisted state
     reloaded!.applier.apply([
       {
-        seq: 3,
+        seq: 4,
         ts: new Date().toISOString(),
         callId: 'c3',
+        message: {
+          version: 'v0.9',
+          updateDataModel: { surfaceId: 'surfLock', path: '/updated', value: true },
+        },
+      },
+      {
+        seq: 5,
+        ts: new Date().toISOString(),
+        callId: 'c4',
         message: {
           version: 'v0.9',
           updateDataModel: { surfaceId: 'surfLock2', path: '/updated', value: true },
@@ -520,6 +612,7 @@ describe('initPaneApp', () => {
       },
     ]);
     await reloadedPaneView.updateComplete;
+    expect(reloadedSurfLock?.dataModel.get('/_submitted/submit_btn')).toBeUndefined();
     expect(reloadedPaneView.isSurfaceDismissed('surfLock2')).toBe(false);
 
     document.body.removeChild(reloadedContainer);

@@ -4,6 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { formatActionText, type A2uiActionDetails } from '@a2ui-pane/protocol';
+import { stampEmbedSubmitted } from './embed-writer.js';
 
 /** Configuration options for the loopback HTTP action endpoint. */
 export interface ActionEndpointOptions {
@@ -286,6 +287,21 @@ export class ActionEndpoint {
       return;
     }
 
+    const embedFile = typeof payload?.embedFile === 'string' ? payload.embedFile : undefined;
+    const sourceComponentId =
+      typeof payload?.sourceComponentId === 'string' ? payload.sourceComponentId : undefined;
+    const group = typeof payload?.group === 'string' ? payload.group : undefined;
+
+    if (embedFile && (sourceComponentId || group)) {
+      stampEmbedSubmitted({
+        dataDir: this.options.dataDir,
+        conversationId: embed.conversationId,
+        embedFile,
+        componentId: sourceComponentId,
+        group,
+      });
+    }
+
     const waiterKey = `${embed.conversationId}:${embed.surfaceId}`;
     const pending = this.pendingAwaits.get(waiterKey);
 
@@ -317,7 +333,11 @@ export class ActionEndpoint {
     if (this.options.sendActionDirectly) {
       await this.options.sendActionDirectly(embed.conversationId, promptText);
     } else {
-      await this.dispatchAgentapi(embed.conversationId, promptText);
+      await this.dispatchAgentapi(embed.conversationId, promptText, {
+        embedFile,
+        sourceComponentId,
+        group,
+      });
     }
 
     res.writeHead(200, {
@@ -328,7 +348,11 @@ export class ActionEndpoint {
     res.end(JSON.stringify({ ok: true, routedTo: 'agentapi' }));
   }
 
-  private async dispatchAgentapi(conversationId: string, message: string): Promise<void> {
+  private async dispatchAgentapi(
+    conversationId: string,
+    message: string,
+    embedMeta?: { embedFile?: string; sourceComponentId?: string; group?: string },
+  ): Promise<void> {
     const endpointFile = path.join(this.options.dataDir, 'sidecar-endpoint.json');
     if (
       !this.options.agentapiExe &&
@@ -336,7 +360,7 @@ export class ActionEndpoint {
       !process.env.ANTIGRAVITY_LS_ADDRESS &&
       fs.existsSync(endpointFile)
     ) {
-      await this.dispatchViaSidecar(endpointFile, conversationId, message);
+      await this.dispatchViaSidecar(endpointFile, conversationId, message, embedMeta);
       return;
     }
 
@@ -362,6 +386,7 @@ export class ActionEndpoint {
     endpointFile: string,
     conversationId: string,
     message: string,
+    embedMeta?: { embedFile?: string; sourceComponentId?: string; group?: string },
   ): Promise<void> {
     const raw = fs.readFileSync(endpointFile, 'utf-8');
     const { port, uiToken } = JSON.parse(raw) as { port: number; uiToken?: string };
@@ -372,7 +397,7 @@ export class ActionEndpoint {
     const resp = await fetch(`http://127.0.0.1:${port}/_sidecar/send-message`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ conversationId, message }),
+      body: JSON.stringify({ conversationId, message, ...embedMeta }),
       signal: AbortSignal.timeout(AGENTAPI_TIMEOUT_MS),
     });
     if (!resp.ok) {

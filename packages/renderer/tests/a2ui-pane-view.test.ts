@@ -376,4 +376,134 @@ describe('A2uiPaneView', () => {
     expect(h4El).not.toBeNull();
     expect(h4El!.innerHTML).toContain('<code>code</code>');
   });
+
+  it('disables one-shot and grouped buttons on click while keeping repeatable buttons active', async () => {
+    const actions: any[] = [];
+    const processor = createProcessor((action) => {
+      actions.push(action);
+    });
+
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: { surfaceId: 'surfButtons', catalogId: 'basic' },
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'surfButtons',
+          components: [
+            {
+              id: 'root',
+              component: 'Row',
+              children: ['approve_btn', 'cancel_btn', 'helper_btn'],
+            },
+            { id: 'approve_txt', component: 'Text', text: 'Approve' },
+            { id: 'cancel_txt', component: 'Text', text: 'Cancel' },
+            { id: 'helper_txt', component: 'Text', text: 'Inspect' },
+            {
+              id: 'approve_btn',
+              component: 'Button',
+              variant: 'primary',
+              child: 'approve_txt',
+              action: {
+                event: {
+                  name: 'decide',
+                  context: { approved: true, _oneShot: true, _group: 'gate' },
+                },
+              },
+            },
+            {
+              id: 'cancel_btn',
+              component: 'Button',
+              variant: 'default',
+              child: 'cancel_txt',
+              action: {
+                event: {
+                  name: 'decide',
+                  context: { approved: false, _oneShot: true, _group: 'gate' },
+                },
+              },
+            },
+            {
+              id: 'helper_btn',
+              component: 'Button',
+              variant: 'borderless',
+              child: 'helper_txt',
+              action: {
+                event: {
+                  name: 'inspect',
+                  context: { _oneShot: false },
+                },
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    element.processor = processor;
+    await element.updateComplete;
+
+    const surfaceEl = element.shadowRoot!.querySelector('a2ui-surface')!;
+    await (surfaceEl as any).updateComplete;
+    await new Promise((r) => setTimeout(r, 30));
+
+    const buttonHosts = Array.from(surfaceEl.shadowRoot!.querySelectorAll('a2ui-basic-button'));
+    expect(buttonHosts).toHaveLength(3);
+    for (const host of buttonHosts) {
+      await (host as any).updateComplete;
+    }
+
+    const approveBtn = buttonHosts[0].querySelector('button') as HTMLButtonElement;
+    const cancelBtn = buttonHosts[1].querySelector('button') as HTMLButtonElement;
+    const helperBtn = buttonHosts[2].querySelector('button') as HTMLButtonElement;
+
+    expect(approveBtn.disabled).toBe(false);
+    expect(cancelBtn.disabled).toBe(false);
+    expect(helperBtn.disabled).toBe(false);
+
+    // Clicking repeatable borderless button fires action and stays enabled
+    helperBtn.click();
+    await (buttonHosts[2] as any).updateComplete;
+    expect(actions).toHaveLength(1);
+    expect(actions[0].name).toBe('inspect');
+    expect(actions[0].oneShot).toBe(false);
+    expect(helperBtn.disabled).toBe(false);
+
+    helperBtn.click();
+    expect(actions).toHaveLength(2);
+
+    // Clicking primary button disables both approveBtn and grouped cancelBtn
+    approveBtn.click();
+    for (const host of buttonHosts) {
+      await (host as any).updateComplete;
+    }
+
+    expect(actions).toHaveLength(3);
+    expect(actions[2].name).toBe('decide');
+    expect(actions[2].oneShot).toBe(true);
+    expect(actions[2].group).toBe('gate');
+    expect(actions[2].context).toEqual({ approved: true });
+
+    expect(approveBtn.disabled).toBe(true);
+    expect(approveBtn.hasAttribute('data-submitted')).toBe(true);
+    expect(cancelBtn.disabled).toBe(true);
+    expect(cancelBtn.hasAttribute('data-submitted')).toBe(true);
+    expect(helperBtn.disabled).toBe(false);
+
+    // Clicking disabled buttons does not fire another action
+    approveBtn.click();
+    cancelBtn.click();
+    expect(actions).toHaveLength(3);
+
+    // Clearing submitted state re-enables both grouped buttons
+    element.clearSubmittedState('surfButtons');
+    for (const host of buttonHosts) {
+      await (host as any).updateComplete;
+    }
+    expect(approveBtn.disabled).toBe(false);
+    expect(approveBtn.hasAttribute('data-submitted')).toBe(false);
+    expect(cancelBtn.disabled).toBe(false);
+  });
 });

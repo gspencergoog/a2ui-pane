@@ -6,10 +6,13 @@ import '@a2ui/lit/v0_9';
 import './charts-catalog.js';
 import { renderRichMarkdown } from './markdown-renderer.js';
 import { installIconSvgRenderer, installRichTextVariantRenderer } from './icon-paths.js';
+import { installButtonStateRenderer } from './button-state.js';
+import { markComponentSubmitted, clearSubmittedState } from './processor.js';
 import { MessageProcessor } from '@a2ui/web_core/v1_0';
 
 installIconSvgRenderer();
 installRichTextVariantRenderer();
+installButtonStateRenderer();
 
 /** Event detail dispatched when a surface is created or deleted. */
 export interface SurfaceChangedDetail {
@@ -159,6 +162,10 @@ const SURFACE_LAYOUT_CSS = `
     margin: 0 auto;
     max-width: 100%;
     height: auto;
+  }
+  a2ui-basic-button .a2ui-button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
   }
 `;
 
@@ -356,6 +363,7 @@ export class A2uiPaneView extends LitElement {
   }
 
   unsubmitSurface(surfaceId: string): void {
+    this.clearSubmittedState(surfaceId);
     if (this.submittedSurfaces.has(surfaceId)) {
       const nextSubmitted = new Map(this.submittedSurfaces);
       nextSubmitted.delete(surfaceId);
@@ -367,6 +375,20 @@ export class A2uiPaneView extends LitElement {
       this.dismissedSurfaces = nextDismissed;
     }
     this.emitSubmissionChanged(surfaceId, 'active');
+  }
+
+  /**
+   * Marks a button component (and optional `_group`) as submitted on the given surface.
+   */
+  markComponentSubmitted(surfaceId: string, componentId?: string, group?: string): void {
+    markComponentSubmitted(this.processor, surfaceId, componentId, group);
+  }
+
+  /**
+   * Clears all one-shot button submission flags on the given surface.
+   */
+  clearSubmittedState(surfaceId: string): void {
+    clearSubmittedState(this.processor, surfaceId);
   }
 
   dismissSurface(surfaceId: string): void {

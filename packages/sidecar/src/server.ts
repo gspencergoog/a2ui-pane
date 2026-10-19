@@ -193,6 +193,7 @@ export function createSidecarServer(
       handleSendMessage(req, res, {
         agentapiExe: env.agentapiExe,
         execFileFn: injectedDeps?.execFileFn,
+        dataDir: env.dataDir,
       });
       return;
     }

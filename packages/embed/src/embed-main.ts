@@ -1,6 +1,6 @@
 import { injectHostTheme } from '@a2ui-pane/theme';
 import { formatActionText, A2uiActionDetails, StoreLine } from '@a2ui-pane/protocol';
-import { LineApplier, A2uiPaneView } from '@a2ui-pane/renderer';
+import { LineApplier, A2uiPaneView, type DispatchedActionDetails } from '@a2ui-pane/renderer';
 import { SurfaceResizeObserver } from './surface-resize-observer.js';
 
 /** Side-channel endpoint and routing metadata injected into an inline embed iframe. */
@@ -11,6 +11,9 @@ export interface ActionConfig {
   conversationId?: string;
   sidecarUrl?: string;
   targetOrigin?: string;
+  embedFile?: string;
+  submittedComponents?: string[];
+  submittedGroups?: string[];
 }
 
 /** Options for initializing a standalone A2UI inline embed iframe. */
@@ -34,6 +37,12 @@ export interface EmbedInstance {
   isSubmitted: () => boolean;
   setSubmittedState: (submitted: boolean) => void;
   destroy: () => void;
+}
+
+interface SideChannelEmbedMeta {
+  embedFile?: string;
+  sourceComponentId?: string;
+  group?: string;
 }
 
 /**
@@ -82,7 +91,7 @@ export function applySubmittedState(
 
 function createTimeoutSignal(): AbortSignal | undefined {
   return typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
-    ? AbortSignal.timeout(3000)
+    ? AbortSignal.timeout(15000)
     : undefined;
 }
 
@@ -90,6 +99,7 @@ async function trySidecarDispatch(
   sidecarUrl: string,
   conversationId: string,
   promptText: string,
+  meta: SideChannelEmbedMeta,
   fetchFn: typeof fetch,
 ): Promise<boolean> {
   try {
@@ -102,6 +112,7 @@ async function trySidecarDispatch(
       body: JSON.stringify({
         conversationId,
         message: promptText,
+        ...meta,
       }),
       signal: createTimeoutSignal(),
     });
@@ -120,6 +131,7 @@ async function tryLoopbackDispatch(
   key: string,
   action: A2uiActionDetails,
   dataModel: Record<string, unknown> | undefined,
+  meta: SideChannelEmbedMeta,
   fetchFn: typeof fetch,
 ): Promise<boolean> {
   try {
@@ -133,6 +145,7 @@ async function tryLoopbackDispatch(
       body: JSON.stringify({
         action,
         dataModel,
+        ...meta,
       }),
       signal: createTimeoutSignal(),
     });
@@ -148,25 +161,63 @@ async function tryLoopbackDispatch(
 
 async function dispatchViaSideChannel(
   actionConfig: ActionConfig,
-  action: A2uiActionDetails,
+  action: DispatchedActionDetails,
   dataModel: Record<string, unknown> | undefined,
   promptText: string,
   fetchFn?: typeof fetch,
 ): Promise<boolean> {
   if (!fetchFn) return false;
+  const isOneShot = action.oneShot !== false;
+  const meta: SideChannelEmbedMeta = {
+    embedFile: actionConfig.embedFile,
+    sourceComponentId: isOneShot ? action.sourceComponentId : undefined,
+    group: isOneShot ? action.group : undefined,
+  };
   if (actionConfig.sidecarUrl && actionConfig.conversationId) {
     const ok = await trySidecarDispatch(
       actionConfig.sidecarUrl,
       actionConfig.conversationId,
       promptText,
+      meta,
       fetchFn,
     );
     if (ok) return true;
   }
   if (actionConfig.port && actionConfig.key) {
-    return tryLoopbackDispatch(actionConfig.port, actionConfig.key, action, dataModel, fetchFn);
+    return tryLoopbackDispatch(
+      actionConfig.port,
+      actionConfig.key,
+      action,
+      dataModel,
+      meta,
+      fetchFn,
+    );
   }
   return false;
+}
+
+function restorePersistedEmbedSubmission(
+  paneView: A2uiPaneView,
+  actionConfig: ActionConfig | undefined,
+  setSubmittedState: (submitted: boolean) => void,
+): void {
+  const comps = actionConfig?.submittedComponents ?? [];
+  const groups = actionConfig?.submittedGroups ?? [];
+  if (comps.length === 0 && groups.length === 0) return;
+
+  const surfaceIds = paneView.processor
+    ? Array.from(paneView.processor.getSurfaces().keys())
+    : paneView.surfaceIds;
+
+  for (const sid of surfaceIds) {
+    for (const compId of comps) {
+      paneView.markComponentSubmitted(sid, compId);
+    }
+    for (const grp of groups) {
+      paneView.markComponentSubmitted(sid, undefined, grp);
+    }
+  }
+  setSubmittedState(true);
 }
 
 /**
@@ -262,18 +313,28 @@ export function initEmbed(options: InitEmbedOptions = {}): EmbedInstance | null 
   const paneView = document.createElement('a2ui-pane-view') as A2uiPaneView;
   const setSubmittedState = (next: boolean) => {
     submittedState = next;
+    if (!next && paneView.processor) {
+      for (const sid of paneView.processor.getSurfaces().keys()) {
+        paneView.clearSubmittedState(sid);
+      }
+    }
     applySubmittedState(paneView, footerNote, next, hasDirectEndpoint, () => {
       setSubmittedState(false);
     });
   };
 
-  const onAction = async (action: A2uiActionDetails, dataModel?: Record<string, unknown>) => {
-    if (isSubmitting || submittedState) return;
+  const onAction = async (action: DispatchedActionDetails, dataModel?: Record<string, unknown>) => {
+    const isOneShot = action.oneShot !== false;
+    if (isSubmitting || (isOneShot && submittedState)) return;
 
     const promptText = formatActionText(action, {
       label: typeof action.context?.label === 'string' ? action.context.label : undefined,
       dataModel,
     });
+
+    if (isOneShot) {
+      setSubmittedState(true);
+    }
 
     if (actionConfig && hasDirectEndpoint) {
       isSubmitting = true;
@@ -286,7 +347,6 @@ export function initEmbed(options: InitEmbedOptions = {}): EmbedInstance | null 
       );
       isSubmitting = false;
       if (sent) {
-        setSubmittedState(true);
         return;
       }
     }
@@ -315,6 +375,8 @@ export function initEmbed(options: InitEmbedOptions = {}): EmbedInstance | null 
     });
     applier.apply(lines);
   }
+
+  restorePersistedEmbedSubmission(paneView, actionConfig, setSubmittedState);
 
   const AUTO_RESIZE_SLACK = 4;
   const observerFactory = options.resizeObserverFactory ?? ((cb) => new SurfaceResizeObserver(cb));

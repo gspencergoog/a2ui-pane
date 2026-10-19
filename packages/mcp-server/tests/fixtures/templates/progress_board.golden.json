@@ -116,7 +116,10 @@
           "child": "ack_btn_child",
           "action": {
             "event": {
-              "name": "acknowledge_progress"
+              "name": "acknowledge_progress",
+              "context": {
+                "_oneShot": true
+              }
             }
           }
         },
