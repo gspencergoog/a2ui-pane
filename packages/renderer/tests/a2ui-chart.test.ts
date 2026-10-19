@@ -298,4 +298,59 @@ describe('<a2ui-chart> component via v1.0 MessageProcessor', () => {
     bars = chartEl.shadowRoot!.querySelectorAll('rect.a2ui-chart-bar');
     expect(bars).toHaveLength(3);
   });
+
+  it('sizes horizontal-bar left padding to fit long category labels without clipping', async () => {
+    const processor = createProcessor();
+    processor.processMessages([
+      {
+        version: 'v1.0',
+        createSurface: { surfaceId: 'hbarLong' },
+      },
+      {
+        version: 'v1.0',
+        updateDataModel: {
+          surfaceId: 'hbarLong',
+          path: '/',
+          value: {
+            labels: ['normalizeChartSeries', 'extremelyLongFunctionIdentifierNameThatExceeds32Chars'],
+            series: [{ name: 'Score', values: [40, 14] }],
+          },
+        },
+      },
+      {
+        version: 'v1.0',
+        updateComponents: {
+          surfaceId: 'hbarLong',
+          components: [
+            {
+              id: 'root',
+              component: 'Chart',
+              catalogId: 'https://a2ui.org/specification/v1_0/catalogs/charts/catalog.json',
+              variant: 'horizontal-bar',
+              labels: { '@path': '/labels' },
+              series: { '@path': '/series' },
+            },
+          ],
+        },
+      },
+    ] as any);
+
+    pane.processor = processor;
+    await pane.updateComplete;
+    const surfaceEl = pane.shadowRoot!.querySelector('a2ui-surface')!;
+    await (surfaceEl as any).updateComplete;
+    const chartEl = surfaceEl.shadowRoot!.querySelector('a2ui-chart')!;
+    await (chartEl as any).updateComplete;
+
+    const bars = chartEl.shadowRoot!.querySelectorAll('rect.a2ui-chart-bar');
+    expect(bars).toHaveLength(2);
+    // With 32-char clamped max label, padLeft expands beyond the old 92px default (to 208px)
+    expect(Number(bars[0].getAttribute('x'))).toBeGreaterThanOrEqual(200);
+
+    const tickTexts = Array.from(
+      chartEl.shadowRoot!.querySelectorAll('text.a2ui-chart-axis-tick'),
+    ).map((t) => t.textContent);
+    expect(tickTexts).toContain('normalizeChartSeries');
+    expect(tickTexts.some((t) => t?.endsWith('\u2026'))).toBe(true);
+  });
 });

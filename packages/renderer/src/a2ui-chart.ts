@@ -287,7 +287,11 @@ export class A2uiChartElement extends A2uiLitElement<any, ChartResolvedProps> {
     viewHeight: number,
   ): TemplateResult {
     const viewWidth = 560;
-    const padLeft = 92;
+    const maxLabelChars = labels.reduce(
+      (max, lbl) => Math.max(max, Math.min(32, String(lbl).length)),
+      0,
+    );
+    const padLeft = Math.min(220, Math.max(56, Math.ceil(maxLabelChars * 6) + 16));
     const padRight = 24;
     const padTop = 16;
     const padBottom = props.xAxisLabel ? 42 : 28;
@@ -332,9 +336,11 @@ export class A2uiChartElement extends A2uiLitElement<any, ChartResolvedProps> {
         <line class="a2ui-chart-axis-line" x1="${padLeft}" y1="${padTop + plotHeight}" x2="${padLeft + plotWidth}" y2="${padTop + plotHeight}" />
         ${labels.map((catLabel, c) => {
           const rowStartY = padTop + c * rowSlot + rowPad;
-          const labelY = padTop + (c + 0.5) * rowSlot + 4;
+          const labelY = padTop + (c + 0.5) * rowSlot + 3.5;
+          const displayLabel =
+            catLabel.length > 32 ? `${catLabel.slice(0, 31)}\u2026` : catLabel;
           return svg`
-            <text class="a2ui-chart-axis-tick" x="${padLeft - 8}" y="${Number(labelY.toFixed(2))}" text-anchor="end">${catLabel}</text>
+            <text class="a2ui-chart-axis-tick" x="${padLeft - 8}" y="${Number(labelY.toFixed(2))}" text-anchor="end">${displayLabel}</text>
             ${series.map((s, sIdx) => {
               const val = s.points[c]?.y ?? 0;
               const y = rowStartY + sIdx * (singleBarHeight + barGap);
@@ -852,12 +858,12 @@ export class A2uiChartElement extends A2uiLitElement<any, ChartResolvedProps> {
     }
     .a2ui-chart-axis-tick {
       fill: var(--a2ui-text-caption-color, #70757a);
-      font-size: 11px;
+      font-size: 9.5px;
       font-family: inherit;
     }
     .a2ui-chart-axis-title {
       fill: var(--a2ui-text-color-text, #1f1f1f);
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 600;
       font-family: inherit;
     }
