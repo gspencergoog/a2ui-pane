@@ -312,7 +312,10 @@ describe('<a2ui-chart> component via v1.0 MessageProcessor', () => {
           surfaceId: 'hbarLong',
           path: '/',
           value: {
-            labels: ['normalizeChartSeries', 'extremelyLongFunctionIdentifierNameThatExceeds32Chars'],
+            labels: [
+              'normalizeChartSeries',
+              'extremelyLongFunctionIdentifierNameThatExceeds32Chars',
+            ],
             series: [{ name: 'Score', values: [40, 14] }],
           },
         },

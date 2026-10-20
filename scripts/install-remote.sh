@@ -252,6 +252,7 @@ if [[ -n "${PYTHON_BIN}" && -f "${TARGET_DIR}/mcp/dist/express_worker.py" ]]; th
   "${PYTHON_BIN}" "${TARGET_DIR}/mcp/dist/express_worker.py" --selftest \
     --catalog "${TARGET_DIR}/mcp/dist/catalogs/v1_0/basic/catalog.json" \
     --catalog "${TARGET_DIR}/mcp/dist/catalogs/v1_0/charts/catalog.json" \
+    --catalog "${TARGET_DIR}/mcp/dist/catalogs/v1_0/status/catalog.json" \
     --version "${PROTOCOL_VERSION}" || {
     echo "Warning: Express worker selftest failed; check that ${AGENT_SDK_PATH} is synced (uv sync --all-packages)." >&2
   }

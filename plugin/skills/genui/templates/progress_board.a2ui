@@ -1,6 +1,6 @@
 // @genui id=progress_board surface=pane
-// @summary Live status board for long-running work: a title, a subtitle, one row per item (status badge, label, detail), and an acknowledge button. Drive it with data-only updates.
-// @data /title /subtitle /items[] {status,label,detail} /ackLabel
+// @summary Live status board for long-running work: a title, a segmented progress bar with subtitle summary, one compact row per item (bold label, muted detail, right-aligned semantic status badge), and an acknowledge button. Drive it with data-only updates.
+// @data /title /subtitle /items[] {status,tone,label,detail} /ackLabel
 // @action acknowledge_progress
 // @customize ack_btn
 
@@ -10,15 +10,15 @@ $/items = []
 $/ackLabel = "Acknowledge"
 
 root = Card(board_col)
-board_col = Column([board_title, board_subtitle, board_divider, board_rows, board_footer])
+board_col = Column([board_title, board_progress, board_divider, board_rows, board_footer])
 board_title = Text($/title)
-board_subtitle = Text($/subtitle, "caption")
+board_progress = ProgressBar(items=$/items, summary=$/subtitle)
 board_divider = Divider()
-board_rows = Column(_template($/items, board_row))
-board_row = Row([board_row_status, board_row_body], _, "center")
-board_row_status = Text($status)
+board_rows = List(_template($/items, board_row))
+board_row = Row([board_row_body, board_row_badge], "spaceBetween", "center")
 board_row_body = Column([board_row_label, board_row_detail], _, _, 1)
 board_row_label = Text($label)
 board_row_detail = Text($detail, "caption")
+board_row_badge = Badge($status, $tone)
 board_footer = Row([ack_btn], "end", "center")
 ack_btn = Button(Text($/ackLabel), _, Event("acknowledge_progress", {_oneShot: true}))

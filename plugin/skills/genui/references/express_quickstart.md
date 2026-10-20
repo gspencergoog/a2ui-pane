@@ -39,8 +39,8 @@ Gotchas that still bite:
 
 Compact inline chart (`mode: "inline"`, fits well under the 500px inline height cap):
 
-````text
+```text
 $/series = [{name: "Score", values: [28, 22, 19, 16, 12]}]
 $/labels = ["parseExpr", "compileDsl", "validate", "renderSvg", "inflate"]
 root = Card(Chart("horizontal-bar", $/series, $/labels, "Top Functions by Cognitive Complexity", "Score", _, 190))
-````
+```

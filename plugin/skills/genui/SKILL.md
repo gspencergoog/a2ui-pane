@@ -56,6 +56,7 @@ When `render_a2ui` is neither a native tool nor a lazily loaded MCP tool on `a2u
 - Keep inline cards compact: at most two questions, short consequence text, no scrolling.
 - Put background in the chat message with clickable `[file](file:///...)` links; put the decision controls in the surface.
 - Use `Chart(variant, series, labels=_, title=_, xAxisLabel=_, yAxisLabel=_, height=_, showLegend=_, showGrid=_, selected=_, action=_)` for interactive charts when data passes the **Visual Worthiness Gate** below.
+- Use `Badge(text, tone=_, icon=_, pulse=_)`, `ProgressBar(value=_, max=_, segments=_, items=_, label=_, summary=_, indeterminate=_)`, and `Collapsible(title, child, summary=_, badge=_, open=_)` from the `status` catalog (`tone`: `"neutral" | "info" | "active" | "success" | "warning" | "danger"`) for semantic status pills, progress tracks, and opt-in disclosure sections.
 - Use Markdown inside `Text` for emphasis, code spans, LaTeX, and ` ```mermaid ` diagrams (`flowchart`, `stateDiagram-v2`, `sequenceDiagram`, `pie`, `xychart-beta`).
 
 ### When to Chart vs. Table (Visual Worthiness Gate)

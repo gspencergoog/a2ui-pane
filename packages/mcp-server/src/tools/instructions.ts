@@ -11,7 +11,7 @@ export const a2uiInstructionsSchema = {
     .array(z.string())
     .optional()
     .describe(
-      'Optional list of catalog IDs or aliases to describe. Only honored by the raw-JSON fallback prompt; the Express prompt always describes the basic catalog.',
+      'Optional list of catalog IDs or aliases to describe. Only honored by the raw-JSON fallback prompt; the Express prompt always describes the loaded catalogs (basic, charts, and status).',
     ),
   format: z
     .enum(['express', 'json'])

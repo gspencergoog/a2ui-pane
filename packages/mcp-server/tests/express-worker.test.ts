@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { MessageProcessor } from '@a2ui/web_core/v0_9';
 import { basicCatalog as v1BasicCatalog } from '@a2ui/web_core/v1_0';
-import { chartsSchemaCatalog } from '@a2ui-pane/renderer';
+import { chartsSchemaCatalog, statusSchemaCatalog } from '@a2ui-pane/renderer';
 import {
   ExpressWorker,
   ExpressWorkerError,
@@ -25,6 +25,16 @@ const CHARTS_CATALOG = resolve(
   'catalogs',
   'v1_0',
   'charts',
+  'catalog.json',
+);
+const STATUS_CATALOG = resolve(
+  __dirname,
+  '..',
+  '..',
+  '..',
+  'catalogs',
+  'v1_0',
+  'status',
   'catalog.json',
 );
 
@@ -205,26 +215,26 @@ const realPython = process.env.A2UI_PANE_PYTHON;
 const agentSdkPath = process.env.A2UI_PANE_AGENT_SDK_PATH;
 
 describe.skipIf(!realPython && !agentSdkPath)('ExpressWorker (real Python SDK)', () => {
-  it('compiles Express to valid v1.0 messages across basic + charts catalogs', async () => {
+  it('compiles Express to valid v1.0 messages across basic + charts + status catalogs', async () => {
     const worker = new ExpressWorker({
       pythonBin: realPython,
       agentSdkPath,
       uvBin: process.env.A2UI_PANE_UV,
       workerScript: REAL_WORKER,
-      catalogPaths: [CATALOG, CHARTS_CATALOG],
+      catalogPaths: [CATALOG, CHARTS_CATALOG, STATUS_CATALOG],
       startupTimeoutMs: 60_000,
       log: () => {},
     });
     try {
       const dsl = [
         'surface("real", sendDataModel=true)',
-        '$/items = [{title: "A", done: true}]',
+        '$/items = [{title: "A", done: true, tone: "success"}]',
         '$/series = [{name: "P95", values: [12, 18, 15]}]',
-        'root = Card(Column([Text("## Hi"), Chart("bar", $/series, labels=["Q1", "Q2", "Q3"]), Column(_template($/items, CheckBox($title, $done)))]))',
+        'root = Card(Column([Text("## Hi"), ProgressBar(items=$/items), Collapsible("Details", Badge("OK", "success")), Chart("bar", $/series, labels=["Q1", "Q2", "Q3"]), Column(_template($/items, CheckBox($title, $done)))]))',
       ].join('\n');
       const messages = await worker.compile(dsl, 'real');
       const processor = new MessageProcessor(
-        [v1BasicCatalog as any, chartsSchemaCatalog as any],
+        [v1BasicCatalog as any, chartsSchemaCatalog as any, statusSchemaCatalog as any],
         () => {},
         {
           validationConfig: { allowUnknownElements: false },
@@ -236,6 +246,7 @@ describe.skipIf(!realPython && !agentSdkPath)('ExpressWorker (real Python SDK)',
       const prompt = await worker.instructions();
       expect(prompt).toContain('A2UI Express');
       expect(prompt).toContain('Chart');
+      expect(prompt).toContain('Badge');
     } finally {
       worker.dispose();
     }

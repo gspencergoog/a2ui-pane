@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
+  "protocolVersion": "1.0",
+  "title": "A2UI Status Component Catalog",
+  "description": "Semantic status badges, segmented progress bars, and collapsible sections for A2UI v1.0 surfaces.",
+  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
+  "components": {
+    "Badge": {
+      "type": "object",
+      "description": "Renders a compact, semantic status pill with an optional icon or activity pulse dot.",
+      "properties": {
+        "component": {
+          "const": "Badge"
+        },
+        "text": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Label text displayed inside the badge pill."
+        },
+        "tone": {
+          "$ref": "#/$defs/DynamicStatusTone",
+          "description": "Semantic tone controlling pill background, border, and text color (defaults to 'neutral')."
+        },
+        "icon": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Optional icon name from the A2UI icon set rendered before the badge text."
+        },
+        "pulse": {
+          "$ref": "common_types.json#/$defs/DynamicBoolean",
+          "description": "When true, renders a subtle pulsing indicator dot inside the badge."
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column."
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes"
+        }
+      },
+      "required": ["component", "text"],
+      "additionalProperties": false
+    },
+    "ProgressBar": {
+      "type": "object",
+      "description": "Renders a single-value or multi-segment horizontal progress track with optional header labels or auto-tallied status items. Mode precedence when multiple inputs are supplied: segments > items > value.",
+      "properties": {
+        "component": {
+          "const": "ProgressBar"
+        },
+        "value": {
+          "$ref": "common_types.json#/$defs/DynamicNumber",
+          "description": "Completed numeric value in single-bar mode."
+        },
+        "max": {
+          "$ref": "common_types.json#/$defs/DynamicNumber",
+          "description": "Maximum numeric value in single-bar mode (defaults to 100) or optional total track denominator in segments mode when greater than the segment sum."
+        },
+        "segments": {
+          "$ref": "#/$defs/DynamicProgressSegmentList",
+          "description": "Explicit array of {value, tone, label} segments rendered proportionally across the track."
+        },
+        "items": {
+          "$ref": "#/$defs/DynamicStatusItemList",
+          "description": "Array of status items (such as progress_board $/items) automatically tallied by each item's tone (items without tone default to neutral)."
+        },
+        "label": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Optional heading label rendered above the left end of the progress track."
+        },
+        "summary": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Optional summary text rendered above the right end of the progress track."
+        },
+        "indeterminate": {
+          "$ref": "common_types.json#/$defs/DynamicBoolean",
+          "description": "When true, renders an animated indeterminate shimmer across the progress track."
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column."
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes"
+        }
+      },
+      "required": ["component"],
+      "additionalProperties": false
+    },
+    "Collapsible": {
+      "type": "object",
+      "description": "Renders an expandable disclosure section with a clickable header, optional summary and badge, and a child component body.",
+      "properties": {
+        "component": {
+          "const": "Collapsible"
+        },
+        "title": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Header title text for the collapsible section."
+        },
+        "child": {
+          "$ref": "common_types.json#/$defs/ComponentId",
+          "description": "The ID of the child component rendered inside the collapsible body when expanded."
+        },
+        "summary": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Optional muted summary text displayed in the header row."
+        },
+        "badge": {
+          "$ref": "common_types.json#/$defs/ComponentId",
+          "description": "Optional ID of a Badge or Text component rendered on the right side of the header row."
+        },
+        "open": {
+          "$ref": "common_types.json#/$defs/DynamicBoolean",
+          "description": "Whether the section is expanded (defaults to false; supports two-way DataBinding)."
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column."
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes"
+        }
+      },
+      "required": ["component", "title", "child"],
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "StatusTone": {
+      "type": "string",
+      "enum": ["neutral", "info", "active", "success", "warning", "danger"]
+    },
+    "DynamicStatusTone": {
+      "oneOf": [
+        { "$ref": "#/$defs/StatusTone" },
+        { "$ref": "common_types.json#/$defs/DataBinding" },
+        { "$ref": "common_types.json#/$defs/FunctionCall" }
+      ]
+    },
+    "ProgressSegment": {
+      "type": "object",
+      "properties": {
+        "value": { "$ref": "common_types.json#/$defs/DynamicNumber" },
+        "tone": { "$ref": "#/$defs/DynamicStatusTone" },
+        "label": { "$ref": "common_types.json#/$defs/DynamicString" }
+      },
+      "required": ["value"],
+      "additionalProperties": false
+    },
+    "DynamicProgressSegmentList": {
+      "oneOf": [
+        {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ProgressSegment" }
+        },
+        { "$ref": "common_types.json#/$defs/DataBinding" },
+        { "$ref": "common_types.json#/$defs/FunctionCall" }
+      ]
+    },
+    "StatusItem": {
+      "type": "object",
+      "properties": {
+        "tone": { "$ref": "#/$defs/DynamicStatusTone" },
+        "status": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "label": { "$ref": "common_types.json#/$defs/DynamicString" },
+        "detail": { "$ref": "common_types.json#/$defs/DynamicString" }
+      },
+      "additionalProperties": true
+    },
+    "DynamicStatusItemList": {
+      "oneOf": [
+        {
+          "type": "array",
+          "items": { "$ref": "#/$defs/StatusItem" }
+        },
+        { "$ref": "common_types.json#/$defs/DataBinding" },
+        { "$ref": "common_types.json#/$defs/FunctionCall" }
+      ]
+    },
+    "anyComponent": {
+      "oneOf": [
+        { "$ref": "#/components/Badge" },
+        { "$ref": "#/components/ProgressBar" },
+        { "$ref": "#/components/Collapsible" }
+      ],
+      "discriminator": {
+        "propertyName": "component"
+      }
+    }
+  }
+}

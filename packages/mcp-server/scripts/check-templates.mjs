@@ -22,6 +22,7 @@ const worker = new ExpressWorker({
   catalogPaths: [
     resolve(repoRoot, 'catalogs', 'v1_0', 'basic', 'catalog.json'),
     resolve(repoRoot, 'catalogs', 'v1_0', 'charts', 'catalog.json'),
+    resolve(repoRoot, 'catalogs', 'v1_0', 'status', 'catalog.json'),
   ],
   log: () => {},
 });

@@ -20,6 +20,37 @@
   --a2ui-color-primary-light: var(--primary-light, #d3e3fd);
   --a2ui-color-primary-dark: var(--primary-dark, #041e49);
 
+  /* Semantic Status Tones (Badge & ProgressBar) */
+  --a2ui-tone-neutral-bg: color-mix(in srgb, var(--foreground, #1f1f1f) 8%, transparent);
+  --a2ui-tone-neutral-fg: var(--muted-foreground, #5f6368);
+  --a2ui-tone-neutral-border: color-mix(in srgb, var(--foreground, #1f1f1f) 16%, transparent);
+  --a2ui-tone-neutral-bar: color-mix(in srgb, var(--foreground, #1f1f1f) 32%, transparent);
+
+  --a2ui-tone-info-bg: color-mix(in srgb, #0b57d0 12%, transparent);
+  --a2ui-tone-info-fg: #0b57d0;
+  --a2ui-tone-info-border: color-mix(in srgb, #0b57d0 28%, transparent);
+  --a2ui-tone-info-bar: #0b57d0;
+
+  --a2ui-tone-active-bg: color-mix(in srgb, #1a73e8 14%, transparent);
+  --a2ui-tone-active-fg: #185abc;
+  --a2ui-tone-active-border: color-mix(in srgb, #1a73e8 32%, transparent);
+  --a2ui-tone-active-bar: #1a73e8;
+
+  --a2ui-tone-success-bg: color-mix(in srgb, #188038 14%, transparent);
+  --a2ui-tone-success-fg: #137333;
+  --a2ui-tone-success-border: color-mix(in srgb, #188038 30%, transparent);
+  --a2ui-tone-success-bar: #1e8e3e;
+
+  --a2ui-tone-warning-bg: color-mix(in srgb, #e37400 15%, transparent);
+  --a2ui-tone-warning-fg: #b06000;
+  --a2ui-tone-warning-border: color-mix(in srgb, #e37400 32%, transparent);
+  --a2ui-tone-warning-bar: #f29900;
+
+  --a2ui-tone-danger-bg: color-mix(in srgb, #d93025 14%, transparent);
+  --a2ui-tone-danger-fg: #c5221f;
+  --a2ui-tone-danger-border: color-mix(in srgb, #d93025 30%, transparent);
+  --a2ui-tone-danger-bar: #d93025;
+
   /* Borders & Spacing */
   --a2ui-color-border: var(--border, #dadce0);
   --a2ui-border-width: 1px;
@@ -66,6 +97,36 @@
     --a2ui-color-primary-hover: var(--primary-hover, #c2e7ff);
     --a2ui-color-on-primary: #041e49;
     --a2ui-color-border: var(--border, #3c4043);
+
+    --a2ui-tone-neutral-bg: color-mix(in srgb, var(--foreground, #e3e3e3) 10%, transparent);
+    --a2ui-tone-neutral-fg: var(--muted-foreground, #9aa0a6);
+    --a2ui-tone-neutral-border: color-mix(in srgb, var(--foreground, #e3e3e3) 20%, transparent);
+    --a2ui-tone-neutral-bar: color-mix(in srgb, var(--foreground, #e3e3e3) 38%, transparent);
+
+    --a2ui-tone-info-bg: color-mix(in srgb, #8ab4f8 16%, transparent);
+    --a2ui-tone-info-fg: #8ab4f8;
+    --a2ui-tone-info-border: color-mix(in srgb, #8ab4f8 34%, transparent);
+    --a2ui-tone-info-bar: #8ab4f8;
+
+    --a2ui-tone-active-bg: color-mix(in srgb, #669df6 18%, transparent);
+    --a2ui-tone-active-fg: #aecbfa;
+    --a2ui-tone-active-border: color-mix(in srgb, #669df6 38%, transparent);
+    --a2ui-tone-active-bar: #669df6;
+
+    --a2ui-tone-success-bg: color-mix(in srgb, #81c995 16%, transparent);
+    --a2ui-tone-success-fg: #81c995;
+    --a2ui-tone-success-border: color-mix(in srgb, #81c995 34%, transparent);
+    --a2ui-tone-success-bar: #5bb974;
+
+    --a2ui-tone-warning-bg: color-mix(in srgb, #fdd663 16%, transparent);
+    --a2ui-tone-warning-fg: #fdd663;
+    --a2ui-tone-warning-border: color-mix(in srgb, #fdd663 34%, transparent);
+    --a2ui-tone-warning-bar: #fcc934;
+
+    --a2ui-tone-danger-bg: color-mix(in srgb, #f28b82 16%, transparent);
+    --a2ui-tone-danger-fg: #f28b82;
+    --a2ui-tone-danger-border: color-mix(in srgb, #f28b82 34%, transparent);
+    --a2ui-tone-danger-bar: #ee675c;
   }
 }
 

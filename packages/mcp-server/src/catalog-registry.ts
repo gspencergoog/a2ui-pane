@@ -3,6 +3,7 @@ import {
   Catalog,
   type ComponentApi,
   basicCatalog as v1BasicCatalog,
+  ChildSchema,
   DataBindingSchema,
   FunctionCallSchema,
   DynamicStringSchema,
@@ -17,6 +18,104 @@ import { basicCatalog as v09BasicCatalog } from '@a2ui/web_core/v0_9';
 
 /** Canonical catalog URI for the A2UI v1.0 Charts Component Catalog. */
 export const CHARTS_CATALOG_ID = 'https://a2ui.org/specification/v1_0/catalogs/charts/catalog.json';
+
+/** Canonical catalog URI for the A2UI v1.0 Status Component Catalog. */
+export const STATUS_CATALOG_ID = 'https://a2ui.org/specification/v1_0/catalogs/status/catalog.json';
+
+/** Allowed semantic tone values for `Badge` and `ProgressBar` segments. */
+export const STATUS_TONES = ['neutral', 'info', 'active', 'success', 'warning', 'danger'] as const;
+
+const DynamicStatusToneSchema = z
+  .union([z.enum(STATUS_TONES), DataBindingSchema, FunctionCallSchema])
+  .describe(
+    "REF:#/$defs/DynamicStatusTone|Semantic tone ('neutral' | 'info' | 'active' | 'success' | 'warning' | 'danger').",
+  );
+
+const ProgressSegmentSchema = z
+  .object({
+    value: DynamicNumberSchema,
+    tone: DynamicStatusToneSchema.optional(),
+    label: DynamicStringSchema.optional(),
+  })
+  .strict();
+
+const DynamicProgressSegmentListSchema = z
+  .union([z.array(ProgressSegmentSchema), DataBindingSchema, FunctionCallSchema])
+  .describe(
+    'REF:#/$defs/DynamicProgressSegmentList|Explicit array of {value, tone, label} segments.',
+  );
+
+const StatusItemSchema = z
+  .object({
+    tone: DynamicStatusToneSchema.optional(),
+    status: DynamicStringSchema.optional(),
+    label: DynamicStringSchema.optional(),
+    detail: DynamicStringSchema.optional(),
+  })
+  .passthrough();
+
+const DynamicStatusItemListSchema = z
+  .union([z.array(StatusItemSchema), DataBindingSchema, FunctionCallSchema])
+  .describe(
+    'REF:#/$defs/DynamicStatusItemList|Array of status items tallied automatically by tone.',
+  );
+
+/** Headless ComponentApi definition for `Badge` in the A2UI v1.0 Status Catalog. */
+export const BadgeApi = {
+  name: 'Badge',
+  schema: z
+    .object({
+      text: DynamicStringSchema,
+      tone: DynamicStatusToneSchema.optional(),
+      icon: DynamicStringSchema.optional(),
+      pulse: DynamicBooleanSchema.optional(),
+      weight: z.number().optional(),
+      accessibility: AccessibilityAttributesSchema.optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
+/** Headless ComponentApi definition for `ProgressBar` in the A2UI v1.0 Status Catalog. */
+export const ProgressBarApi = {
+  name: 'ProgressBar',
+  schema: z
+    .object({
+      value: DynamicNumberSchema.optional(),
+      max: DynamicNumberSchema.optional(),
+      segments: DynamicProgressSegmentListSchema.optional(),
+      items: DynamicStatusItemListSchema.optional(),
+      label: DynamicStringSchema.optional(),
+      summary: DynamicStringSchema.optional(),
+      indeterminate: DynamicBooleanSchema.optional(),
+      weight: z.number().optional(),
+      accessibility: AccessibilityAttributesSchema.optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
+/** Headless ComponentApi definition for `Collapsible` in the A2UI v1.0 Status Catalog. */
+export const CollapsibleApi = {
+  name: 'Collapsible',
+  schema: z
+    .object({
+      title: DynamicStringSchema,
+      child: ChildSchema,
+      summary: DynamicStringSchema.optional(),
+      badge: ChildSchema.optional(),
+      open: DynamicBooleanSchema.optional(),
+      weight: z.number().optional(),
+      accessibility: AccessibilityAttributesSchema.optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
+/** Headless A2UI v1.0 Status Catalog for server-side validation and fallback prompt generation. */
+export const statusSchemaCatalog = new Catalog(
+  STATUS_CATALOG_ID,
+  '1.0',
+  [BadgeApi, ProgressBarApi, CollapsibleApi],
+  [],
+);
 
 const ChartPointSchema = z.union([
   z.number(),
@@ -86,10 +185,13 @@ export class CatalogRegistry {
     this.defaultCatalogId = v1BasicCatalog.id || 'v1_0/basic';
     this.register(v1BasicCatalog as unknown as Catalog<any>);
     this.register(chartsSchemaCatalog as unknown as Catalog<any>);
+    this.register(statusSchemaCatalog as unknown as Catalog<any>);
 
     this.registerAlias(v1BasicCatalog as unknown as Catalog<any>, 'v1_0/basic');
     this.registerAlias(chartsSchemaCatalog as unknown as Catalog<any>, 'charts');
     this.registerAlias(chartsSchemaCatalog as unknown as Catalog<any>, 'v1_0/charts');
+    this.registerAlias(statusSchemaCatalog as unknown as Catalog<any>, 'status');
+    this.registerAlias(statusSchemaCatalog as unknown as Catalog<any>, 'v1_0/status');
 
     // Retain v0.9 basicCatalog and aliases for backward compatibility
     const v09Id =

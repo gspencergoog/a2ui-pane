@@ -2,6 +2,7 @@ import { Catalog, MessageProcessor, basicCatalog as v1BasicCatalog } from '@a2ui
 import { basicCatalog as v09BasicCatalog } from '@a2ui/lit/v0_9';
 import { A2uiActionDetails } from '@a2ui-pane/protocol';
 import { chartsCatalog } from './charts-catalog.js';
+import { statusCatalog } from './status-catalog.js';
 import { isOneShotButton } from './button-state.js';
 
 /** Extended action details including resolved one-shot and group metadata. */
@@ -175,7 +176,7 @@ function handleProcessorAction(
 }
 
 /**
- * Creates a configured MessageProcessor with v1.0 basicCatalog, chartsCatalog, and v0.9 compatibility aliases.
+ * Creates a configured MessageProcessor with v1.0 basicCatalog, chartsCatalog, statusCatalog, and v0.9 compatibility aliases.
  * Evaluates one-shot button state, strips internal `_oneShot`/`_group`/`/_submitted` metadata,
  * and attaches the client data model if `sendDataModel` was enabled for the surface.
  */
@@ -189,6 +190,9 @@ export function createProcessor(
     chartsCatalog as unknown as Catalog<any>,
     createCatalogAlias(chartsCatalog as unknown as Catalog<any>, 'charts'),
     createCatalogAlias(chartsCatalog as unknown as Catalog<any>, 'v1_0/charts'),
+    statusCatalog as unknown as Catalog<any>,
+    createCatalogAlias(statusCatalog as unknown as Catalog<any>, 'status'),
+    createCatalogAlias(statusCatalog as unknown as Catalog<any>, 'v1_0/status'),
     v09BasicCatalog as unknown as Catalog<any>,
     createCatalogAlias(v09BasicCatalog as unknown as Catalog<any>, 'basic'),
     createCatalogAlias(v09BasicCatalog as unknown as Catalog<any>, 'v0_9/basic'),

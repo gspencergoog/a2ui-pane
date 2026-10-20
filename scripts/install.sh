@@ -117,6 +117,7 @@ if [ -n "${PYTHON_BIN}" ]; then
   "${PYTHON_BIN}" "${REPO_ROOT}/plugin/mcp/dist/express_worker.py" --selftest \
     --catalog "${REPO_ROOT}/plugin/mcp/dist/catalogs/v1_0/basic/catalog.json" \
     --catalog "${REPO_ROOT}/plugin/mcp/dist/catalogs/v1_0/charts/catalog.json" \
+    --catalog "${REPO_ROOT}/plugin/mcp/dist/catalogs/v1_0/status/catalog.json" \
     --version "${PROTOCOL_VERSION}" || {
     echo "Express worker selftest failed; check that ${AGENT_SDK_PATH} is synced (uv sync --all-packages)." >&2
     exit 1

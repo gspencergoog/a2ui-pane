@@ -17,7 +17,7 @@
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "board_title",
-            "board_subtitle",
+            "board_progress",
             "board_divider",
             "board_rows",
             "board_footer"
@@ -32,13 +32,15 @@
           }
         },
         {
-          "id": "board_subtitle",
-          "component": "Text",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-          "text": {
-            "@path": "/subtitle"
+          "id": "board_progress",
+          "component": "ProgressBar",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
+          "items": {
+            "@path": "/items"
           },
-          "variant": "caption"
+          "summary": {
+            "@path": "/subtitle"
+          }
         },
         {
           "id": "board_divider",
@@ -47,7 +49,7 @@
         },
         {
           "id": "board_rows",
-          "component": "Column",
+          "component": "List",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": {
             "path": "/items",
@@ -59,18 +61,11 @@
           "component": "Row",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
-            "board_row_status",
-            "board_row_body"
+            "board_row_body",
+            "board_row_badge"
           ],
+          "justify": "spaceBetween",
           "align": "center"
-        },
-        {
-          "id": "board_row_status",
-          "component": "Text",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-          "text": {
-            "@path": "status"
-          }
         },
         {
           "id": "board_row_body",
@@ -98,6 +93,17 @@
             "@path": "detail"
           },
           "variant": "caption"
+        },
+        {
+          "id": "board_row_badge",
+          "component": "Badge",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
+          "text": {
+            "@path": "status"
+          },
+          "tone": {
+            "@path": "tone"
+          }
         },
         {
           "id": "board_footer",
@@ -137,17 +143,20 @@
         "subtitle": "Live status; rows update as each step finishes.",
         "items": [
           {
-            "status": "✅",
+            "status": "✅ Passed",
+            "tone": "success",
             "label": "Unit tests",
             "detail": "221 passed in 48s"
           },
           {
-            "status": "🔄",
+            "status": "🔄 Running",
+            "tone": "active",
             "label": "Integration harness",
             "detail": "running (3/7 suites)"
           },
           {
-            "status": "⏳",
+            "status": "⏳ Waiting",
+            "tone": "warning",
             "label": "Manual UI check",
             "detail": "waiting for reviewer"
           }

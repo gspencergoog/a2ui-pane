@@ -337,8 +337,7 @@ export class A2uiChartElement extends A2uiLitElement<any, ChartResolvedProps> {
         ${labels.map((catLabel, c) => {
           const rowStartY = padTop + c * rowSlot + rowPad;
           const labelY = padTop + (c + 0.5) * rowSlot + 3.5;
-          const displayLabel =
-            catLabel.length > 32 ? `${catLabel.slice(0, 31)}\u2026` : catLabel;
+          const displayLabel = catLabel.length > 32 ? `${catLabel.slice(0, 31)}\u2026` : catLabel;
           return svg`
             <text class="a2ui-chart-axis-tick" x="${padLeft - 8}" y="${Number(labelY.toFixed(2))}" text-anchor="end">${displayLabel}</text>
             ${series.map((s, sIdx) => {
