@@ -57,7 +57,7 @@ export class A2uiCollapsibleElement extends A2uiLitElement<any, CollapsibleResol
         align-items: center;
         justify-content: space-between;
         gap: 8px;
-        padding: 8px 12px;
+        padding: 8px calc(12px + var(--a2ui-collapsible-close-clearance, 0px)) 8px 12px;
         cursor: pointer;
         user-select: none;
         background-color: color-mix(in srgb, var(--a2ui-color-secondary, #f1f3f4) 45%, transparent);
@@ -115,6 +115,7 @@ export class A2uiCollapsibleElement extends A2uiLitElement<any, CollapsibleResol
       }
 
       .a2ui-collapsible-body {
+        --a2ui-collapsible-close-clearance: 0px;
         padding: 10px 12px;
         border-top: 1px solid color-mix(in srgb, var(--a2ui-color-border, #dadce0) 65%, transparent);
       }

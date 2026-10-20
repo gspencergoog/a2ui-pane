@@ -162,4 +162,24 @@ export const SURFACE_LAYOUT_CSS = `
     opacity: 0.55;
     cursor: not-allowed;
   }
+  :host([data-dismissible]) > a2ui-collapsible {
+    --a2ui-collapsible-close-clearance: 26px;
+  }
+  :host([data-dismissible]) > a2ui-progress-bar {
+    --a2ui-progress-close-clearance: 32px;
+  }
+  :host([data-dismissible]) > a2ui-tabs > .a2ui-tabs > .a2ui-tab-bar,
+  :host([data-dismissible]) > a2ui-basic-row,
+  :host([data-dismissible]) > a2ui-basic-column > a2ui-basic-row:first-child,
+  :host([data-dismissible]) > a2ui-basic-column > a2ui-basic-text:first-child {
+    padding-inline-end: 32px;
+    box-sizing: border-box;
+  }
+  :host([data-dismissible]) > a2ui-card > .a2ui-card > a2ui-basic-row:first-child,
+  :host([data-dismissible]) > a2ui-card > .a2ui-card > a2ui-basic-text:first-child,
+  :host([data-dismissible]) > a2ui-card > .a2ui-card > a2ui-basic-column:first-child > a2ui-basic-row:first-child,
+  :host([data-dismissible]) > a2ui-card > .a2ui-card > a2ui-basic-column:first-child > a2ui-basic-text:first-child {
+    padding-inline-end: 22px;
+    box-sizing: border-box;
+  }
 `;

@@ -423,7 +423,11 @@ export class A2uiPaneView extends LitElement {
     }
 
     return html`
-      <div class="a2ui-surface-wrapper" data-surface-id="${id}">
+      <div
+        class="a2ui-surface-wrapper"
+        data-surface-id="${id}"
+        ?data-dismissible=${this.dismissibleSurfaces}
+      >
         ${
           this.dismissibleSurfaces
             ? html`
@@ -439,7 +443,10 @@ export class A2uiPaneView extends LitElement {
               `
             : nothing
         }
-        <a2ui-surface .surface=${surface}></a2ui-surface>
+        <a2ui-surface
+          .surface=${surface}
+          ?data-dismissible=${this.dismissibleSurfaces}
+        ></a2ui-surface>
       </div>
     `;
   }

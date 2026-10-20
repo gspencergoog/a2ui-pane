@@ -260,6 +260,15 @@ describe('A2uiPaneView', () => {
     element.dismissibleSurfaces = true;
     await element.updateComplete;
 
+    const wrapper = element.shadowRoot!.querySelector('.a2ui-surface-wrapper') as HTMLElement;
+    const surfaceEl = element.shadowRoot!.querySelector('a2ui-surface') as HTMLElement;
+    expect(wrapper.hasAttribute('data-dismissible')).toBe(true);
+    expect(surfaceEl.hasAttribute('data-dismissible')).toBe(true);
+
+    const layoutStyle = surfaceEl.shadowRoot?.querySelector('style[data-a2ui-surface-layout]');
+    expect(layoutStyle?.textContent).toContain('--a2ui-collapsible-close-clearance: 26px');
+    expect(layoutStyle?.textContent).toContain('--a2ui-progress-close-clearance: 32px');
+
     const closeBtn = element.shadowRoot!.querySelector(
       '.a2ui-surface-close-btn',
     ) as HTMLButtonElement;

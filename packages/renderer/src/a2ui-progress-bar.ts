@@ -171,6 +171,8 @@ export class A2uiProgressBarElement extends A2uiLitElement<any, ProgressBarResol
       flex-direction: column;
       gap: 5px;
       width: 100%;
+      padding-inline-end: var(--a2ui-progress-close-clearance, 0px);
+      box-sizing: border-box;
     }
 
     .a2ui-progress-header {
