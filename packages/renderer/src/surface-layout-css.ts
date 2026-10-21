@@ -176,11 +176,23 @@ export const SURFACE_LAYOUT_CSS = `
     opacity: 0.55;
     cursor: not-allowed;
   }
+  a2ui-table {
+    min-width: 0;
+    max-width: 100%;
+  }
+  a2ui-card > .a2ui-card > a2ui-table,
+  a2ui-basic-column > a2ui-table {
+    width: 100%;
+    align-self: stretch;
+  }
   :host([data-dismissible]) > a2ui-collapsible {
     --a2ui-collapsible-close-clearance: 26px;
   }
   :host([data-dismissible]) > a2ui-progress-bar {
     --a2ui-progress-close-clearance: 32px;
+  }
+  :host([data-dismissible]) > a2ui-table {
+    --a2ui-table-close-clearance: 32px;
   }
   :host([data-dismissible]) > a2ui-tabs > .a2ui-tabs > .a2ui-tab-bar,
   :host([data-dismissible]) > a2ui-basic-row,

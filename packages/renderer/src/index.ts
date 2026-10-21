@@ -63,18 +63,37 @@ export {
 } from './a2ui-progress-bar.js';
 export { A2uiCollapsibleElement, type CollapsibleResolvedProps } from './a2ui-collapsible.js';
 export {
+  A2uiTableElement,
+  TABLE_COLUMN_KINDS,
+  normalizeTableColumns,
+  normalizeTableRows,
+  sortTableRows,
+  tableSortValue,
+  type TableColumn,
+  type TableColumnKind,
+  type TableColumnAlign,
+  type TableRow,
+  type TableResolvedProps,
+  type TableSortDirection,
+  type TableIndexedRow,
+} from './a2ui-table.js';
+export {
   STATUS_CATALOG_ID,
   DynamicStatusToneSchema,
   ProgressSegmentSchema,
   DynamicProgressSegmentListSchema,
   StatusItemSchema,
   DynamicStatusItemListSchema,
+  TableColumnSchema,
+  DynamicTableRowListSchema,
   BadgeApi,
   ProgressBarApi,
   CollapsibleApi,
+  TableApi,
   A2uiBadge,
   A2uiProgressBar,
   A2uiCollapsible,
+  A2uiTable,
   statusCatalog,
   statusSchemaCatalog,
 } from './status-catalog.js';

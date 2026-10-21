@@ -109,11 +109,56 @@ export const CollapsibleApi = {
     .strict(),
 } satisfies ComponentApi;
 
+/** Allowed `kind` values for a `Table` column. */
+export const TABLE_COLUMN_KINDS = [
+  'text',
+  'badge',
+  'link',
+  'progress',
+  'check',
+  'icon',
+  'number',
+] as const;
+
+const TableColumnSchema = z
+  .object({
+    key: z.string(),
+    label: z.string(),
+    kind: z.enum(TABLE_COLUMN_KINDS).optional(),
+    align: z.enum(['start', 'center', 'end']).optional(),
+    width: z.string().optional(),
+  })
+  .strict();
+
+const DynamicTableRowListSchema = z
+  .union([z.array(z.object({}).passthrough()), DataBindingSchema, FunctionCallSchema])
+  .describe(
+    'REF:#/$defs/DynamicTableRowList|Array of row objects keyed by column key, usually $/rows.',
+  );
+
+/** Headless ComponentApi definition for `Table` in the A2UI v1.0 Status Catalog. */
+export const TableApi = {
+  name: 'Table',
+  schema: z
+    .object({
+      columns: z.array(TableColumnSchema),
+      rows: DynamicTableRowListSchema,
+      caption: DynamicStringSchema.optional(),
+      sortable: DynamicBooleanSchema.optional(),
+      dense: DynamicBooleanSchema.optional(),
+      selected: DynamicNumberSchema.optional(),
+      action: ActionSchema.optional(),
+      weight: z.number().optional(),
+      accessibility: AccessibilityAttributesSchema.optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
 /** Headless A2UI v1.0 Status Catalog for server-side validation and fallback prompt generation. */
 export const statusSchemaCatalog = new Catalog(
   STATUS_CATALOG_ID,
   '1.0',
-  [BadgeApi, ProgressBarApi, CollapsibleApi],
+  [BadgeApi, ProgressBarApi, CollapsibleApi, TableApi],
   [],
 );
 

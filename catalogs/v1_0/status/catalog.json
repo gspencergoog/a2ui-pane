@@ -3,7 +3,7 @@
   "$id": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
   "protocolVersion": "1.0",
   "title": "A2UI Status Component Catalog",
-  "description": "Semantic status badges, segmented progress bars, and collapsible sections for A2UI v1.0 surfaces.",
+  "description": "Semantic status badges, segmented progress bars, collapsible sections, and typed-cell tables for A2UI v1.0 surfaces.",
   "catalogId": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
   "components": {
     "Badge": {
@@ -123,6 +123,53 @@
       },
       "required": ["component", "title", "child"],
       "additionalProperties": false
+    },
+    "Table": {
+      "type": "object",
+      "description": "Renders a typed-cell grid: static column definitions and data-bound rows. Use it for grids with three or more columns or typed cells (badge, link, progress, check, icon, number) instead of nested Row/Column layouts or Markdown pipe tables.",
+      "properties": {
+        "component": {
+          "const": "Table"
+        },
+        "columns": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TableColumn" },
+          "description": "Static column definitions in display order. Each column reads the row property named by its key."
+        },
+        "rows": {
+          "$ref": "#/$defs/DynamicTableRowList",
+          "description": "Array of row objects keyed by column key, usually a data binding such as $/rows. Cell value shapes by column kind: text and number take a string or number; badge takes {text, tone} or a string; link takes {text, url}; progress takes {value, max}; check takes a boolean; icon takes an icon name. Missing keys render an empty cell."
+        },
+        "caption": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Optional caption rendered above the grid."
+        },
+        "sortable": {
+          "$ref": "common_types.json#/$defs/DynamicBoolean",
+          "description": "When true, clicking a column header sorts the rows client-side and toggles between ascending and descending order (defaults to false)."
+        },
+        "dense": {
+          "$ref": "common_types.json#/$defs/DynamicBoolean",
+          "description": "When true, uses compact 4px cell padding (defaults to false)."
+        },
+        "selected": {
+          "$ref": "common_types.json#/$defs/DynamicNumber",
+          "description": "Zero-based index of the highlighted row in the original row order. Supports two-way DataBinding: a row click writes its index back to the bound path."
+        },
+        "action": {
+          "$ref": "common_types.json#/$defs/Action",
+          "description": "Optional action dispatched when the user clicks or activates a row, after `selected` is updated."
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column."
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes"
+        }
+      },
+      "required": ["component", "columns", "rows"],
+      "additionalProperties": false
     }
   },
   "$defs": {
@@ -177,11 +224,56 @@
         { "$ref": "common_types.json#/$defs/FunctionCall" }
       ]
     },
+    "TableColumn": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "Row property read for this column."
+        },
+        "label": {
+          "type": "string",
+          "description": "Header text."
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["text", "badge", "link", "progress", "check", "icon", "number"],
+          "default": "text",
+          "description": "How cell values render (defaults to 'text')."
+        },
+        "align": {
+          "type": "string",
+          "enum": ["start", "center", "end"],
+          "description": "Horizontal cell alignment (number columns default to 'end')."
+        },
+        "width": {
+          "type": "string",
+          "description": "Optional CSS width for the column, such as '12ch' or '30%'."
+        }
+      },
+      "required": ["key", "label"],
+      "additionalProperties": false
+    },
+    "TableRow": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "DynamicTableRowList": {
+      "oneOf": [
+        {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TableRow" }
+        },
+        { "$ref": "common_types.json#/$defs/DataBinding" },
+        { "$ref": "common_types.json#/$defs/FunctionCall" }
+      ]
+    },
     "anyComponent": {
       "oneOf": [
         { "$ref": "#/components/Badge" },
         { "$ref": "#/components/ProgressBar" },
-        { "$ref": "#/components/Collapsible" }
+        { "$ref": "#/components/Collapsible" },
+        { "$ref": "#/components/Table" }
       ],
       "discriminator": {
         "propertyName": "component"

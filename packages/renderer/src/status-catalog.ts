@@ -8,6 +8,7 @@ import {
   DynamicStringSchema,
   DynamicNumberSchema,
   DynamicBooleanSchema,
+  ActionSchema,
   AccessibilityAttributesSchema,
   registerUniversalElement,
   type WebComponentImplementation,
@@ -15,6 +16,7 @@ import {
 import { A2uiBadgeElement, STATUS_TONES } from './a2ui-badge.js';
 import { A2uiProgressBarElement } from './a2ui-progress-bar.js';
 import { A2uiCollapsibleElement } from './a2ui-collapsible.js';
+import { A2uiTableElement, TABLE_COLUMN_KINDS } from './a2ui-table.js';
 
 /** Canonical catalog URI for the A2UI v1.0 Status Component Catalog. */
 export const STATUS_CATALOG_ID = 'https://a2ui.org/specification/v1_0/catalogs/status/catalog.json';
@@ -150,6 +152,63 @@ export const CollapsibleApi = {
     .strict(),
 } satisfies ComponentApi;
 
+/** Zod schema for a static column definition in `Table.columns`. */
+export const TableColumnSchema = z
+  .object({
+    key: z.string().describe('Row property read for this column.'),
+    label: z.string().describe('Header text.'),
+    kind: z
+      .enum(TABLE_COLUMN_KINDS)
+      .describe("How cell values render (defaults to 'text').")
+      .optional(),
+    align: z
+      .enum(['start', 'center', 'end'])
+      .describe("Horizontal cell alignment (number columns default to 'end').")
+      .optional(),
+    width: z.string().describe("Optional CSS width for the column, such as '12ch'.").optional(),
+  })
+  .strict();
+
+/** Zod schema for a static array or dynamic binding to row objects in `Table.rows`. */
+export const DynamicTableRowListSchema = z
+  .union([z.array(z.object({}).passthrough()), DataBindingSchema, FunctionCallSchema])
+  .describe(
+    'REF:#/$defs/DynamicTableRowList|Array of row objects keyed by column key, usually $/rows.',
+  );
+
+/** ComponentApi definition for `Table` in the A2UI v1.0 Status Catalog. */
+export const TableApi = {
+  name: 'Table',
+  schema: z
+    .object({
+      columns: z
+        .array(TableColumnSchema)
+        .describe('REF:#/$defs/TableColumn|Static column definitions in display order.'),
+      rows: DynamicTableRowListSchema,
+      caption: DynamicStringSchema.describe(
+        'REF:common_types.json#/$defs/DynamicString|Optional caption rendered above the grid.',
+      ).optional(),
+      sortable: DynamicBooleanSchema.describe(
+        'REF:common_types.json#/$defs/DynamicBoolean|When true, clicking a header sorts rows client-side.',
+      ).optional(),
+      dense: DynamicBooleanSchema.describe(
+        'REF:common_types.json#/$defs/DynamicBoolean|When true, uses compact 4px cell padding.',
+      ).optional(),
+      selected: DynamicNumberSchema.describe(
+        'REF:common_types.json#/$defs/DynamicNumber|Zero-based index of the selected row (two-way DataBinding).',
+      ).optional(),
+      action: ActionSchema.describe(
+        'REF:common_types.json#/$defs/Action|Action dispatched when the user activates a row.',
+      ).optional(),
+      weight: z
+        .number()
+        .describe('The relative weight of this component within a Row or Column.')
+        .optional(),
+      accessibility: AccessibilityAttributesSchema.optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
 /** Web Component implementation pairing `A2uiBadgeElement` (`<a2ui-badge>`) with `BadgeApi`. */
 export const A2uiBadge: WebComponentImplementation<typeof BadgeApi.schema> = {
   ...BadgeApi,
@@ -171,15 +230,23 @@ export const A2uiCollapsible: WebComponentImplementation<typeof CollapsibleApi.s
   element: A2uiCollapsibleElement,
 };
 
+/** Web Component implementation pairing `A2uiTableElement` (`<a2ui-table>`) with `TableApi`. */
+export const A2uiTable: WebComponentImplementation<typeof TableApi.schema> = {
+  ...TableApi,
+  tagName: A2uiTableElement.tagName,
+  element: A2uiTableElement,
+};
+
 registerUniversalElement(A2uiBadge);
 registerUniversalElement(A2uiProgressBar);
 registerUniversalElement(A2uiCollapsible);
+registerUniversalElement(A2uiTable);
 
-/** Client-side A2UI v1.0 Status Catalog containing `Badge`, `ProgressBar`, and `Collapsible`. */
+/** Client-side A2UI v1.0 Status Catalog containing `Badge`, `ProgressBar`, `Collapsible`, and `Table`. */
 export const statusCatalog = new Catalog(
   STATUS_CATALOG_ID,
   '1.0',
-  [A2uiBadge, A2uiProgressBar, A2uiCollapsible],
+  [A2uiBadge, A2uiProgressBar, A2uiCollapsible, A2uiTable],
   [],
 );
 
@@ -187,6 +254,6 @@ export const statusCatalog = new Catalog(
 export const statusSchemaCatalog = new Catalog(
   STATUS_CATALOG_ID,
   '1.0',
-  [BadgeApi, ProgressBarApi, CollapsibleApi],
+  [BadgeApi, ProgressBarApi, CollapsibleApi, TableApi],
   [],
 );
