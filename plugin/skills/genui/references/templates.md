@@ -33,6 +33,7 @@ User templates in `${PLUGIN_DATA}/templates/*.a2ui` are discovered too (the regi
 | `metrics_dashboard`  | pane           | KPI summary cards above an interactive `Chart` component (`bar`, `line`, `pie`, `donut`, `scatter`) and note field  | `/title` `/subtitle` `/kpis[] {label, value, delta}` `/chartTitle` `/xAxisLabel` `/yAxisLabel` `/labels[]` `/series[] {name, values}` `/selected` `/note` `/submitLabel`            | `inspect_metric`                                    | `main_chart` (override variant to `line`, `donut`, etc.) `submit_btn`                   |
 | `decision_batch`     | inline or pane | Yes/No/Defer decisions: one card per item with prompt, hint, pre-filled chips, a free-text alternative, and a note  | `/title` `/intro` `/items[] {prompt, hint, choice, text, note}` `/submitLabel`                                                                                                      | `submit_decision_batch`                             | `choice_picker` `submit_btn`                                                            |
 | `scorecard`          | pane           | Rubric scores: overall progress bar, rows with label, collapsible rationale, score bar, and tone badge, plus notes  | `/title` `/intro` `/overall {score, max}` `/rows[] {label, score, max, tone, rationale}` `/note` `/submitLabel`                                                                     | `submit_scorecard`                                  | `overall_bar` `submit_btn`                                                              |
+| `stack_board`        | pane           | PR or CL stack: tone-tallied progress bar, rows with state, CI, and review badges, a title link, and details        | `/title` `/subtitle` `/items[] {id, title, url, wave, base, state, tone, ci, ciTone, review, reviewTone, detail}` `/ackLabel`                                                       | `acknowledge_stack_board`                           | `ack_btn`                                                                               |
 
 Notes:
 
@@ -56,4 +57,24 @@ Then update a single item later without re-rendering:
 
 ```text
 $/items/0/note = "Fixed in 3eab437"
+```
+
+## Worked example: `stack_board`
+
+Render the stack once; the title in each row is a Markdown link, so clicking it opens the PR or CL in the browser. Items with the same `wave` read as a group, and every tone is supplied by you (`success`, `active`, `warning`, `danger`, `neutral`).
+
+```text
+$/title = "### Ship-it stack: StoreWriter rewrite"
+$/subtitle = "Three changes in two waves."
+$/items = [{id: "PR 3339", title: "feat(store): add StoreWriter", url: "https://github.com/a2ui-project/a2ui/pull/3339", wave: "1", base: "main", state: "Open", tone: "active", ci: "CI running", ciTone: "active", review: "Approved", reviewTone: "success", detail: "Waiting on the integration suite."}, {id: "PR 3340", title: "refactor(store): extract flush scheduling", url: "https://github.com/a2ui-project/a2ui/pull/3340", wave: "2", base: "PR 3339", state: "Draft", tone: "neutral", ci: "CI pending", ciTone: "warning", review: "Unreviewed", reviewTone: "neutral", detail: "Rebase after PR 3339 merges."}, {id: "CL 812345678", title: "Roll StoreWriter into the mirror", url: "https://critique.corp.google.com/cl/812345678", wave: "2", base: "PR 3340", state: "Pending", tone: "warning", ci: "TAP passed", ciTone: "success", review: "LGTM", reviewTone: "success", detail: "Submit queue blocked on the mirror."}]
+```
+
+When PR 3339 merges, send only the fields that changed. Each line updates one row; the progress bar retallies from the new tones and nothing else re-renders:
+
+```text
+$/items/0/state = "Merged"
+$/items/0/tone = "success"
+$/items/0/ci = "CI passed"
+$/items/0/ciTone = "success"
+$/items/0/detail = "Merged as 3eab437."
 ```
