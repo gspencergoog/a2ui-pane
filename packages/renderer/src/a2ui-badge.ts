@@ -1,4 +1,4 @@
-import { html, css, nothing } from 'lit';
+import { html, css, nothing, type PropertyValues } from 'lit';
 import { A2uiLitElement } from '@a2ui/web_core/universal';
 import { resolveIconSvgPath } from './icon-paths.js';
 
@@ -18,6 +18,33 @@ export function normalizeStatusTone(value: unknown): StatusTone {
     return value as StatusTone;
   }
   return 'neutral';
+}
+
+/**
+ * Applies a component's `weight` as the host element's `flex`, the same way the web_core basic
+ * catalog does (`BasicCatalogA2uiLitElement.willUpdate`): a defined weight becomes
+ * `style.flex`, and an undefined weight removes the inline property so the stylesheet default
+ * applies. Setting it on the host (not an inner element) is what makes the component take part
+ * in a `Row`'s flex layout alongside basic components.
+ */
+export function applyHostWeight(host: HTMLElement, weight: unknown): void {
+  if (weight !== undefined) {
+    host.style.flex = String(weight);
+  } else {
+    host.style.removeProperty('flex');
+  }
+}
+
+/** Attribute set on a status-catalog host that is a direct child of a `Row`. */
+export const ROW_ITEM_ATTRIBUTE = 'data-a2ui-row-item';
+
+/**
+ * Marks `host` when its parent is a `Row` so the element's own stylesheet can let it shrink and
+ * share the row (`:host([data-a2ui-row-item])`) while still stretching to full width inside a
+ * `Column`. The marker is derived from the DOM, so it needs no catalog or prompt changes.
+ */
+export function syncRowItemMarker(host: HTMLElement): void {
+  host.toggleAttribute(ROW_ITEM_ATTRIBUTE, host.parentElement?.localName === 'a2ui-basic-row');
 }
 
 /** Resolved runtime properties passed to `A2uiBadgeElement` by `GenericBinder`. */
@@ -130,6 +157,11 @@ export class A2uiBadgeElement extends A2uiLitElement<any, BadgeResolvedProps> {
     }
   `;
 
+  override willUpdate(changedProperties: PropertyValues): void {
+    super.willUpdate(changedProperties);
+    applyHostWeight(this, this.controller?.props?.weight);
+  }
+
   override render() {
     const props = this.controller?.props;
     if (!props) return nothing;
@@ -140,16 +172,9 @@ export class A2uiBadgeElement extends A2uiLitElement<any, BadgeResolvedProps> {
     const svgPath = iconName ? resolveIconSvgPath(iconName) : undefined;
     const showPulse = props.pulse === true;
     const ariaLabel = props.accessibility?.label || text;
-    const flexStyle = typeof props.weight === 'number' ? `flex: ${props.weight};` : nothing;
 
     return html`
-      <span
-        class="a2ui-badge"
-        data-tone=${tone}
-        role="status"
-        aria-label=${ariaLabel}
-        style=${flexStyle}
-      >
+      <span class="a2ui-badge" data-tone=${tone} role="status" aria-label=${ariaLabel}>
         ${showPulse ? html`<span class="a2ui-badge-dot" aria-hidden="true"></span>` : nothing}
         ${
           svgPath

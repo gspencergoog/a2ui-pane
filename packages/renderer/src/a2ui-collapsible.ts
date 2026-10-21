@@ -1,6 +1,7 @@
-import { html, css, nothing, unsafeCSS } from 'lit';
+import { html, css, nothing, unsafeCSS, type PropertyValues } from 'lit';
 import { A2uiLitElement } from '@a2ui/web_core/universal';
 import { SURFACE_LAYOUT_CSS } from './surface-layout-css.js';
+import { applyHostWeight, syncRowItemMarker } from './a2ui-badge.js';
 
 /** Resolved runtime properties passed to `A2uiCollapsibleElement` by `GenericBinder`. */
 export interface CollapsibleResolvedProps {
@@ -41,8 +42,17 @@ export class A2uiCollapsibleElement extends A2uiLitElement<any, CollapsibleResol
     css`
       :host {
         display: block;
-        width: 100%;
+        min-width: 0;
+        align-self: stretch;
         box-sizing: border-box;
+      }
+
+      /* Inside a Row the host is a flex item: follow the row's alignment, share the row, and
+         shrink instead of claiming its full width (a weight on the component overrides this
+         stylesheet default through the inline flex set on the host). */
+      :host([data-a2ui-row-item]) {
+        align-self: auto;
+        flex: 1 1 0%;
       }
 
       .a2ui-collapsible {
@@ -50,6 +60,8 @@ export class A2uiCollapsibleElement extends A2uiLitElement<any, CollapsibleResol
         border-radius: var(--a2ui-border-radius, 8px);
         background-color: var(--a2ui-color-surface, #ffffff);
         overflow: hidden;
+        min-width: 0;
+        container: a2ui-collapsible / inline-size;
       }
 
       .a2ui-collapsible-header {
@@ -57,6 +69,7 @@ export class A2uiCollapsibleElement extends A2uiLitElement<any, CollapsibleResol
         align-items: center;
         justify-content: space-between;
         gap: 8px;
+        min-width: 0;
         padding: 8px calc(12px + var(--a2ui-collapsible-close-clearance, 0px)) 8px 12px;
         cursor: pointer;
         user-select: none;
@@ -97,6 +110,7 @@ export class A2uiCollapsibleElement extends A2uiLitElement<any, CollapsibleResol
         font-size: 13px;
         font-weight: 600;
         color: var(--a2ui-text-color-text, inherit);
+        min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -106,6 +120,20 @@ export class A2uiCollapsibleElement extends A2uiLitElement<any, CollapsibleResol
         font-size: 12px;
         color: var(--a2ui-text-caption-color, #70757a);
         white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* When the header gets narrow (for example in a Row), let the title wrap instead of
+         collapsing to an unreadable sliver next to the chevron. */
+      @container a2ui-collapsible (max-width: 220px) {
+        .a2ui-collapsible-heading {
+          flex-wrap: wrap;
+        }
+        .a2ui-collapsible-title {
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
       }
 
       .a2ui-collapsible-badge {
@@ -146,6 +174,16 @@ export class A2uiCollapsibleElement extends A2uiLitElement<any, CollapsibleResol
     }
   }
 
+  override connectedCallback(): void {
+    super.connectedCallback();
+    syncRowItemMarker(this);
+  }
+
+  override willUpdate(changedProperties: PropertyValues): void {
+    super.willUpdate(changedProperties);
+    applyHostWeight(this, this.controller?.props?.weight);
+  }
+
   override render() {
     const props = this.controller?.props;
     if (!props) return nothing;
@@ -153,10 +191,9 @@ export class A2uiCollapsibleElement extends A2uiLitElement<any, CollapsibleResol
     const isOpen = this.isExpanded(props);
     const title = typeof props.title === 'string' ? props.title : String(props.title ?? '');
     const summary = typeof props.summary === 'string' ? props.summary.trim() : '';
-    const flexStyle = typeof props.weight === 'number' ? `flex: ${props.weight};` : nothing;
 
     return html`
-      <div class="a2ui-collapsible" data-open=${String(isOpen)} style=${flexStyle}>
+      <div class="a2ui-collapsible" data-open=${String(isOpen)}>
         <div
           class="a2ui-collapsible-header"
           role="button"
