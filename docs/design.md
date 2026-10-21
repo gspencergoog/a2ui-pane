@@ -128,6 +128,7 @@ The repository is organized as Yarn workspaces under `packages/*`:
   ```
 - Atomicity: Written using `fs.appendFile` with `O_APPEND`.
 - Retention: Files unaccessed for over 30 days are purged on sidecar startup.
+- Multiple writers: Each Jetski conversation runs its own MCP server process, and a swarm worker can render into another conversation's store, so several processes append to one file. `seq` must stay monotonic across all of them because the pane de-duplicates replayed records by `seq`. Before every append, `StoreWriter` reads the last 64 KiB of the file, takes the `seq` of the last complete line (skipping a truncated trailing line), and continues from the larger of that value and its own last write. The in-process value is only a floor, so a process never reuses a `seq` even if the file shrinks underneath it.
 
 ### 4.2 Sidecar & SSE Transport
 

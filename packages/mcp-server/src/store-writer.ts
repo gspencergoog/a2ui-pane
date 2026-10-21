@@ -1,4 +1,14 @@
-import { existsSync, mkdirSync, readFileSync, appendFileSync, unlinkSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  appendFileSync,
+  unlinkSync,
+  openSync,
+  fstatSync,
+  readSync,
+  closeSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import {
   A2uiServerMessage,
@@ -8,10 +18,32 @@ import {
   StoreLine,
 } from '@a2ui-pane/protocol';
 
+/** How many bytes of the file tail `readLastSeq` inspects. Store lines are far smaller. */
+const TAIL_BYTES = 64 * 1024;
+
+/** Reads at most the last `maxBytes` of `filePath` as UTF-8 text. */
+function readTail(filePath: string, maxBytes: number): string {
+  const fd = openSync(filePath, 'r');
+  try {
+    const size = fstatSync(fd).size;
+    const length = Math.min(size, maxBytes);
+    const buffer = Buffer.alloc(length);
+    readSync(fd, buffer, 0, length, size - length);
+    return buffer.toString('utf-8');
+  } finally {
+    closeSync(fd);
+  }
+}
+
 /**
  * Manages persisting and reading newline-delimited JSONL lines
  * for conversations under ${PLUGIN_DATA}/conversations/<conversationId>.jsonl.
- * Caches latest sequence numbers to avoid O(N) re-reads on every append.
+ *
+ * Several MCP server processes may append to the same conversation file: each Jetski
+ * conversation runs its own server, and a swarm worker can render into another
+ * conversation's store. Every append therefore re-reads the last `seq` from the file tail
+ * and takes the larger of that and the in-process cache, so `seq` stays monotonic across
+ * processes and a single process never goes backwards.
  */
 export class StoreWriter {
   private readonly conversationsDir: string;
@@ -87,9 +119,31 @@ export class StoreWriter {
   }
 
   /**
+   * Returns the `seq` of the last complete record in a conversation file by reading only
+   * its tail (the last 64 KiB). Returns 0 when the file is missing or the tail holds no
+   * parseable line. A truncated trailing line from an interrupted write is skipped.
+   */
+  private readLastSeq(conversationId: string): number {
+    const filePath = this.getConversationFilePath(conversationId);
+    if (!existsSync(filePath)) return 0;
+    const tail = readTail(filePath, TAIL_BYTES);
+    const lines = tail.split('\n');
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      try {
+        return parseStoreLine(line).seq;
+      } catch {
+        // Truncated or partial line; keep looking at earlier lines.
+      }
+    }
+    return 0;
+  }
+
+  /**
    * Appends an array of server messages to a conversation store file.
-   * Assigns incrementing 1-based seq numbers continuing from the last record.
-   * Uses cached in-memory sequence counter to avoid re-reading disk on every call.
+   * Assigns incrementing 1-based seq numbers continuing from the last record on disk,
+   * or from this process's own last write if that is higher.
    * All lines are committed in a single append call.
    */
   append(conversationId: string, callId: string, messages: A2uiServerMessage[]): StoreLine[] {
@@ -105,13 +159,10 @@ export class StoreWriter {
 
     const filePath = this.getConversationFilePath(conversationId);
 
-    let currentSeq: number;
-    if (this.lastSeqMap.has(conversationId)) {
-      currentSeq = this.lastSeqMap.get(conversationId)!;
-    } else {
-      const existing = this.readAll(conversationId);
-      currentSeq = existing.length > 0 ? existing[existing.length - 1].seq : 0;
-    }
+    let currentSeq = Math.max(
+      this.lastSeqMap.get(conversationId) ?? 0,
+      this.readLastSeq(conversationId),
+    );
 
     const newLines: StoreLine[] = [];
     const timestamp = new Date().toISOString();

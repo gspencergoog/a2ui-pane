@@ -137,4 +137,70 @@ describe('StoreWriter', () => {
     ]);
     expect(added[0].seq).toBe(1);
   });
+
+  it('keeps seq monotonic when two writers append to the same conversation file', () => {
+    const msg = (id: string) => ({
+      version: 'v0.9' as const,
+      createSurface: { surfaceId: id, catalogId: 'basic' },
+    });
+    const writerA = new StoreWriter(tempDir);
+    const writerB = new StoreWriter(tempDir);
+
+    writerA.append('conv-shared', 'call-a1', [msg('a1'), msg('a2'), msg('a3')]);
+    writerB.append('conv-shared', 'call-b1', [msg('b1'), msg('b2')]);
+    const last = writerA.append('conv-shared', 'call-a2', [msg('a4')]);
+
+    expect(last[0].seq).toBe(6);
+    const all = writer.readAll('conv-shared');
+    expect(all.map((l) => l.seq)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(new Set(all.map((l) => l.seq)).size).toBe(6);
+  });
+
+  it('resumes from the last complete record when the tail ends in a truncated line', () => {
+    writer.append('conv-tail', 'call-1', [
+      { version: 'v0.9', createSurface: { surfaceId: 's1', catalogId: 'basic' } },
+      { version: 'v0.9', createSurface: { surfaceId: 's2', catalogId: 'basic' } },
+    ]);
+    const filePath = writer.getConversationFilePath('conv-tail');
+    writeFileSync(filePath, '{"seq":3,"callId":"call-interrupted","ts":"2026', { flag: 'a' });
+
+    const fresh = new StoreWriter(tempDir);
+    const next = fresh.append('conv-tail', 'call-2', [
+      { version: 'v0.9', deleteSurface: { surfaceId: 's1' } },
+    ]);
+    expect(next[0].seq).toBe(3);
+  });
+
+  it('never goes backwards when the file is replaced by a shorter one', () => {
+    writer.append('conv-floor', 'call-1', [
+      { version: 'v0.9', createSurface: { surfaceId: 's1', catalogId: 'basic' } },
+      { version: 'v0.9', createSurface: { surfaceId: 's2', catalogId: 'basic' } },
+    ]);
+    const filePath = writer.getConversationFilePath('conv-floor');
+    writeFileSync(
+      filePath,
+      '{"seq":1,"callId":"c1","ts":"2026-09-30T00:00:00Z","message":{"version":"v0.9"}}\n',
+    );
+
+    const next = writer.append('conv-floor', 'call-2', [
+      { version: 'v0.9', deleteSurface: { surfaceId: 's1' } },
+    ]);
+    expect(next[0].seq).toBe(3);
+  });
+
+  it('reads the last seq from the tail of a file larger than the tail window', () => {
+    const filePath = writer.getConversationFilePath('conv-large');
+    const padding = 'x'.repeat(2048);
+    let content = '';
+    for (let seq = 1; seq <= 200; seq++) {
+      content += `{"seq":${seq},"callId":"c1","ts":"2026-09-30T00:00:00Z","message":{"version":"v0.9","updateDataModel":{"surfaceId":"s","path":"/p","value":"${padding}"}}}\n`;
+    }
+    writeFileSync(filePath, content);
+    expect(content.length).toBeGreaterThan(64 * 1024);
+
+    const next = writer.append('conv-large', 'call-2', [
+      { version: 'v0.9', deleteSurface: { surfaceId: 's' } },
+    ]);
+    expect(next[0].seq).toBe(201);
+  });
 });
