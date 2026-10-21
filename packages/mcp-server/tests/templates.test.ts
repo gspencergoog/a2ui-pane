@@ -25,6 +25,7 @@ const EXPECTED_TEMPLATES = [
   'confirm_gate',
   'consequence_cards',
   'contract_workbench',
+  'decision_batch',
   'metrics_dashboard',
   'progress_board',
   'state_walkthrough',

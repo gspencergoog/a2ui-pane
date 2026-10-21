@@ -1,0 +1,218 @@
+[
+  {
+    "version": "v1.0",
+    "createSurface": {
+      "surfaceId": "decision_batch",
+      "sendDataModel": true,
+      "components": [
+        {
+          "id": "root",
+          "component": "Card",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "child": "decision_col"
+        },
+        {
+          "id": "decision_col",
+          "component": "Column",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "children": [
+            "decision_title",
+            "decision_intro",
+            "decision_list",
+            "decision_divider",
+            "decision_footer"
+          ]
+        },
+        {
+          "id": "decision_title",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@path": "/title"
+          }
+        },
+        {
+          "id": "decision_intro",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@path": "/intro"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "decision_list",
+          "component": "List",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "children": {
+            "path": "/items",
+            "componentId": "decision_item_card"
+          }
+        },
+        {
+          "id": "decision_item_card",
+          "component": "Card",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "child": "decision_item_col"
+        },
+        {
+          "id": "decision_item_col",
+          "component": "Column",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "children": [
+            "decision_item_prompt",
+            "decision_item_hint",
+            "choice_picker",
+            "decision_item_fields"
+          ]
+        },
+        {
+          "id": "decision_item_prompt",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@path": "prompt"
+          }
+        },
+        {
+          "id": "decision_item_hint",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@path": "hint"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "choice_picker",
+          "component": "ChoicePicker",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "variant": "mutuallyExclusive",
+          "options": [
+            {
+              "label": "Yes",
+              "value": "yes"
+            },
+            {
+              "label": "No",
+              "value": "no"
+            },
+            {
+              "label": "Defer",
+              "value": "defer"
+            }
+          ],
+          "value": {
+            "@path": "choice"
+          },
+          "displayStyle": "chips"
+        },
+        {
+          "id": "decision_item_fields",
+          "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "children": [
+            "decision_item_text",
+            "decision_item_note"
+          ],
+          "align": "center"
+        },
+        {
+          "id": "decision_item_text",
+          "component": "TextField",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "label": "Or specify",
+          "value": {
+            "@path": "text"
+          },
+          "placeholder": "free text, name, or condition",
+          "weight": 1
+        },
+        {
+          "id": "decision_item_note",
+          "component": "TextField",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "label": "Note",
+          "value": {
+            "@path": "note"
+          },
+          "weight": 1
+        },
+        {
+          "id": "decision_divider",
+          "component": "Divider",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        },
+        {
+          "id": "decision_footer",
+          "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "children": [
+            "submit_btn"
+          ],
+          "justify": "end",
+          "align": "center"
+        },
+        {
+          "id": "submit_btn",
+          "component": "Button",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "child": "submit_btn_child",
+          "variant": "primary",
+          "action": {
+            "event": {
+              "name": "submit_decision_batch",
+              "context": {
+                "items": {
+                  "@path": "/items"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "submit_btn_child",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@path": "/submitLabel"
+          }
+        }
+      ],
+      "dataModel": {
+        "title": "### Three things to confirm before I continue",
+        "intro": "Each item is pre-filled with my recommendation; change the ones you disagree with.",
+        "items": [
+          {
+            "prompt": "**Reply to the review thread on PR 1234 with the draft below?**",
+            "hint": "Draft: \"Good catch. Switched `append` to take the lock before the length check; see 3eab437.\"",
+            "choice": [
+              "yes"
+            ],
+            "text": "",
+            "note": ""
+          },
+          {
+            "prompt": "**Name the new helper `mergeRootDataUpdates`?**",
+            "hint": "Matches the `merge*` helpers in render.ts; type a different name under Or specify.",
+            "choice": [
+              "yes"
+            ],
+            "text": "mergeRootDataUpdates",
+            "note": ""
+          },
+          {
+            "prompt": "**Delete the merged branch `fix/store-writer-race` locally and on origin?**",
+            "hint": "Its commits are on main as 3eab437; nothing else points at it.",
+            "choice": [
+              "defer"
+            ],
+            "text": "",
+            "note": "Wait until the release branch is cut"
+          }
+        ],
+        "submitLabel": "Confirm decisions"
+      }
+    }
+  }
+]

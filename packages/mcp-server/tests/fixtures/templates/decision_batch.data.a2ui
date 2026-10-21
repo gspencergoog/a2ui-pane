@@ -1,0 +1,4 @@
+$/title = "### Three things to confirm before I continue"
+$/intro = "Each item is pre-filled with my recommendation; change the ones you disagree with."
+$/items = [{prompt: "**Reply to the review thread on PR 1234 with the draft below?**", hint: "Draft: \"Good catch. Switched `append` to take the lock before the length check; see 3eab437.\"", choice: ["yes"], text: "", note: ""}, {prompt: "**Name the new helper `mergeRootDataUpdates`?**", hint: "Matches the `merge*` helpers in render.ts; type a different name under Or specify.", choice: ["yes"], text: "mergeRootDataUpdates", note: ""}, {prompt: "**Delete the merged branch `fix/store-writer-race` locally and on origin?**", hint: "Its commits are on main as 3eab437; nothing else points at it.", choice: ["defer"], text: "", note: "Wait until the release branch is cut"}]
+$/submitLabel = "Confirm decisions"
