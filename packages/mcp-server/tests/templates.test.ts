@@ -22,6 +22,7 @@ const UPDATE = process.env.UPDATE_GOLDENS === '1';
 
 const EXPECTED_TEMPLATES = [
   'assumption_ledger',
+  'comparison_matrix',
   'confirm_gate',
   'consequence_cards',
   'contract_workbench',

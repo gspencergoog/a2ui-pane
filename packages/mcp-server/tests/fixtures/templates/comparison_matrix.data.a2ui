@@ -1,0 +1,8 @@
+$/title = "### Sequencing the missing genui components"
+$/question = "Three ways to order the work. Option 3 is recommended: it ships the two templates that need nothing new first and lands the Table primitive only once the grid templates need it."
+$/rows = [{criterion: "Time to first value", o1: {text: "Days", tone: "success"}, o2: {text: "Weeks", tone: "danger"}, o3: {text: "Days for the first two", tone: "success"}}, {criterion: "PR-tracker coverage", o1: {text: "Partial, links awkward", tone: "warning"}, o2: {text: "Full", tone: "success"}, o3: {text: "Full once Link lands", tone: "success"}}, {criterion: "Risk", o1: {text: "Templates thrown away later", tone: "warning"}, o2: {text: "Catalog protocol change", tone: "danger"}, o3: {text: "Some stack_board rework", tone: "warning"}}, {criterion: "Blast radius", o1: {text: "Templates and docs only", tone: "success"}, o2: {text: "Catalog, renderer, compiler, spec", tone: "danger"}, o3: {text: "Both, staged", tone: "warning"}}, {criterion: "Rework", o1: {text: "Grid templates rebuilt on Table", tone: "danger"}, o2: {text: "None", tone: "success"}, o3: {text: "One template, if Table changes layout", tone: "warning"}}]
+$/choice = ["o3"]
+$/notes = ""
+$/submitLabel = "Confirm sequencing"
+matrix_table = Table([{key: "criterion", label: "Criterion"}, {key: "o1", label: "1: Templates only", kind: "badge"}, {key: "o2", label: "2: Table first", kind: "badge"}, {key: "o3", label: "3: Hybrid (Recommended)", kind: "badge"}], $/rows)
+choice_picker = ChoicePicker("Pick a sequencing option", "mutuallyExclusive", [{label: "1: Templates only", value: "o1"}, {label: "2: Table first", value: "o2"}, {label: "3: Hybrid (Recommended)", value: "o3"}], $/choice, "chips")
