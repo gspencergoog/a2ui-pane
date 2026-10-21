@@ -354,3 +354,71 @@ describe('render_a2ui Express paths', () => {
     expect(reg2.resolve('greeting')?.source).toBe('user');
   });
 });
+
+const REAL_WORKER = resolve(__dirname, '..', 'python', 'express_worker.py');
+const STATUS_CATALOG = resolve(
+  __dirname,
+  '..',
+  '..',
+  '..',
+  'catalogs',
+  'v1_0',
+  'status',
+  'catalog.json',
+);
+const realPython = process.env.A2UI_PANE_PYTHON;
+const agentSdkPath = process.env.A2UI_PANE_AGENT_SDK_PATH;
+
+describe.skipIf(!realPython && !agentSdkPath)(
+  'render_a2ui Express status catalog (real worker)',
+  () => {
+    it('compiles a Table with static columns and a $/rows binding', async () => {
+      const worker = new ExpressWorker({
+        pythonBin: realPython,
+        agentSdkPath,
+        uvBin: process.env.A2UI_PANE_UV,
+        workerScript: REAL_WORKER,
+        catalogPaths: [CATALOG, CHARTS_CATALOG, STATUS_CATALOG],
+        startupTimeoutMs: 60_000,
+        log: () => {},
+      });
+      try {
+        const dsl = [
+          'surface("grid", sendDataModel=true)',
+          '$/rows = [{name: "CL 1", state: {text: "Merged", tone: "success"}}]',
+          't = Table([{key:"name",label:"Name"}], $/rows)',
+          'root = Card(t)',
+        ].join('\n');
+        const messages = await worker.compile(dsl, 'grid');
+        const components = (messages[0] as any).createSurface.components as Array<
+          Record<string, unknown>
+        >;
+        const table = components.find((c) => c.component === 'Table');
+        expect(table).toMatchObject({
+          id: 't',
+          catalogId: 'https://a2ui.org/specification/v1_0/catalogs/status/catalog.json',
+          columns: [{ key: 'name', label: 'Name' }],
+          rows: { '@path': '/rows' },
+        });
+
+        // The server-side zod mirror in catalog-registry.ts must accept the compiled JSON.
+        const tempDir = mkdtempSync(join(tmpdir(), 'a2ui-table-test-'));
+        try {
+          const server = createServer(tempDir, {});
+          const result = await handleRenderA2ui(
+            { conversationId: 'conv-table', messages, mode: 'pane' },
+            server.getState,
+            server.catalogs,
+            tempDir,
+          );
+          expect(result.isError).toBeUndefined();
+          expect(server.getState('conv-table').hasSurface('grid')).toBe(true);
+        } finally {
+          rmSync(tempDir, { recursive: true, force: true });
+        }
+      } finally {
+        worker.dispose();
+      }
+    }, 90_000);
+  },
+);
