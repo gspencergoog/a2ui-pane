@@ -97,7 +97,7 @@ export class A2uiStepperElement extends A2uiLitElement<any, StepperResolvedProps
       align-items: flex-start;
       gap: 0;
       margin: 0;
-      padding: 0;
+      padding: 3px 0 0;
       list-style: none;
       font-size: 11.5px;
       line-height: 1.3;

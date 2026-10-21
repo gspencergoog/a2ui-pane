@@ -314,10 +314,20 @@ export class A2uiTableElement extends A2uiLitElement<any, TableResolvedProps> {
         font-variant-numeric: tabular-nums;
       }
 
-      /* Long badge text wraps inside the pill instead of widening the column. */
+      /* Long badge text wraps inside the pill instead of widening the column;
+         10px radius keeps 1-line pills fully rounded while capping 2-line pills,
+         and [data-multiline] switches >2-line badges to a 6px rounded rectangle. */
       .a2ui-table td[data-kind='badge'] .a2ui-badge {
         white-space: normal;
         overflow-wrap: anywhere;
+        line-height: 1.25;
+        padding: 2px 8px;
+        border-radius: 10px;
+      }
+
+      .a2ui-table td[data-kind='badge'] .a2ui-badge[data-multiline] {
+        border-radius: 6px;
+        padding: 3px 8px;
       }
 
       .a2ui-table td[data-kind='progress'] {
@@ -366,15 +376,46 @@ export class A2uiTableElement extends A2uiLitElement<any, TableResolvedProps> {
     `,
   ];
 
+  private resizeObserver?: ResizeObserver;
+
   constructor() {
     super();
     this.sortKey = null;
     this.sortDir = 'asc';
   }
 
+  override connectedCallback(): void {
+    super.connectedCallback();
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => this.syncBadgeMultiline());
+      this.resizeObserver.observe(this);
+    }
+  }
+
+  override disconnectedCallback(): void {
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = undefined;
+    super.disconnectedCallback();
+  }
+
   override willUpdate(changedProperties: PropertyValues): void {
     super.willUpdate(changedProperties);
     applyHostWeight(this, this.controller?.props?.weight);
+  }
+
+  override updated(changedProperties: PropertyValues): void {
+    super.updated(changedProperties);
+    this.syncBadgeMultiline();
+  }
+
+  /** Marks badges taller than two lines (> 40px) with `data-multiline` so they render as rounded rects. */
+  private syncBadgeMultiline(): void {
+    const badges = this.renderRoot.querySelectorAll<HTMLElement>(
+      "td[data-kind='badge'] .a2ui-badge",
+    );
+    for (const badge of Array.from(badges)) {
+      badge.toggleAttribute('data-multiline', badge.offsetHeight > 40);
+    }
   }
 
   /** Toggles the sort direction for `key`, or starts an ascending sort on a new column. */
