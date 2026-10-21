@@ -1,7 +1,15 @@
 import { injectHostTheme } from '@a2ui-pane/theme';
 import { formatActionText, A2uiActionDetails, StoreLine } from '@a2ui-pane/protocol';
-import { LineApplier, A2uiPaneView, type DispatchedActionDetails } from '@a2ui-pane/renderer';
+import {
+  LineApplier,
+  A2uiPaneView,
+  type DispatchedActionDetails,
+  type A2uiLinkClickDetail,
+} from '@a2ui-pane/renderer';
 import { SurfaceResizeObserver } from './surface-resize-observer.js';
+// The router is shared source with the pane app; the embed bundles it directly (no workspace
+// dependency) because pane-app is an application, not a library package.
+import { openLink } from '../../pane-app/src/link-router.js';
 
 /** Side-channel endpoint and routing metadata injected into an inline embed iframe. */
 export interface ActionConfig {
@@ -93,6 +101,62 @@ function createTimeoutSignal(): AbortSignal | undefined {
   return typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
     ? AbortSignal.timeout(15000)
     : undefined;
+}
+
+/**
+ * Copies text inside the sandboxed embed iframe. The iframe has an opaque origin and no
+ * `clipboard-write` permission, so `navigator.clipboard.writeText` may throw; this falls back
+ * to `document.execCommand('copy')` on a hidden textarea and rejects when both paths fail.
+ */
+export async function copyTextInEmbed(text: string): Promise<void> {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+  } catch {
+    // Fall through to the execCommand path.
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.setAttribute('aria-hidden', 'true');
+  textarea.style.cssText = 'position: fixed; top: -1000px; left: -1000px; opacity: 0;';
+  document.body.appendChild(textarea);
+  textarea.select();
+  let copied = false;
+  try {
+    copied = document.execCommand('copy');
+  } catch {
+    copied = false;
+  }
+  textarea.remove();
+  if (!copied) {
+    throw new Error('Clipboard is unavailable in this embed');
+  }
+}
+
+/**
+ * Wires `a2ui-link-click` events from the embed's pane view to `openLink`. Copy results are
+ * announced in `status`; when copying is impossible the status shows the destination itself so
+ * the user can select it.
+ */
+function installLinkRouting(paneView: A2uiPaneView, status: HTMLElement): void {
+  paneView.addEventListener('a2ui-link-click', (evt: Event) => {
+    const detail = (evt as CustomEvent<A2uiLinkClickDetail>).detail;
+    if (!detail?.href) return;
+    void openLink(detail, {
+      open: (url, target, features) => window.open(url, target, features),
+      copy: copyTextInEmbed,
+      toast: (message) => {
+        status.textContent = message;
+      },
+    }).then((result) => {
+      if (result === 'failed') {
+        status.textContent = detail.href;
+      }
+    });
+  });
 }
 
 async function trySidecarDispatch(
@@ -358,6 +422,21 @@ export function initEmbed(options: InitEmbedOptions = {}): EmbedInstance | null 
   const applier = new LineApplier(undefined, onAction);
   paneView.processor = applier.getProcessor();
   wrapper.appendChild(paneView);
+
+  // One-line status under the surface for link copies (the embed has no toast helper)
+  const linkStatus = document.createElement('div');
+  linkStatus.className = 'a2ui-embed-link-status';
+  linkStatus.setAttribute('role', 'status');
+  linkStatus.style.cssText = `
+    font-size: 11px;
+    color: var(--a2ui-color-border, #6a737d);
+    padding: 0 8px;
+    overflow-wrap: anywhere;
+    user-select: text;
+  `;
+  wrapper.appendChild(linkStatus);
+  installLinkRouting(paneView, linkStatus);
+
   wrapper.appendChild(footerNote);
 
   // Apply parsed messages

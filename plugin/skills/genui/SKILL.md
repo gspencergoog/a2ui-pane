@@ -58,6 +58,7 @@ When `render_a2ui` is neither a native tool nor a lazily loaded MCP tool on `a2u
 - Use `Chart(variant, series, labels=_, title=_, xAxisLabel=_, yAxisLabel=_, height=_, showLegend=_, showGrid=_, selected=_, action=_)` for interactive charts when data passes the **Visual Worthiness Gate** below.
 - Use `Badge(text, tone=_, icon=_, pulse=_)`, `ProgressBar(value=_, max=_, segments=_, items=_, label=_, summary=_, indeterminate=_)`, and `Collapsible(title, child, summary=_, badge=_, open=_)` from the `status` catalog (`tone`: `"neutral" | "info" | "active" | "success" | "warning" | "danger"`) for semantic status pills, progress tracks, and opt-in disclosure sections.
 - Use Markdown inside `Text` for emphasis, code spans, LaTeX, and ` ```mermaid ` diagrams (`flowchart`, `stateDiagram-v2`, `sequenceDiagram`, `pie`, `xychart-beta`).
+- For references, prefer Markdown links inside `Text` (`[PR 3339](https://...)`, `[notes](file:///...)`, `[thread](conversation://...)`) over a borderless `Button` with `openUrl`. `http(s)` links open in the browser; other schemes copy the path when clicked. Do not put links inside a `Button` label: the button action wins and the link is ignored.
 
 ### When to Chart vs. Table (Visual Worthiness Gate)
 

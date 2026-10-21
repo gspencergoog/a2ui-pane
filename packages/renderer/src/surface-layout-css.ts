@@ -140,6 +140,20 @@ export const SURFACE_LAYOUT_CSS = `
   a2ui-basic-text .a2ui-text li + li {
     margin-top: 2px;
   }
+  a2ui-basic-text .a2ui-text a,
+  a2ui-basic-text .a2ui-text [data-a2ui-href] {
+    color: var(--a2ui-color-primary, var(--primary, #0b57d0));
+    text-decoration: none;
+    cursor: pointer;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  a2ui-basic-text .a2ui-text a:hover,
+  a2ui-basic-text .a2ui-text a:focus-visible,
+  a2ui-basic-text .a2ui-text [data-a2ui-href]:hover,
+  a2ui-basic-text .a2ui-text [data-a2ui-href]:focus-visible {
+    text-decoration: underline;
+  }
   .a2ui-math-block {
     margin: 4px 0;
     padding: 2px 0;
