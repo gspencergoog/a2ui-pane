@@ -31,6 +31,7 @@ User templates in `${PLUGIN_DATA}/templates/*.a2ui` are discovered too (the regi
 | `confirm_gate`       | inline         | One consequential action: Markdown summary, acknowledgement checkbox that unlocks the primary button, cancel button | `/title` `/summary` `/confirmLabel` `/confirmed` `/confirmButtonLabel` `/cancelLabel`                                                                                               | `confirm_gate` (cancel sends `cancel_confirm_gate`) | `confirm_btn` `cancel_btn`                                                              |
 | `progress_board`     | pane           | Live status rows (semantic badge, bold label, detail, segmented progress bar) with an acknowledge button            | `/title` `/subtitle` `/items[] {status, tone, label, detail}` `/ackLabel`                                                                                                           | `acknowledge_progress`                              | `ack_btn`                                                                               |
 | `metrics_dashboard`  | pane           | KPI summary cards above an interactive `Chart` component (`bar`, `line`, `pie`, `donut`, `scatter`) and note field  | `/title` `/subtitle` `/kpis[] {label, value, delta}` `/chartTitle` `/xAxisLabel` `/yAxisLabel` `/labels[]` `/series[] {name, values}` `/selected` `/note` `/submitLabel`            | `inspect_metric`                                    | `main_chart` (override variant to `line`, `donut`, etc.) `submit_btn`                   |
+| `decision_batch`     | inline or pane | Yes/No/Defer decisions: one card per item with prompt, hint, pre-filled chips, a free-text alternative, and a note  | `/title` `/intro` `/items[] {prompt, hint, choice, text, note}` `/submitLabel`                                                                                                      | `submit_decision_batch`                             | `choice_picker` `submit_btn`                                                            |
 
 Notes:
 
@@ -39,6 +40,7 @@ Notes:
 - `ChoicePicker` options and `Tabs` titles are static in A2UI Express, which is why those variables appear under Customize instead of in the data.
 - Event names are literal in v0.9; to change one, redefine the button.
 - For a single compact chart without KPI cards or a note field, prefer an inline surface (`mode: "inline"`, `root = Card(Chart(..., height=190))`) so it renders directly in chat under the 500px cap; reach for `metrics_dashboard` (`mode: "pane"`) when combining KPI cards, a larger chart, and interactive selection/notes.
+- `decision_batch` replaces chat replies of the form "Three things to confirm: 1. ... 2. ... 3. ...". Pre-fill each item's `choice` with the recommended answer and `text` with the proposed name or value, so the user only changes what they disagree with. Use `mode: "inline"` for up to 3 items and `mode: "pane"` for 4 or more.
 
 ## Worked example: `triage_matrix`
 

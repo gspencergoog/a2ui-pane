@@ -1,0 +1,27 @@
+// @genui id=decision_batch surface=either
+// @summary Batch of yes/no/defer decisions: one card per item with the question, a hint, Yes/No/Defer chips pre-filled with the recommendation, a free-text alternative, and a note.
+// @data /title /intro /items[] {prompt,hint,choice,text,note} /submitLabel
+// @action submit_decision_batch
+// @customize choice_picker submit_btn
+
+$/title = "### Decisions"
+$/intro = "Each item is pre-filled with the recommended answer; change the ones you disagree with."
+$/items = []
+$/submitLabel = "Submit decisions"
+
+root = Card(decision_col)
+decision_col = Column([decision_title, decision_intro, decision_list, decision_divider, decision_footer])
+decision_title = Text($/title)
+decision_intro = Text($/intro, "caption")
+decision_list = List(_template($/items, decision_item_card))
+decision_item_card = Card(decision_item_col)
+decision_item_col = Column([decision_item_prompt, decision_item_hint, choice_picker, decision_item_fields])
+decision_item_prompt = Text($prompt)
+decision_item_hint = Text($hint, "caption")
+choice_picker = ChoicePicker(_, "mutuallyExclusive", [{label: "Yes", value: "yes"}, {label: "No", value: "no"}, {label: "Defer", value: "defer"}], $choice, "chips")
+decision_item_fields = Row([decision_item_text, decision_item_note], _, "center")
+decision_item_text = TextField("Or specify", $text, "free text, name, or condition", _, 1)
+decision_item_note = TextField("Note", $note, _, _, 1)
+decision_divider = Divider()
+decision_footer = Row([submit_btn], "end", "center")
+submit_btn = Button(Text($/submitLabel), "primary", Event("submit_decision_batch", {items: $/items}))
