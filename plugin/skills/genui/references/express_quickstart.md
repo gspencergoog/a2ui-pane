@@ -43,6 +43,20 @@ Links: Markdown links are clickable inside `Text`. `[label](https://...)` opens 
 ref = Text("Review [PR 3339](https://github.com/a2ui-project/a2ui/pull/3339) and the [notes](file:///tmp/review-notes.md).")
 ```
 
+Table: Status catalog component for tabular data with 3 or more columns or typed cells (`badge`, `progress`, `link`, `check`, `icon`). Column definitions are static.
+
+```text
+$/rows = [{feature: "Router", status: {text: "stable", tone: "success"}, coverage: {value: 95, max: 100}}]
+tbl = Table([{key: "feature", label: "Feature"}, {key: "status", label: "Status", kind: "badge"}, {key: "coverage", label: "Coverage", kind: "progress"}], $/rows, dense=true)
+```
+
+Stepper: Status catalog component for ordered milestone lifecycles. Completed steps render with success tone; current step renders with active pulse or the given tone; future steps render neutral.
+
+```text
+$/steps = [{label: "Plan"}, {label: "Review"}, {label: "CI"}, {label: "Merge"}]
+step_bar = Stepper($/steps, $/current_step, "active")
+```
+
 Compact inline chart (`mode: "inline"`, fits well under the 500px inline height cap):
 
 ```text

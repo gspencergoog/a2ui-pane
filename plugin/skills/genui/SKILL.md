@@ -3,15 +3,18 @@ name: genui
 description: >-
   Presents information through the right channel and collects structured input
   back: chat Markdown, Markdown artifacts, interactive A2UI surfaces (inline
-  cards or the live side pane) in A2UI Express or from named templates, HTML
-  widgets via generative_ui, or the host's question tool (ask_question or
-  AskUserQuestion) and chat prompts as the fallback. Use when presenting a
-  chart, dashboard, form, decision, triage list, progress board, confirmation
-  gate, or comparison, when asking more than one question, or when another skill
-  (grill-me, just-brainstorm, plan, code-merge, pr-review, code-review,
-  ship-it, commit-changes, branch-cleanup, what-if, api-review,
+  cards or the live side pane) in A2UI Express or from named templates
+  (decision_batch, scorecard, stack_board, status_matrix, comparison_matrix,
+  triage_matrix, progress_board, confirm_gate), HTML widgets via generative_ui,
+  or the host's question tool (ask_question or AskUserQuestion) and chat prompts
+  as the fallback. Use when presenting a chart, dashboard, form, decision batch,
+  scorecard, stack board, status matrix, comparison matrix, triage list,
+  progress board, or confirmation gate, when asking more than one question, or
+  when another skill (grill-me, just-brainstorm, plan, code-merge, pr-review,
+  code-review, ship-it, commit-changes, branch-cleanup, what-if, api-review,
   estimate-conversation-tokens, cognitive-complexity, conversation-auditor,
-  cost-optimization, duckdb) says "render with genui".
+  cost-optimization, duckdb, git-stack, pr-feedback-handler) says "render with
+  genui".
 ---
 
 # genui: How to Show Things
@@ -20,14 +23,19 @@ This skill decides _which_ channel fits and _how_ to build an A2UI surface with 
 
 ## 1. Pick the channel
 
-| Need                                                                     | Channel                                                                              | Signal to pick it                                                                   |
-| :----------------------------------------------------------------------- | :----------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------- |
-| Short answer, status line, small table, 1–3 scalar metrics               | Chat Markdown                                                                        | Default. Nothing to collect back and no visual shape to plot.                       |
-| Report, plan, analysis, anything the user returns to                     | Markdown artifact                                                                    | Long-lived and linkable; no interaction needed.                                     |
-| One or two inputs/decisions, or a single compact `Chart`                 | A2UI inline card (`mode: "inline"`)                                                  | Fits under the 500px host cap; shows a focused chart or collects a decision.        |
-| Larger charts, KPI dashboards, many items, tabs, or live progress        | A2UI pane (`mode: "pane"`)                                                           | Needs >500px height, scrolling, modals, tabs, `metrics_dashboard`, or live updates. |
-| Free-form 3D/canvas visualization the catalogs cannot express            | HTML via the built-in `generative_ui` skill                                          | Read-mostly; no typed round trip.                                                   |
-| Single self-contained choice, or the `a2ui-pane` tools are not available | Host interactive question tool (`ask_question` / `AskUserQuestion`) or numbered chat | Consequences are obvious from a one-line label.                                     |
+| Need                                                                     | Channel                                                                              | Signal to pick it                                                                                  |
+| :----------------------------------------------------------------------- | :----------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------- |
+| Short answer, status line, small table, 1 to 3 scalar metrics            | Chat Markdown                                                                        | Default. Nothing to collect back and no visual shape to plot.                                      |
+| Report, plan, analysis, anything the user returns to                     | Markdown artifact                                                                    | Long-lived and linkable; no interaction needed.                                                    |
+| One or two inputs/decisions, or a single compact `Chart`                 | A2UI inline card (`mode: "inline"`)                                                  | Fits under the 500px host cap; shows a focused chart or collects a decision.                       |
+| Several yes/no/defer decisions                                           | A2UI inline card or pane (`decision_batch`)                                          | Replaces 2 or more numbered confirmation questions; inline for <=3 items, pane for >=4.            |
+| Rubric scores                                                            | A2UI pane (`scorecard`)                                                              | 3 or more evaluated principles or rules with numeric scores, progress bars, and rationale.         |
+| PR or CL stack                                                           | A2UI pane (`stack_board`)                                                            | Stack of pull requests or changes with CI, review status, lifecycle stepper, and live updates.     |
+| Grid of categorical states                                               | A2UI pane (`status_matrix`)                                                          | Test suites across SDKs, platforms, or feature parity matrix using a dense Table of status badges. |
+| Criteria x options                                                       | A2UI pane (`comparison_matrix`)                                                      | 3 or more options compared across 3 or more criteria in a Table with choice chips and notes.       |
+| Larger charts, KPI dashboards, many items, tabs, or live progress        | A2UI pane (`mode: "pane"`)                                                           | Needs >500px height, scrolling, modals, tabs, `metrics_dashboard`, or live updates.                |
+| Free-form 3D/canvas visualization the catalogs cannot express            | HTML via the built-in `generative_ui` skill                                          | Read-mostly; no typed round trip.                                                                  |
+| Single self-contained choice, or the `a2ui-pane` tools are not available | Host interactive question tool (`ask_question` / `AskUserQuestion`) or numbered chat | Consequences are obvious from a one-line label.                                                    |
 
 Do not render a card where a sentence would do. Render a surface when you collect multiple decisions, show quantitative or structural patterns that prose hides, gate a consequential action, or track state across turns.
 
@@ -57,8 +65,10 @@ When `render_a2ui` is neither a native tool nor a lazily loaded MCP tool on `a2u
 - Put background in the chat message with clickable `[file](file:///...)` links; put the decision controls in the surface.
 - Use `Chart(variant, series, labels=_, title=_, xAxisLabel=_, yAxisLabel=_, height=_, showLegend=_, showGrid=_, selected=_, action=_)` for interactive charts when data passes the **Visual Worthiness Gate** below.
 - Use `Badge(text, tone=_, icon=_, pulse=_)`, `ProgressBar(value=_, max=_, segments=_, items=_, label=_, summary=_, indeterminate=_)`, and `Collapsible(title, child, summary=_, badge=_, open=_)` from the `status` catalog (`tone`: `"neutral" | "info" | "active" | "success" | "warning" | "danger"`) for semantic status pills, progress tracks, and opt-in disclosure sections.
+- Use `Table(columns, rows, caption=_, sortable=_, dense=_, selected=_, action=_)` from the status catalog for tabular data with 3 or more columns or typed cells (`badge`, `progress`, `link`, `check`, `icon`). Never render a Markdown pipe table inside `Text`. Keep simple two-column key-value pairs in `Row` and `Column` layouts. Columns are static; define keys, labels, and kinds together.
+- Use `Stepper(steps, current, tone=_, orientation=_)` from the status catalog to show ordered lifecycle stages. Completed steps render with success tone; current step renders with active pulse or the provided tone; future steps render neutral.
 - Use Markdown inside `Text` for emphasis, code spans, LaTeX, and ` ```mermaid ` diagrams (`flowchart`, `stateDiagram-v2`, `sequenceDiagram`, `pie`, `xychart-beta`).
-- For references, prefer Markdown links inside `Text` (`[PR 3339](https://...)`, `[notes](file:///...)`, `[thread](conversation://...)`) over a borderless `Button` with `openUrl`. `http(s)` links open in the browser; other schemes copy the path when clicked. Do not put links inside a `Button` label: the button action wins and the link is ignored.
+- For references, prefer Markdown links inside `Text` (`[PR 3339](https://...)`, `[notes](file:///...)`, `[thread](conversation://...)`) over a borderless `Button` with `openUrl`. Clicks on `http` and `https` links open a new browser tab. Clicks on `file://` and `conversation://` copy the path to the clipboard and show a toast. Blocked schemes (`javascript:`, `data:`, `vbscript:`) collapse to plain label text. Do not put links inside a `Button` label: the button action wins and the link is ignored.
 
 ### When to Chart vs. Table (Visual Worthiness Gate)
 
