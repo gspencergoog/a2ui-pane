@@ -90,11 +90,14 @@ class WorkerState:
         # Built lazily by `synthesize`, so an SDK without the decision
         # package only fails that op, not `init`.
         self.render_tool = None
+        decision_available, decision_reason = probe_decision_support()
         return {
             "catalogId": self.catalogs[0].catalog_id,
             "catalogIds": [c.catalog_id for c in self.catalogs],
             "version": self.compiler.version,
             "componentCount": sum(len(c.components) for c in self.catalogs),
+            "decisionAvailable": decision_available,
+            "decisionUnavailableReason": decision_reason,
         }
 
     def compile(self, dsl: str, surface_id: str, version: str | None) -> list[dict]:
@@ -207,6 +210,29 @@ class WorkerState:
     def _require_init(self) -> None:
         if self.compiler is None:
             raise RuntimeError("Worker not initialized; send an 'init' request first.")
+
+
+def probe_decision_support() -> tuple[bool, str | None]:
+    """Reports whether the loaded agent SDK can render decision intents.
+
+    Imports the decision package without building a backend, so the probe is
+    cheap and has no side effects. The reason is a short message suitable for
+    showing to the agent when the feature is unavailable.
+
+    Returns:
+        `(True, None)` when `a2ui.inference_formats.decision` imports, else
+        `(False, reason)`.
+    """
+    try:
+        import a2ui.inference_formats.decision  # noqa: F401
+    except ImportError as err:
+        return False, (
+            "the installed A2UI agent SDK has no `a2ui.inference_formats.decision`"
+            f" package ({err})"
+        )
+    except Exception as err:  # noqa: BLE001 - a broken optional package must not break init
+        return False, f"importing `a2ui.inference_formats.decision` failed: {err}"
+    return True, None
 
 
 def strip_sentinels(dsl: str) -> str:

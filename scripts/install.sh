@@ -99,8 +99,18 @@ if [ -n "${AGENT_SDK_PATH}" ] && [ "${NO_AGENT_SDK}" -eq 0 ]; then
     exit 1
   fi
   if [ "${WITH_LOCAL_JEV}" -eq 1 ]; then
-    echo "Installing decision-local dependencies for in-process Jev CPU model..."
-    "${UV_BIN}" sync --project "${AGENT_SDK_PATH}" --package a2ui-agent-sdk --extra decision-local
+    AGENT_PYPROJECT="${AGENT_SDK_PATH}/python/a2ui_agent/pyproject.toml"
+    DECISION_PKG="${AGENT_SDK_PATH}/python/a2ui_agent/src/a2ui/inference_formats/decision"
+    if [ ! -d "${DECISION_PKG}" ]; then
+      echo "Warning: --with-local-jev ignored: ${AGENT_SDK_PATH} has no a2ui.inference_formats.decision package," >&2
+      echo "         so render_a2ui cannot synthesize from an intent. Point --agent-sdk-path at a checkout that includes it." >&2
+    elif ! grep -q 'decision-local' "${AGENT_PYPROJECT}"; then
+      echo "Warning: --with-local-jev ignored: ${AGENT_PYPROJECT} defines no 'decision-local' extra." >&2
+      echo "         Decision synthesis still works with the mock or remote backends (A2UI_DECISION_BACKEND)." >&2
+    else
+      echo "Installing decision-local dependencies for in-process Jev CPU model..."
+      "${UV_BIN}" sync --project "${AGENT_SDK_PATH}" --package a2ui-agent-sdk --extra decision-local
+    fi
   fi
   PYTHON_BIN="$("${UV_BIN}" run --project "${AGENT_SDK_PATH}" --package a2ui-agent-sdk python -c 'import sys; print(sys.executable)')"
   echo "Using Python interpreter: ${PYTHON_BIN}"

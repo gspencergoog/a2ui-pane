@@ -6,12 +6,23 @@
 //   FAKE_WORKER_MODE=crash-always-> exits on every compile request
 //   FAKE_WORKER_MODE=hang        -> never answers compile requests
 //   FAKE_WORKER_MODE=init-fail   -> answers init with ok:false
+//   FAKE_WORKER_MODE=no-decision -> init reports decisionAvailable:false (SDK without the decision package)
 import { createInterface } from 'node:readline';
 import { existsSync, writeFileSync } from 'node:fs';
 
 const mode = process.env.FAKE_WORKER_MODE || 'normal';
 const crashMarker = process.env.FAKE_WORKER_CRASH_MARKER || '';
 let workerVersion = 'v1.0';
+
+/** The decision-support fields the real worker's `init` response carries. */
+const decisionFields =
+  mode === 'no-decision'
+    ? {
+        decisionAvailable: false,
+        decisionUnavailableReason:
+          'the installed A2UI agent SDK has no `a2ui.inference_formats.decision` package (fake)',
+      }
+    : { decisionAvailable: true, decisionUnavailableReason: null };
 
 const rl = createInterface({ input: process.stdin });
 rl.on('line', (line) => {
@@ -63,6 +74,7 @@ rl.on('line', (line) => {
         componentCount: 19,
         catalogId: 'basic',
         catalogIds: ['basic', 'charts'],
+        ...decisionFields,
       }) + '\n',
     );
     return;

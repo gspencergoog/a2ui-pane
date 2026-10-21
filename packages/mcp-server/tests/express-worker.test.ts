@@ -235,6 +235,21 @@ describe('ExpressWorker (fake child)', () => {
     expect(res.messages).toHaveLength(1);
     worker.dispose();
   });
+
+  it('reports decision support from the init probe', async () => {
+    const { worker } = fakeWorker('normal');
+    expect(await worker.decisionSupport()).toEqual({ available: true });
+    worker.dispose();
+
+    const { worker: without, logs } = fakeWorker('no-decision');
+    const support = await without.decisionSupport();
+    expect(support.available).toBe(false);
+    if (!support.available) {
+      expect(support.reason).toContain('a2ui.inference_formats.decision');
+    }
+    expect(logs.some((l) => l.includes('decision synthesis unavailable'))).toBe(true);
+    without.dispose();
+  });
 });
 
 const realPython = process.env.A2UI_PANE_PYTHON;

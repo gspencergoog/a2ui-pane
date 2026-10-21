@@ -103,7 +103,7 @@ export const renderA2uiSchema = {
     .string()
     .optional()
     .describe(
-      'Goal or prompt for decision-model UI synthesis (e.g. "show flight details with seat picker"). Combined with `payload`.',
+      'Goal or prompt for decision-model UI synthesis (e.g. "show flight details with seat picker"). Combined with `payload`. Requires an agent SDK that includes `a2ui.inference_formats.decision`; otherwise the call fails and you should author with `dsl` or `template`.',
     ),
   payload: z
     .union([z.record(z.unknown()), z.array(z.unknown()), z.string()])
@@ -252,6 +252,12 @@ export async function resolveMessages(
       );
     }
     try {
+      const support = await deps.worker.decisionSupport();
+      if (!support.available) {
+        return errorResult(
+          `Decision synthesis is not available on this server: ${support.reason}. Author the surface with \`dsl\` or \`template\` instead.`,
+        );
+      }
       const res = await deps.worker.synthesize(
         args.intent!,
         args.payload ?? {},

@@ -179,6 +179,23 @@ describe('render_a2ui Express paths', () => {
     expect((result as any).content[0].text).toContain('fallbackDsl');
   });
 
+  it('explains when the agent SDK has no decision package', async () => {
+    const without = fakeWorker('no-decision');
+    try {
+      const result = await resolveMessages(
+        { intent: 'Show it', payload: { a: 1 } },
+        { worker: without, templates },
+      );
+      expect((result as any).isError).toBe(true);
+      const text = (result as any).content[0].text as string;
+      expect(text).toContain('Decision synthesis is not available on this server');
+      expect(text).toContain('a2ui.inference_formats.decision');
+      expect(text).toContain('`dsl` or `template`');
+    } finally {
+      without.dispose();
+    }
+  });
+
   it('reports the fallback that rendered an abstained intent', async () => {
     const resolved = await resolveMessages(
       { intent: 'ABSTAIN_WITH_FALLBACK', payload: '{"cpu": 85}' },

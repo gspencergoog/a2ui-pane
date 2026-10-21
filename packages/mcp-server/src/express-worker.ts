@@ -29,6 +29,9 @@ export type WorkerRequest = {
 /** Data for decision-model synthesis: an object, an array, or a JSON-encoded string of either. */
 export type DecisionPayload = Record<string, unknown> | unknown[] | string;
 
+/** Whether the worker's agent SDK can render decision intents, and why not when it cannot. */
+export type DecisionSupport = { available: true } | { available: false; reason: string };
+
 /** Result of a decision-model synthesis request. */
 export interface SynthesisResult {
   messages: unknown[];
@@ -163,6 +166,7 @@ export class ExpressWorker {
   private unavailableUntil = 0;
   private unavailableReason = '';
   private disposed = false;
+  private decision: DecisionSupport = { available: false, reason: 'Express worker not started' };
   private readonly log: (line: string) => void;
   private readonly catalogPaths: string[];
 
@@ -190,6 +194,16 @@ export class ExpressWorker {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Starts the worker if needed and reports whether its agent SDK can render
+   * decision intents. The worker probes for `a2ui.inference_formats.decision`
+   * at init, so this never attempts a synthesis.
+   */
+  async decisionSupport(): Promise<DecisionSupport> {
+    await this.ensureReady();
+    return this.decision;
   }
 
   /** Compiles A2UI Express DSL source into protocol messages for `surfaceId`. */
@@ -394,8 +408,17 @@ export class ExpressWorker {
       if (!response.ok) {
         throw new Error(`Express worker init failed: ${response.error.message}`);
       }
+      this.decision = response.decisionAvailable
+        ? { available: true }
+        : {
+            available: false,
+            reason: String(
+              response.decisionUnavailableReason ??
+                'the Express worker did not report decision support',
+            ),
+          };
       this.log(
-        `ready (${String(response.version)}, ${String(response.componentCount)} components)`,
+        `ready (${String(response.version)}, ${String(response.componentCount)} components, decision synthesis ${this.decision.available ? 'available' : 'unavailable'})`,
       );
     } catch (err: any) {
       this.teardown(err instanceof Error ? err : new Error(String(err)));
