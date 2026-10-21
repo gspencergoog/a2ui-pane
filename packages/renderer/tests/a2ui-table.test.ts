@@ -305,6 +305,42 @@ describe('<a2ui-table>', () => {
     expect(number.getAttribute('data-align')).toBe('end');
   });
 
+  it('wraps badge cells, scrolls horizontally as a fallback, and gives the first column a floor', async () => {
+    const { root, tableEl } = await mount('tableWrap', {});
+    const cssText = (tableEl.constructor as any).styles
+      .map((s: any) => s.cssText ?? String(s))
+      .join('\n');
+    const badgeRule = /td\[data-kind='badge'\] \.a2ui-badge \{([^}]*)\}/.exec(cssText)?.[1] ?? '';
+    expect(badgeRule).toContain('white-space: normal');
+    expect(badgeRule).toContain('overflow-wrap: anywhere');
+    const scrollRule = /\.a2ui-table-scroll \{([^}]*)\}/.exec(cssText)?.[1] ?? '';
+    expect(scrollRule).toContain('overflow-x: auto');
+    expect(scrollRule).toContain('max-width: 100%');
+
+    const scroll = root.querySelector('.a2ui-table-container > .a2ui-table-scroll')!;
+    expect(scroll).not.toBeNull();
+    expect(root.querySelector('table.a2ui-table')!.parentElement).toBe(scroll);
+
+    const firstHeader = root.querySelector<HTMLElement>('thead th[data-key="name"]')!;
+    expect(firstHeader.style.minWidth).toBe('10ch');
+    expect(firstHeader.style.width).toBe('');
+    const firstCell = bodyRows(root)[0].querySelector<HTMLElement>('td[data-key="name"]')!;
+    expect(firstCell.style.minWidth).toBe('10ch');
+    const secondHeader = root.querySelector<HTMLElement>('thead th[data-key="state"]')!;
+    expect(secondHeader.getAttribute('style')).toBeNull();
+  });
+
+  it('lets a width hint on the first column replace the min-width default', async () => {
+    const columns = [{ key: 'name', label: 'Name', width: '14ch' }, ...COLUMNS.slice(1)];
+    const { root } = await mount('tableWidthHint', { columns });
+    const firstHeader = root.querySelector<HTMLElement>('thead th[data-key="name"]')!;
+    expect(firstHeader.style.width).toBe('14ch');
+    expect(firstHeader.style.minWidth).toBe('');
+    const firstCell = bodyRows(root)[0].querySelector<HTMLElement>('td[data-key="name"]')!;
+    expect(firstCell.style.width).toBe('14ch');
+    expect(firstCell.style.minWidth).toBe('');
+  });
+
   it('renders an empty cell for missing row keys without throwing', async () => {
     const { root } = await mount('tableMissing', {});
     const third = bodyRows(root)[2];
