@@ -1,4 +1,4 @@
-import type { A2uiLinkClickDetail } from '@a2ui-pane/renderer';
+import type { A2uiLinkClickDetail } from './a2ui-pane-view.js';
 
 /** Host capabilities `openLink` needs; injected so the router stays a pure function. */
 export interface LinkRouterDeps {

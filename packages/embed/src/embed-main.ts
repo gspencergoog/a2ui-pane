@@ -3,13 +3,11 @@ import { formatActionText, A2uiActionDetails, StoreLine } from '@a2ui-pane/proto
 import {
   LineApplier,
   A2uiPaneView,
+  openLink,
   type DispatchedActionDetails,
   type A2uiLinkClickDetail,
 } from '@a2ui-pane/renderer';
 import { SurfaceResizeObserver } from './surface-resize-observer.js';
-// The router is shared source with the pane app; the embed bundles it directly (no workspace
-// dependency) because pane-app is an application, not a library package.
-import { openLink } from '../../pane-app/src/link-router.js';
 
 /** Side-channel endpoint and routing metadata injected into an inline embed iframe. */
 export interface ActionConfig {

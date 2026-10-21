@@ -6,11 +6,11 @@ import {
   type SurfaceSubmissionChangedDetail,
   type SurfaceDismissedDetail,
   type A2uiLinkClickDetail,
+  openLink,
 } from '@a2ui-pane/renderer';
 import { StreamClient, ConnectionStatus } from './stream-client.js';
 import { ActionSender } from './action-sender.js';
 import { showToast } from './toast.js';
-import { openLink } from './link-router.js';
 
 // Inject host theme CSS variables
 injectHostTheme();
