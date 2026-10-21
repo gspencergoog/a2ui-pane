@@ -140,18 +140,24 @@ export const SURFACE_LAYOUT_CSS = `
   a2ui-basic-text .a2ui-text li + li {
     margin-top: 2px;
   }
-  a2ui-basic-text .a2ui-text a,
-  a2ui-basic-text .a2ui-text [data-a2ui-href] {
+  /* web_core's Text adopts "a2ui-basic-text .a2ui-text a { color: var(--a2ui-text-a-color, inherit) }"
+     as an adopted stylesheet, which outranks this <style> element at equal specificity. The
+     variable and the attribute selectors (one specificity step higher) both make link color win. */
+  a2ui-basic-text {
+    --a2ui-text-a-color: var(--a2ui-color-primary, var(--primary, #0b57d0));
+  }
+  a2ui-basic-text .a2ui-text a[href],
+  a2ui-basic-text .a2ui-text a[data-a2ui-href] {
     color: var(--a2ui-color-primary, var(--primary, #0b57d0));
     text-decoration: none;
     cursor: pointer;
     overflow-wrap: anywhere;
     word-break: break-word;
   }
-  a2ui-basic-text .a2ui-text a:hover,
-  a2ui-basic-text .a2ui-text a:focus-visible,
-  a2ui-basic-text .a2ui-text [data-a2ui-href]:hover,
-  a2ui-basic-text .a2ui-text [data-a2ui-href]:focus-visible {
+  a2ui-basic-text .a2ui-text a[href]:hover,
+  a2ui-basic-text .a2ui-text a[href]:focus-visible,
+  a2ui-basic-text .a2ui-text a[data-a2ui-href]:hover,
+  a2ui-basic-text .a2ui-text a[data-a2ui-href]:focus-visible {
     text-decoration: underline;
   }
   .a2ui-math-block {

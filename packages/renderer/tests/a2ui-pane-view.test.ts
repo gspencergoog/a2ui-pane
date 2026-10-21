@@ -594,6 +594,29 @@ describe('A2uiPaneView', () => {
       });
     });
 
+    it('styles http(s) and data-a2ui-href anchors through the same attribute-keyed rules', async () => {
+      const root = await renderLinkSurface();
+      const httpsAnchor = root.querySelector('a[href^="https://github.com"]')!;
+      const fileAnchor = root.querySelector('a[data-a2ui-href]')!;
+
+      // The layout CSS keys on a[href] and a[data-a2ui-href]; both anchors sit inside
+      // a2ui-basic-text .a2ui-text so both selectors match the rendered DOM.
+      expect(httpsAnchor.hasAttribute('href')).toBe(true);
+      expect(httpsAnchor.closest('a2ui-basic-text .a2ui-text')).not.toBeNull();
+      expect(fileAnchor.closest('a2ui-basic-text .a2ui-text')).not.toBeNull();
+      expect(httpsAnchor.matches('a2ui-basic-text .a2ui-text a[href]')).toBe(true);
+      expect(fileAnchor.matches('a2ui-basic-text .a2ui-text a[data-a2ui-href]')).toBe(true);
+
+      // web_core adopts "a2ui-basic-text .a2ui-text a { color: var(--a2ui-text-a-color, inherit) }"
+      // at the same specificity as a plain "a" rule and outranks a <style> element, so the
+      // layout CSS must use the attribute selectors and set the variable.
+      const layoutCss = root.querySelector('style[data-a2ui-surface-layout]')!.textContent ?? '';
+      expect(layoutCss).toContain('a2ui-basic-text .a2ui-text a[href],');
+      expect(layoutCss).toContain('a2ui-basic-text .a2ui-text a[data-a2ui-href] {');
+      expect(layoutCss).toMatch(/a2ui-basic-text \{\s*--a2ui-text-a-color:/);
+      expect(layoutCss).not.toMatch(/a2ui-basic-text \.a2ui-text a,\n/);
+    });
+
     it('routes file:// anchors through data-a2ui-href', async () => {
       const root = await renderLinkSurface();
       const events: CustomEvent<A2uiLinkClickDetail>[] = [];

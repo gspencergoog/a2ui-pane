@@ -1272,7 +1272,7 @@ export function renderMermaidSvg(code: string): string {
 /** Schemes that markdown-it and DOMPurify already keep as navigable `href` values. */
 const PASSTHROUGH_LINK_SCHEMES: ReadonlySet<string> = new Set(['http', 'https', 'mailto']);
 
-/** Schemes that must stay stripped by markdown-it and DOMPurify, never protected. */
+/** Schemes that never become links: the whole `[label](scheme:...)` collapses to its label. */
 const BLOCKED_LINK_SCHEMES: ReadonlySet<string> = new Set(['javascript', 'vbscript', 'data']);
 
 /** Placeholder scheme that survives markdown-it and DOMPurify so the original can be restored. */
@@ -1280,16 +1280,19 @@ const LINK_PLACEHOLDER_SCHEME = 'a2uilink';
 
 /**
  * Matches an inline Markdown link whose destination carries a scheme, such as
- * `[label](file:///tmp/a.md)` or `[label](conversation://abc "title")`.
- * The negative lookbehind skips images (`![alt](...)`).
+ * `[label](file:///tmp/a.md)` or `[label](conversation://abc "title")`. The destination may
+ * contain one level of balanced parentheses (`javascript:alert(1)`, `file:///a_(b).md`), as
+ * markdown-it allows. The negative lookbehind skips images (`![alt](...)`).
  */
-const SCHEME_LINK_RE = /(?<!!)\[([^\]\r\n]*)\]\(([a-z][a-z0-9+.-]*):([^)\s]*)((?:\s+"[^"]*")?)\)/gi;
+const SCHEME_LINK_RE =
+  /(?<!!)\[([^\]\r\n]*)\]\(([a-z][a-z0-9+.-]*):((?:[^()\s]|\([^()\s]*\))*)((?:\s+"[^"]*")?)\)/gi;
 
 /**
  * Rewrites Markdown links with schemes other than `http`, `https`, and `mailto` to
  * `[label](a2uilink:n)` placeholders so markdown-it's `validateLink` and DOMPurify's URI
- * filter do not drop them. `javascript:`, `vbscript:`, and `data:` links are left alone so
- * those filters still strip them. Returns the rewritten text and the original destinations.
+ * filter do not drop them. `javascript:`, `vbscript:`, and `data:` links are replaced by their
+ * label text alone, so a dangerous link degrades to plain text instead of leaking its syntax.
+ * Returns the rewritten text and the original destinations.
  */
 export function protectNonHttpLinks(markdown: string): { text: string; links: string[] } {
   const links: string[] = [];
@@ -1297,8 +1300,11 @@ export function protectNonHttpLinks(markdown: string): { text: string; links: st
     SCHEME_LINK_RE,
     (full: string, label: string, scheme: string, rest: string, title: string) => {
       const lower = scheme.toLowerCase();
-      if (PASSTHROUGH_LINK_SCHEMES.has(lower) || BLOCKED_LINK_SCHEMES.has(lower)) {
+      if (PASSTHROUGH_LINK_SCHEMES.has(lower)) {
         return full;
+      }
+      if (BLOCKED_LINK_SCHEMES.has(lower)) {
+        return label;
       }
       links.push(`${scheme}:${rest}`);
       return `[${label}](${LINK_PLACEHOLDER_SCHEME}:${links.length - 1}${title})`;
