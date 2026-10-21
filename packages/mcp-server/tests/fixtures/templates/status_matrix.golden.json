@@ -1,0 +1,273 @@
+[
+  {
+    "version": "v1.0",
+    "createSurface": {
+      "surfaceId": "status_matrix",
+      "sendDataModel": true,
+      "components": [
+        {
+          "id": "root",
+          "component": "Card",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "child": "matrix_col"
+        },
+        {
+          "id": "matrix_col",
+          "component": "Column",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "children": [
+            "matrix_title",
+            "matrix_intro",
+            "legend",
+            "matrix_table",
+            "matrix_footer"
+          ]
+        },
+        {
+          "id": "matrix_title",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@path": "/title"
+          }
+        },
+        {
+          "id": "matrix_intro",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@path": "/intro"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "legend",
+          "component": "List",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "children": {
+            "path": "/legend",
+            "componentId": "legend_badge"
+          },
+          "direction": "horizontal"
+        },
+        {
+          "id": "legend_badge",
+          "component": "Badge",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
+          "text": {
+            "@path": "text"
+          },
+          "tone": {
+            "@path": "tone"
+          }
+        },
+        {
+          "id": "matrix_table",
+          "component": "Table",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
+          "columns": [
+            {
+              "key": "label",
+              "label": "Suite"
+            },
+            {
+              "key": "c1",
+              "label": "Python",
+              "kind": "badge"
+            },
+            {
+              "key": "c2",
+              "label": "TypeScript",
+              "kind": "badge"
+            },
+            {
+              "key": "c3",
+              "label": "Dart",
+              "kind": "badge"
+            },
+            {
+              "key": "c4",
+              "label": "Swift",
+              "kind": "badge"
+            }
+          ],
+          "rows": {
+            "@path": "/rows"
+          },
+          "dense": true
+        },
+        {
+          "id": "matrix_footer",
+          "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "children": [
+            "ack_btn"
+          ],
+          "justify": "end",
+          "align": "center"
+        },
+        {
+          "id": "ack_btn",
+          "component": "Button",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "child": "ack_btn_child",
+          "action": {
+            "event": {
+              "name": "acknowledge_status_matrix",
+              "context": {
+                "_oneShot": true
+              }
+            }
+          }
+        },
+        {
+          "id": "ack_btn_child",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@path": "/ackLabel"
+          }
+        }
+      ],
+      "dataModel": {
+        "title": "### A2UI conformance by SDK",
+        "intro": "Six conformance suites across the four SDKs; n/a means the suite does not apply to that platform.",
+        "legend": [
+          {
+            "text": "pass",
+            "tone": "success"
+          },
+          {
+            "text": "partial",
+            "tone": "warning"
+          },
+          {
+            "text": "fail",
+            "tone": "danger"
+          },
+          {
+            "text": "n/a",
+            "tone": "neutral"
+          }
+        ],
+        "rows": [
+          {
+            "label": "Basic catalog",
+            "c1": {
+              "text": "pass",
+              "tone": "success"
+            },
+            "c2": {
+              "text": "pass",
+              "tone": "success"
+            },
+            "c3": {
+              "text": "pass",
+              "tone": "success"
+            },
+            "c4": {
+              "text": "pass",
+              "tone": "success"
+            }
+          },
+          {
+            "label": "Data binding",
+            "c1": {
+              "text": "pass",
+              "tone": "success"
+            },
+            "c2": {
+              "text": "pass",
+              "tone": "success"
+            },
+            "c3": {
+              "text": "partial",
+              "tone": "warning"
+            },
+            "c4": {
+              "text": "fail",
+              "tone": "danger"
+            }
+          },
+          {
+            "label": "Express compiler",
+            "c1": {
+              "text": "pass",
+              "tone": "success"
+            },
+            "c2": {
+              "text": "n/a",
+              "tone": "neutral"
+            },
+            "c3": {
+              "text": "n/a",
+              "tone": "neutral"
+            },
+            "c4": {
+              "text": "n/a",
+              "tone": "neutral"
+            }
+          },
+          {
+            "label": "Charts catalog",
+            "c1": {
+              "text": "pass",
+              "tone": "success"
+            },
+            "c2": {
+              "text": "pass",
+              "tone": "success"
+            },
+            "c3": {
+              "text": "fail",
+              "tone": "danger"
+            },
+            "c4": {
+              "text": "fail",
+              "tone": "danger"
+            }
+          },
+          {
+            "label": "Status catalog",
+            "c1": {
+              "text": "pass",
+              "tone": "success"
+            },
+            "c2": {
+              "text": "pass",
+              "tone": "success"
+            },
+            "c3": {
+              "text": "partial",
+              "tone": "warning"
+            },
+            "c4": {
+              "text": "n/a",
+              "tone": "neutral"
+            }
+          },
+          {
+            "label": "Streaming updates",
+            "c1": {
+              "text": "partial",
+              "tone": "warning"
+            },
+            "c2": {
+              "text": "pass",
+              "tone": "success"
+            },
+            "c3": {
+              "text": "pass",
+              "tone": "success"
+            },
+            "c4": {
+              "text": "partial",
+              "tone": "warning"
+            }
+          }
+        ],
+        "ackLabel": "Got it"
+      }
+    }
+  }
+]

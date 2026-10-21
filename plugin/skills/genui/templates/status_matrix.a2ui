@@ -1,0 +1,21 @@
+// @genui id=status_matrix surface=pane
+// @summary Status or parity matrix: a title, an intro caption, a horizontal legend of tone badges, a dense Table with one label column and four badge columns (one row per suite or feature, one tone badge per cell), and an acknowledge button. Replaces Markdown pipe tables of the shape `suite | python | ts | dart | swift`. Columns are static, so redefine `matrix_table` for other column keys or labels; every cell is `{text, tone}` supplied in data. Update one cell with a data-only line such as `$/rows/2/c3 = {text: "pass", tone: "success"}`.
+// @data /title /intro /legend[] {text,tone} /rows[] {label,c1,c2,c3,c4} /ackLabel
+// @action acknowledge_status_matrix
+// @customize matrix_table legend_badge ack_btn
+
+$/title = "### Status"
+$/intro = "One badge per cell; tones follow the legend."
+$/legend = []
+$/rows = []
+$/ackLabel = "Acknowledge"
+
+root = Card(matrix_col)
+matrix_col = Column([matrix_title, matrix_intro, legend, matrix_table, matrix_footer])
+matrix_title = Text($/title)
+matrix_intro = Text($/intro, "caption")
+legend = List(_template($/legend, legend_badge), "horizontal")
+legend_badge = Badge($text, $tone)
+matrix_table = Table([{key: "label", label: "Suite"}, {key: "c1", label: "Python", kind: "badge"}, {key: "c2", label: "TypeScript", kind: "badge"}, {key: "c3", label: "Dart", kind: "badge"}, {key: "c4", label: "Swift", kind: "badge"}], $/rows, dense=true)
+matrix_footer = Row([ack_btn], "end", "center")
+ack_btn = Button(Text($/ackLabel), _, Event("acknowledge_status_matrix", {_oneShot: true}))
