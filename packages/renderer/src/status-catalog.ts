@@ -17,6 +17,7 @@ import { A2uiBadgeElement, STATUS_TONES } from './a2ui-badge.js';
 import { A2uiProgressBarElement } from './a2ui-progress-bar.js';
 import { A2uiCollapsibleElement } from './a2ui-collapsible.js';
 import { A2uiTableElement, TABLE_COLUMN_KINDS } from './a2ui-table.js';
+import { A2uiStepperElement, STEPPER_ORIENTATIONS } from './a2ui-stepper.js';
 
 /** Canonical catalog URI for the A2UI v1.0 Status Component Catalog. */
 export const STATUS_CATALOG_ID = 'https://a2ui.org/specification/v1_0/catalogs/status/catalog.json';
@@ -209,6 +210,48 @@ export const TableApi = {
     .strict(),
 } satisfies ComponentApi;
 
+/** Zod schema for a single step in `Stepper.steps`. */
+export const StepperStepSchema = z
+  .object({
+    label: DynamicStringSchema.describe(
+      'REF:common_types.json#/$defs/DynamicString|Step label rendered next to the dot.',
+    ),
+    detail: DynamicStringSchema.describe(
+      'REF:common_types.json#/$defs/DynamicString|Optional detail text rendered as a hover tooltip.',
+    ).optional(),
+  })
+  .strict();
+
+/** Zod schema for a static array or dynamic binding to `StepperStep` entries. */
+export const DynamicStepperStepListSchema = z
+  .union([z.array(StepperStepSchema), DataBindingSchema, FunctionCallSchema])
+  .describe(
+    'REF:#/$defs/DynamicStepperStepList|Ordered array of {label, detail} steps, usually $/steps.',
+  );
+
+/** ComponentApi definition for `Stepper` in the A2UI v1.0 Status Catalog. */
+export const StepperApi = {
+  name: 'Stepper',
+  schema: z
+    .object({
+      steps: DynamicStepperStepListSchema,
+      current: DynamicNumberSchema.describe(
+        'REF:common_types.json#/$defs/DynamicNumber|Zero-based index of the current step (values past the end clamp).',
+      ),
+      tone: DynamicStatusToneSchema.optional(),
+      orientation: z
+        .enum(STEPPER_ORIENTATIONS)
+        .describe("Layout direction of the steps (defaults to 'horizontal').")
+        .optional(),
+      weight: z
+        .number()
+        .describe('The relative weight of this component within a Row or Column.')
+        .optional(),
+      accessibility: AccessibilityAttributesSchema.optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
 /** Web Component implementation pairing `A2uiBadgeElement` (`<a2ui-badge>`) with `BadgeApi`. */
 export const A2uiBadge: WebComponentImplementation<typeof BadgeApi.schema> = {
   ...BadgeApi,
@@ -237,16 +280,24 @@ export const A2uiTable: WebComponentImplementation<typeof TableApi.schema> = {
   element: A2uiTableElement,
 };
 
+/** Web Component implementation pairing `A2uiStepperElement` (`<a2ui-stepper>`) with `StepperApi`. */
+export const A2uiStepper: WebComponentImplementation<typeof StepperApi.schema> = {
+  ...StepperApi,
+  tagName: A2uiStepperElement.tagName,
+  element: A2uiStepperElement,
+};
+
 registerUniversalElement(A2uiBadge);
 registerUniversalElement(A2uiProgressBar);
 registerUniversalElement(A2uiCollapsible);
 registerUniversalElement(A2uiTable);
+registerUniversalElement(A2uiStepper);
 
-/** Client-side A2UI v1.0 Status Catalog containing `Badge`, `ProgressBar`, `Collapsible`, and `Table`. */
+/** Client-side A2UI v1.0 Status Catalog containing `Badge`, `ProgressBar`, `Collapsible`, `Table`, and `Stepper`. */
 export const statusCatalog = new Catalog(
   STATUS_CATALOG_ID,
   '1.0',
-  [A2uiBadge, A2uiProgressBar, A2uiCollapsible, A2uiTable],
+  [A2uiBadge, A2uiProgressBar, A2uiCollapsible, A2uiTable, A2uiStepper],
   [],
 );
 
@@ -254,6 +305,6 @@ export const statusCatalog = new Catalog(
 export const statusSchemaCatalog = new Catalog(
   STATUS_CATALOG_ID,
   '1.0',
-  [BadgeApi, ProgressBarApi, CollapsibleApi, TableApi],
+  [BadgeApi, ProgressBarApi, CollapsibleApi, TableApi, StepperApi],
   [],
 );

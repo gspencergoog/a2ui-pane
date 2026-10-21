@@ -3,7 +3,7 @@
   "$id": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
   "protocolVersion": "1.0",
   "title": "A2UI Status Component Catalog",
-  "description": "Semantic status badges, segmented progress bars, collapsible sections, and typed-cell tables for A2UI v1.0 surfaces.",
+  "description": "Semantic status badges, segmented progress bars, collapsible sections, typed-cell tables, and lifecycle steppers for A2UI v1.0 surfaces.",
   "catalogId": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
   "components": {
     "Badge": {
@@ -170,6 +170,41 @@
       },
       "required": ["component", "columns", "rows"],
       "additionalProperties": false
+    },
+    "Stepper": {
+      "type": "object",
+      "description": "Renders an ordered lifecycle as a row (or column) of labeled step dots. Steps before `current` render success, the current step renders active with a pulse unless `tone` overrides it, and later steps render neutral. Use it for ordered states such as a PR, CL, or rollout lifecycle instead of Tabs or a list of badges.",
+      "properties": {
+        "component": {
+          "const": "Stepper"
+        },
+        "steps": {
+          "$ref": "#/$defs/DynamicStepperStepList",
+          "description": "Ordered array of {label, detail} steps, or a data binding such as $/steps. `detail` renders as a hover tooltip."
+        },
+        "current": {
+          "$ref": "common_types.json#/$defs/DynamicNumber",
+          "description": "Zero-based index of the current step. Values past the last step clamp to the last step."
+        },
+        "tone": {
+          "$ref": "#/$defs/DynamicStatusTone",
+          "description": "Semantic tone for the current step only (defaults to 'active'). Use 'danger' or 'warning' when the lifecycle is stuck at that step."
+        },
+        "orientation": {
+          "type": "string",
+          "enum": ["horizontal", "vertical"],
+          "description": "Layout direction of the steps (defaults to 'horizontal')."
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column."
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes"
+        }
+      },
+      "required": ["component", "steps", "current"],
+      "additionalProperties": false
     }
   },
   "$defs": {
@@ -268,12 +303,38 @@
         { "$ref": "common_types.json#/$defs/FunctionCall" }
       ]
     },
+    "StepperStep": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Step label rendered next to the dot."
+        },
+        "detail": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Optional detail text rendered as a hover tooltip on the step."
+        }
+      },
+      "required": ["label"],
+      "additionalProperties": false
+    },
+    "DynamicStepperStepList": {
+      "oneOf": [
+        {
+          "type": "array",
+          "items": { "$ref": "#/$defs/StepperStep" }
+        },
+        { "$ref": "common_types.json#/$defs/DataBinding" },
+        { "$ref": "common_types.json#/$defs/FunctionCall" }
+      ]
+    },
     "anyComponent": {
       "oneOf": [
         { "$ref": "#/components/Badge" },
         { "$ref": "#/components/ProgressBar" },
         { "$ref": "#/components/Collapsible" },
-        { "$ref": "#/components/Table" }
+        { "$ref": "#/components/Table" },
+        { "$ref": "#/components/Stepper" }
       ],
       "discriminator": {
         "propertyName": "component"

@@ -420,5 +420,65 @@ describe.skipIf(!realPython && !agentSdkPath)(
         worker.dispose();
       }
     }, 90_000);
+
+    it('compiles a Stepper with a $/steps binding and a $/cur binding', async () => {
+      const worker = new ExpressWorker({
+        pythonBin: realPython,
+        agentSdkPath,
+        uvBin: process.env.A2UI_PANE_UV,
+        workerScript: REAL_WORKER,
+        catalogPaths: [CATALOG, CHARTS_CATALOG, STATUS_CATALOG],
+        startupTimeoutMs: 60_000,
+        log: () => {},
+      });
+      try {
+        const dsl = [
+          'surface("life", sendDataModel=true)',
+          '$/steps = [{label: "Draft"}, {label: "Review", detail: "Two reviewers"}, {label: "Merged"}]',
+          '$/cur = 1',
+          's = Stepper($/steps, $/cur)',
+          'v = Stepper([{label: "Plan"}, {label: "Build"}], 1, "danger", "vertical")',
+          'root = Column([s, v])',
+        ].join('\n');
+        const messages = await worker.compile(dsl, 'life');
+        const components = (messages[0] as any).createSurface.components as Array<
+          Record<string, unknown>
+        >;
+        const stepper = components.find((c) => c.id === 's');
+        expect(stepper).toMatchObject({
+          id: 's',
+          component: 'Stepper',
+          catalogId: 'https://a2ui.org/specification/v1_0/catalogs/status/catalog.json',
+          steps: { '@path': '/steps' },
+          current: { '@path': '/cur' },
+        });
+        expect(components.find((c) => c.id === 'v')).toMatchObject({
+          component: 'Stepper',
+          steps: [{ label: 'Plan' }, { label: 'Build' }],
+          current: 1,
+          tone: 'danger',
+          orientation: 'vertical',
+        });
+        // Surfaced in the board report so the verifier can compare it with the golden.
+        console.log('[stepper-express] ' + JSON.stringify(stepper));
+
+        const tempDir = mkdtempSync(join(tmpdir(), 'a2ui-stepper-test-'));
+        try {
+          const server = createServer(tempDir, {});
+          const result = await handleRenderA2ui(
+            { conversationId: 'conv-stepper', messages, mode: 'pane' },
+            server.getState,
+            server.catalogs,
+            tempDir,
+          );
+          expect(result.isError).toBeUndefined();
+          expect(server.getState('conv-stepper').hasSurface('life')).toBe(true);
+        } finally {
+          rmSync(tempDir, { recursive: true, force: true });
+        }
+      } finally {
+        worker.dispose();
+      }
+    }, 90_000);
   },
 );
