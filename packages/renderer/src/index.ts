@@ -21,6 +21,7 @@ export {
   type SurfaceDismissedDetail,
   type A2uiLinkClickDetail,
 } from './a2ui-pane-view.js';
+export { openLink, type LinkRouterDeps, type LinkRouteResult } from './link-router.js';
 export {
   renderRichMarkdown,
   renderLatexToMathMl,
