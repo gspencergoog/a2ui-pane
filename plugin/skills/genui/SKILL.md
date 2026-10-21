@@ -11,7 +11,7 @@ description: >-
   scorecard, stack board, status matrix, comparison matrix, triage list,
   progress board, or confirmation gate, when asking more than one question, or
   when another skill (grill-me, just-brainstorm, plan, code-merge, pr-review,
-  code-review, ship-it, commit-changes, branch-cleanup, what-if, api-review,
+  code-review, ship-it, branch-cleanup, what-if, api-review,
   estimate-conversation-tokens, cognitive-complexity, conversation-auditor,
   cost-optimization, duckdb, git-stack, pr-feedback-handler) says "render with
   genui".

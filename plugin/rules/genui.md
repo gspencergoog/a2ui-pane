@@ -9,7 +9,7 @@ Read and use the `genui` skill (`render_a2ui`) instead of plain prose or a modal
 
 - Ask the user 2 or more questions at once, list 2 or more numbered questions to confirm (`decision_batch`), or verify a batch of inferred assumptions (`assumption_ledger`).
 - Compare architectural options with blast-radius consequences (`consequence_cards`), compare 3 or more options on 3 or more criteria (`comparison_matrix`), or tune API or schema parameters (`contract_workbench`).
-- Gate a consequential action such as a commit, PR action, or branch deletion (`confirm_gate`).
+- Gate a consequential action such as a PR action or branch deletion (`confirm_gate`).
 - Present 3 or more items to triage, sequence into waves, walk through state transitions, or track live across phases (`triage_matrix`, `wave_sequencer`, `state_walkthrough`, `progress_board`).
 - Present a table of PRs or CLs with states and CI status (`stack_board`).
 - Present an evaluation rubric with 3 or more scored rows (`scorecard`).
