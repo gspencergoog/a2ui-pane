@@ -78,6 +78,15 @@ export {
   type TableIndexedRow,
 } from './a2ui-table.js';
 export {
+  A2uiStepperElement,
+  STEPPER_ORIENTATIONS,
+  normalizeStepperSteps,
+  clampStepperIndex,
+  type StepperOrientation,
+  type StepperStep,
+  type StepperResolvedProps,
+} from './a2ui-stepper.js';
+export {
   STATUS_CATALOG_ID,
   DynamicStatusToneSchema,
   ProgressSegmentSchema,
@@ -86,14 +95,18 @@ export {
   DynamicStatusItemListSchema,
   TableColumnSchema,
   DynamicTableRowListSchema,
+  StepperStepSchema,
+  DynamicStepperStepListSchema,
   BadgeApi,
   ProgressBarApi,
   CollapsibleApi,
   TableApi,
+  StepperApi,
   A2uiBadge,
   A2uiProgressBar,
   A2uiCollapsible,
   A2uiTable,
+  A2uiStepper,
   statusCatalog,
   statusSchemaCatalog,
 } from './status-catalog.js';

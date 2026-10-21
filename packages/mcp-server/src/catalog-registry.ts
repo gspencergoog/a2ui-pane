@@ -154,11 +154,42 @@ export const TableApi = {
     .strict(),
 } satisfies ComponentApi;
 
+/** Allowed `orientation` values for a `Stepper`. */
+export const STEPPER_ORIENTATIONS = ['horizontal', 'vertical'] as const;
+
+const StepperStepSchema = z
+  .object({
+    label: DynamicStringSchema,
+    detail: DynamicStringSchema.optional(),
+  })
+  .strict();
+
+const DynamicStepperStepListSchema = z
+  .union([z.array(StepperStepSchema), DataBindingSchema, FunctionCallSchema])
+  .describe(
+    'REF:#/$defs/DynamicStepperStepList|Ordered array of {label, detail} steps, usually $/steps.',
+  );
+
+/** Headless ComponentApi definition for `Stepper` in the A2UI v1.0 Status Catalog. */
+export const StepperApi = {
+  name: 'Stepper',
+  schema: z
+    .object({
+      steps: DynamicStepperStepListSchema,
+      current: DynamicNumberSchema,
+      tone: DynamicStatusToneSchema.optional(),
+      orientation: z.enum(STEPPER_ORIENTATIONS).optional(),
+      weight: z.number().optional(),
+      accessibility: AccessibilityAttributesSchema.optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
 /** Headless A2UI v1.0 Status Catalog for server-side validation and fallback prompt generation. */
 export const statusSchemaCatalog = new Catalog(
   STATUS_CATALOG_ID,
   '1.0',
-  [BadgeApi, ProgressBarApi, CollapsibleApi, TableApi],
+  [BadgeApi, ProgressBarApi, CollapsibleApi, TableApi, StepperApi],
   [],
 );
 
