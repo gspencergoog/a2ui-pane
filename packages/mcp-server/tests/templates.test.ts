@@ -28,6 +28,7 @@ const EXPECTED_TEMPLATES = [
   'decision_batch',
   'metrics_dashboard',
   'progress_board',
+  'scorecard',
   'state_walkthrough',
   'triage_matrix',
   'wave_sequencer',

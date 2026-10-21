@@ -1,0 +1,6 @@
+$/title = "### API review: `StoreWriter`"
+$/intro = "Scores are out of 10. Open Rationale on any row for the evidence behind its score."
+$/overall = {score: 6.6, max: 10}
+$/rows = [{label: "Contract-first interface", score: 9, max: 10, tone: "success", rationale: "`StoreWriter` exposes `append`, `flush`, and `close` and nothing else; callers cannot reach the buffer."}, {label: "KISS and YAGNI", score: 8, max: 10, tone: "success", rationale: "No speculative options; the only knob is `maxBufferBytes`, which two callers already set."}, {label: "Intent-revealing names", score: 6, max: 10, tone: "warning", rationale: "`append` and `flush` read well, but `sync2` hides that it blocks on fsync."}, {label: "Command-query separation", score: 7, max: 10, tone: "warning", rationale: "`append` returns the new offset, which is a query result from a command."}, {label: "Strict types over strings", score: 3, max: 10, tone: "danger", rationale: "`mode` is a free-form string (`\"append\"`, `\"truncate\"`) checked at runtime; an enum would catch typos at compile time."}]
+$/note = ""
+$/submitLabel = "Accept scores"

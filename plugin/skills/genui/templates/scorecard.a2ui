@@ -1,0 +1,30 @@
+// @genui id=scorecard surface=pane
+// @summary Rubric scorecard for reviews: a title, an overall progress bar with a numeric summary, one row per principle (label with a collapsible rationale, a score bar, and a semantic score badge), a notes field, and a submit button. Scores are numeric; the agent supplies each row's max and tone.
+// @data /title /intro /overall {score,max} /rows[] {label,score,max,tone,rationale} /note /submitLabel
+// @action submit_scorecard
+// @customize overall_bar submit_btn
+
+$/title = "### Scorecard"
+$/intro = "Scores are out of 10. Open Rationale on any row for the evidence behind its score."
+$/overall = {score: 0, max: 10}
+$/rows = []
+$/note = ""
+$/submitLabel = "Submit scorecard"
+
+root = Card(score_col)
+score_col = Column([score_title, score_intro, overall_bar, score_divider, score_rows, score_note, score_footer])
+score_title = Text($/title)
+score_intro = Text($/intro, "caption")
+overall_bar = ProgressBar(value=$/overall/score, max=$/overall/max, label="Overall", summary=formatString("${/overall/score} / ${/overall/max}"))
+score_divider = Divider()
+score_rows = List(_template($/rows, score_row))
+score_row = Row([score_row_body, score_row_bar, score_row_badge], _, "center")
+score_row_body = Column([score_row_label, score_row_rationale], _, _, 3)
+score_row_label = Text($label)
+score_row_rationale = Collapsible("Rationale", score_row_rationale_text)
+score_row_rationale_text = Text($rationale, "caption")
+score_row_bar = ProgressBar(value=$score, max=$max, weight=2)
+score_row_badge = Badge(formatString("${score}/${max}"), $tone)
+score_note = TextField("Notes", $/note)
+score_footer = Row([submit_btn], "end", "center")
+submit_btn = Button(Text($/submitLabel), "primary", Event("submit_scorecard", {rows: $/rows, note: $/note, _oneShot: false}))
