@@ -160,6 +160,45 @@ describe('render_a2ui Express paths', () => {
     broken.dispose();
   });
 
+  it('synthesizes messages when intent and payload are provided', async () => {
+    const result = await resolveMessages(
+      { intent: 'Show invoice status', payload: { invoiceId: 'INV-123', amount: 450 } },
+      { worker, templates },
+    );
+    expect('messages' in result).toBe(true);
+    if ('messages' in result) {
+      expect(result.authored).toBe('decision');
+      expect(result.messages).toHaveLength(1);
+    }
+  });
+
+  it('returns an error when decision synthesis abstains', async () => {
+    const result = await resolveMessages({ intent: 'ABSTAIN', payload: {} }, { worker, templates });
+    expect((result as any).isError).toBe(true);
+    expect((result as any).content[0].text).toContain('Decision synthesis abstained');
+  });
+
+  it('renders synthesized intent directly to the pane with decision model note', async () => {
+    const result = await handleRenderA2ui(
+      {
+        conversationId: 'conv-decision',
+        intent: 'Render system health monitor',
+        payload: { cpu: 85, memory: 70 },
+        surfaceId: 'health',
+        mode: 'pane',
+      },
+      server.getState,
+      server.catalogs,
+      tempDir,
+      undefined,
+      { worker, templates },
+    );
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain('surface(s) [health]');
+    expect(result.content[0].text).toContain('synthesized via decision model');
+    expect(server.getState('conv-decision').hasSurface('health')).toBe(true);
+  });
+
   it('replace deletes an existing surface before re-creating it', async () => {
     const first = await handleRenderA2ui(
       { conversationId: 'conv-rep', dsl: 'root = Text("v1")', surfaceId: 'dup', mode: 'pane' },

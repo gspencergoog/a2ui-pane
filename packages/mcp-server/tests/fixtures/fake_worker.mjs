@@ -199,6 +199,83 @@ rl.on('line', (line) => {
     process.stdout.write(JSON.stringify({ id: req.id, ok: true, text: 'root = Text("x")' }) + '\n');
     return;
   }
+  if (req.op === 'synthesize') {
+    if (req.intent === 'ABSTAIN') {
+      process.stdout.write(
+        JSON.stringify({
+          id: req.id,
+          ok: true,
+          messages: [],
+          stage: 'abstain_fallback',
+          confidence: 0.1,
+          entropy: 0.9,
+          dsl: '',
+        }) + '\n',
+      );
+      return;
+    }
+    const msgVersion = req.version || workerVersion || 'v1.0';
+    if (msgVersion === 'v0.9') {
+      process.stdout.write(
+        JSON.stringify({
+          id: req.id,
+          ok: true,
+          messages: [
+            {
+              version: 'v0.9',
+              createSurface: { surfaceId: req.surfaceId || 'main', catalogId: 'basic' },
+            },
+            {
+              version: 'v0.9',
+              updateComponents: {
+                surfaceId: req.surfaceId || 'main',
+                components: [
+                  {
+                    id: 'root',
+                    component: 'Text',
+                    text: `Synthesized: ${req.intent}`,
+                  },
+                ],
+              },
+            },
+          ],
+          stage: 'fast_1pass_leaf',
+          confidence: 0.95,
+          entropy: 0.05,
+          dsl: `surface("${req.surfaceId || 'main'}")\nroot = Text("Synthesized: ${req.intent}")`,
+        }) + '\n',
+      );
+      return;
+    }
+    process.stdout.write(
+      JSON.stringify({
+        id: req.id,
+        ok: true,
+        messages: [
+          {
+            version: 'v1.0',
+            createSurface: {
+              surfaceId: req.surfaceId || 'main',
+              components: [
+                {
+                  id: 'root',
+                  component: 'Text',
+                  catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+                  text: `Synthesized: ${req.intent}`,
+                },
+              ],
+              dataModel: req.payload || {},
+            },
+          },
+        ],
+        stage: 'fast_1pass_leaf',
+        confidence: 0.95,
+        entropy: 0.05,
+        dsl: `surface("${req.surfaceId || 'main'}")\nroot = Text("Synthesized: ${req.intent}")`,
+      }) + '\n',
+    );
+    return;
+  }
   process.stdout.write(
     JSON.stringify({
       id: req.id,

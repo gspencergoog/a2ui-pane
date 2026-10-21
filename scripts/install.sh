@@ -6,7 +6,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 usage() {
   cat <<EOF
-Usage: scripts/install.sh [--agent-sdk-path <a2ui checkout>] [--no-agent-sdk] [--protocol-version v0.9]
+Usage: scripts/install.sh [--agent-sdk-path <a2ui checkout>] [--no-agent-sdk] [--protocol-version v0.9] [--with-local-jev]
 
 Builds the monorepo, stages the plugin bundles, and symlinks the plugin into
 ~/.gemini/config/plugins/a2ui-pane.
@@ -19,6 +19,9 @@ A2UI_PANE_AGENT_SDK_PATH.
 If you want to install without Express Python SDK support (raw JSON messages only),
 pass --no-agent-sdk.
 
+To install optional CPU cross-encoder dependencies for in-process Jev decision-model
+UI synthesis, pass --with-local-jev.
+
 Environment overrides: A2UI_PANE_NODE, A2UI_PANE_UV, A2UI_PANE_AGENT_SDK_PATH,
 A2UI_PANE_PROTOCOL_VERSION.
 EOF
@@ -26,11 +29,13 @@ EOF
 
 AGENT_SDK_PATH="${A2UI_PANE_AGENT_SDK_PATH:-}"
 NO_AGENT_SDK=0
+WITH_LOCAL_JEV=0
 PROTOCOL_VERSION="${A2UI_PANE_PROTOCOL_VERSION:-v1.0}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --agent-sdk-path) AGENT_SDK_PATH="$2"; shift 2 ;;
     --no-agent-sdk|--raw-only) NO_AGENT_SDK=1; shift ;;
+    --with-local-jev) WITH_LOCAL_JEV=1; shift ;;
     --protocol-version) PROTOCOL_VERSION="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
@@ -92,6 +97,10 @@ if [ -n "${AGENT_SDK_PATH}" ] && [ "${NO_AGENT_SDK}" -eq 0 ]; then
   if [ ! -f "${AGENT_SDK_PATH}/python/a2ui_agent/pyproject.toml" ]; then
     echo "${AGENT_SDK_PATH} does not look like an a2ui checkout (missing python/a2ui_agent/pyproject.toml)." >&2
     exit 1
+  fi
+  if [ "${WITH_LOCAL_JEV}" -eq 1 ]; then
+    echo "Installing decision-local dependencies for in-process Jev CPU model..."
+    "${UV_BIN}" sync --project "${AGENT_SDK_PATH}" --package a2ui-agent-sdk --extra decision-local
   fi
   PYTHON_BIN="$("${UV_BIN}" run --project "${AGENT_SDK_PATH}" --package a2ui-agent-sdk python -c 'import sys; print(sys.executable)')"
   echo "Using Python interpreter: ${PYTHON_BIN}"

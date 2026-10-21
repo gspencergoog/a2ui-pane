@@ -38,6 +38,7 @@ class WorkerState:
         self.catalogs: list[Any] = []
         self.compiler: Any = None
         self.prompt_generator: Any = None
+        self.synthesizer: Any = None
         self.default_version = "v1.0"
 
     def init(self, catalog_paths: str | list[str], version: str | None) -> dict[str, Any]:
@@ -85,6 +86,12 @@ class WorkerState:
         self.prompt_generator = ExpressPromptGenerator(
             self.catalogs, version=self.default_version
         )
+        try:
+            from a2ui.inference_formats.decision import DecisionSynthesizer
+
+            self.synthesizer = DecisionSynthesizer.from_env(self.catalogs)
+        except Exception:
+            self.synthesizer = None
         return {
             "catalogId": self.catalogs[0].catalog_id,
             "catalogIds": [c.catalog_id for c in self.catalogs],
@@ -148,6 +155,47 @@ class WorkerState:
         decompiler = ExpressDecompiler(self.catalogs)
         return decompiler.decompile(to_message_models(messages))
 
+    def synthesize(
+        self, intent: str, payload: dict[str, Any], surface_id: str
+    ) -> dict[str, Any]:
+        """Synthesizes A2UI messages from user intent and payload using the decision synthesizer.
+
+        Args:
+            intent: User goal or prompt.
+            payload: Data model dictionary.
+            surface_id: Target surface identifier.
+
+        Returns:
+            Dictionary containing messages, stage, confidence, entropy, and dsl.
+
+        Raises:
+            RuntimeError: If synthesizer is not initialized or fails.
+        """
+        import asyncio
+        from a2ui.parser.messages import to_message_dicts
+
+        self._require_init()
+        if self.synthesizer is None:
+            try:
+                from a2ui.inference_formats.decision import DecisionSynthesizer
+
+                self.synthesizer = DecisionSynthesizer.from_env(self.catalogs)
+            except Exception as err:
+                raise RuntimeError(
+                    f"Decision synthesis is not available: {err}"
+                ) from err
+
+        out = asyncio.run(
+            self.synthesizer.synthesize(intent, payload, surface_id=surface_id)
+        )
+        return {
+            "messages": to_message_dicts(out.messages),
+            "stage": out.stage.value if hasattr(out.stage, "value") else str(out.stage),
+            "confidence": out.confidence,
+            "entropy": out.entropy,
+            "dsl": out.to_express(self.catalogs) if hasattr(out, "to_express") else "",
+        }
+
     def _require_init(self) -> None:
         if self.compiler is None:
             raise RuntimeError("Worker not initialized; send an 'init' request first.")
@@ -208,6 +256,13 @@ def handle(state: WorkerState, request: dict[str, Any]) -> dict[str, Any]:
             return {"id": request_id, "ok": True, "text": state.instructions()}
         if op == "decompile":
             return {"id": request_id, "ok": True, "text": state.decompile(request.get("messages", []))}
+        if op == "synthesize":
+            res = state.synthesize(
+                request.get("intent", ""),
+                request.get("payload") or {},
+                request.get("surfaceId") or "main",
+            )
+            return {"id": request_id, "ok": True, **res}
         return {
             "id": request_id,
             "ok": False,

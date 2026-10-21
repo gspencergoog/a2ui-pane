@@ -209,6 +209,16 @@ describe('ExpressWorker (fake child)', () => {
     await expect(pending).rejects.toBeInstanceOf(ExpressWorkerUnavailableError);
     expect(await worker.isAvailable()).toBe(false);
   });
+
+  it('synthesizes UI using the fake worker', async () => {
+    const { worker } = fakeWorker('normal');
+    const res = await worker.synthesize('Show invoice status', { amount: 100 });
+    expect(res.stage).toBe('fast_1pass_leaf');
+    expect(res.confidence).toBe(0.95);
+    expect(res.messages).toHaveLength(1);
+    expect(res.dsl).toContain('Show invoice status');
+    worker.dispose();
+  });
 });
 
 const realPython = process.env.A2UI_PANE_PYTHON;

@@ -14,13 +14,15 @@ export interface WorkerError {
 /** JSON-lines request envelope sent to the Python Express worker over stdin. */
 export type WorkerRequest = {
   id: number;
-  op: 'init' | 'ping' | 'compile' | 'instructions' | 'decompile';
+  op: 'init' | 'ping' | 'compile' | 'instructions' | 'decompile' | 'synthesize';
   catalogPath?: string;
   catalogPaths?: string[];
   version?: string;
   dsl?: string;
   surfaceId?: string;
   messages?: unknown[];
+  intent?: string;
+  payload?: Record<string, unknown>;
 };
 
 /** JSON-lines response envelope emitted by the Python Express worker over stdout. */
@@ -195,6 +197,34 @@ export class ExpressWorker {
   async decompile(messages: unknown[]): Promise<string> {
     const res = await this.send({ id: 0, op: 'decompile', messages });
     return String(res.text ?? '');
+  }
+
+  /** Synthesizes A2UI messages directly from user intent and payload using the decision model. */
+  async synthesize(
+    intent: string,
+    payload: Record<string, unknown>,
+    surfaceId?: string,
+  ): Promise<{
+    messages: unknown[];
+    stage: string;
+    confidence: number;
+    entropy: number;
+    dsl: string;
+  }> {
+    const res = await this.send({
+      id: 0,
+      op: 'synthesize',
+      intent,
+      payload,
+      surfaceId: surfaceId ?? 'main',
+    });
+    return {
+      messages: (res.messages as unknown[]) ?? [],
+      stage: String(res.stage ?? ''),
+      confidence: Number(res.confidence ?? 0),
+      entropy: Number(res.entropy ?? 0),
+      dsl: String(res.dsl ?? ''),
+    };
   }
 
   /** Stops the child process and fails any queued requests. */

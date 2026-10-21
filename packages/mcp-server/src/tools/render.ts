@@ -90,6 +90,18 @@ export const renderA2uiSchema = {
     .describe(
       'Template id from the registry (see a2ui_instructions). Inflated with `surfaceId`, then `dsl` is appended.',
     ),
+  intent: z
+    .string()
+    .optional()
+    .describe(
+      'Goal or prompt for decision-model UI synthesis (e.g. "show flight details with seat picker"). Combined with `payload`.',
+    ),
+  payload: z
+    .record(z.unknown())
+    .optional()
+    .describe(
+      'JSON data model payload for decision-model UI synthesis. Automatically bound to component properties.',
+    ),
   surfaceId: z
     .string()
     .optional()
@@ -126,6 +138,8 @@ export interface RenderA2uiArgs {
   messages?: unknown[] | string;
   dsl?: string;
   template?: string;
+  intent?: string;
+  payload?: Record<string, unknown>;
   surfaceId?: string;
   replace?: boolean;
   stack?: boolean;
@@ -186,17 +200,23 @@ function formatCompileError(err: ExpressWorkerError, source: string): string {
 export async function resolveMessages(
   args: RenderA2uiArgs,
   deps: RenderA2uiDeps,
-): Promise<{ messages: unknown[]; authored: 'messages' | 'dsl' | 'template' } | ToolResult> {
+): Promise<
+  { messages: unknown[]; authored: 'messages' | 'dsl' | 'template' | 'decision' } | ToolResult
+> {
   const hasMessages = args.messages !== undefined;
   const hasDsl = typeof args.dsl === 'string' && args.dsl.trim().length > 0;
   const hasTemplate = typeof args.template === 'string' && args.template.length > 0;
+  const hasIntent = typeof args.intent === 'string' && args.intent.trim().length > 0;
 
-  if (hasMessages && (hasDsl || hasTemplate)) {
-    return errorResult('Pass either `messages` or `dsl`/`template`, not both.');
-  }
-  if (!hasMessages && !hasDsl && !hasTemplate) {
+  const modeCount = (hasMessages ? 1 : 0) + (hasDsl || hasTemplate ? 1 : 0) + (hasIntent ? 1 : 0);
+  if (modeCount > 1) {
     return errorResult(
-      'Missing authoring input: pass `dsl`, `template` (optionally with `dsl`), or `messages`.',
+      'Pass either `messages`, `dsl`/`template`, or `intent` (with optional `payload`), not both.',
+    );
+  }
+  if (modeCount === 0) {
+    return errorResult(
+      'Missing authoring input: pass `dsl`, `template` (optionally with `dsl`), `intent`, or `messages`.',
     );
   }
 
@@ -209,6 +229,33 @@ export async function resolveMessages(
   const surfaceId = args.surfaceId || 'main';
   if (!isValidId(surfaceId)) {
     return errorResult(`Invalid surfaceId '${surfaceId}'. ID must match ^[A-Za-z0-9_-]{1,128}$.`);
+  }
+
+  if (hasIntent) {
+    if (!deps.worker) {
+      return errorResult(
+        'Decision synthesis is not configured on this server (no Python worker); pass `dsl` or `messages` instead.',
+      );
+    }
+    try {
+      const res = await deps.worker.synthesize(args.intent!, args.payload ?? {}, surfaceId);
+      if (!res.messages || res.messages.length === 0) {
+        return errorResult(
+          `Decision synthesis abstained (stage: ${res.stage}, confidence: ${res.confidence.toFixed(2)}). Try specifying explicit \`dsl\` or \`template\`.`,
+        );
+      }
+      return { messages: res.messages, authored: 'decision' };
+    } catch (err: any) {
+      if (err instanceof ExpressWorkerError) {
+        return errorResult(formatCompileError(err, args.intent!));
+      }
+      if (err instanceof ExpressWorkerUnavailableError) {
+        return errorResult(
+          `Express worker unavailable: ${err.message}. Pass raw \`messages\` instead, or reinstall the plugin (scripts/install.sh) to repair the Python worker.`,
+        );
+      }
+      return errorResult(`Decision synthesis failed: ${err?.message || err}`);
+    }
   }
 
   let source: string;
@@ -517,7 +564,11 @@ export async function handleRenderA2ui(
     : 'The A2UI side panel is currently closed. Always include [A2UI Pane](sidecar://a2ui-pane/a2ui-pane/) in your response so the user sees an inline button indicating that the pane was updated and can open it in one click.';
 
   const authoredNote =
-    resolved.authored === 'messages' ? '' : ` (compiled from Express ${resolved.authored})`;
+    resolved.authored === 'messages'
+      ? ''
+      : resolved.authored === 'decision'
+        ? ' (synthesized via decision model)'
+        : ` (compiled from Express ${resolved.authored})`;
   return {
     content: [
       {
