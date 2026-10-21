@@ -289,7 +289,7 @@ describe('markdown-renderer', () => {
       expect(convHtml).not.toMatch(/\shref=/);
     });
 
-    it('keeps javascript:, vbscript:, and data: links stripped of any destination', async () => {
+    it('renders javascript:, vbscript:, and data: links as their plain label text', async () => {
       for (const bad of [
         '[x](javascript:alert(1))',
         '[x](JavaScript:alert(1))',
@@ -299,8 +299,14 @@ describe('markdown-renderer', () => {
         const html = await renderRichMarkdown(bad);
         expect(html).not.toContain('href=');
         expect(html).not.toContain('data-a2ui-href');
-        expect(html).toContain('x');
+        expect(html).not.toContain('<a');
+        expect(html).not.toContain('](');
+        expect(html).not.toMatch(/javascript|vbscript|data:/i);
+        expect(html.trim()).toBe('x');
       }
+
+      const inline = await renderRichMarkdown('Click [**here**](javascript:alert(1)) now.');
+      expect(inline).toContain('Click <strong>here</strong> now.');
     });
 
     it('leaves links inside fenced code blocks and code spans untouched', async () => {
@@ -331,11 +337,15 @@ describe('markdown-renderer', () => {
       const { text, links } = protectNonHttpLinks(
         '[a](file:///x) [b](https://h) [c](sidecar://p "t") [d](data:x)',
       );
-      expect(text).toBe('[a](a2uilink:0) [b](https://h) [c](a2uilink:1 "t") [d](data:x)');
+      expect(text).toBe('[a](a2uilink:0) [b](https://h) [c](a2uilink:1 "t") d');
       expect(links).toEqual(['file:///x', 'sidecar://p']);
       expect(
         restoreNonHttpLinks('<a href="a2uilink:1">c</a><a href="a2uilink:9">z</a>', links),
       ).toBe('<a data-a2ui-href="sidecar://p">c</a><a >z</a>');
+
+      const parens = protectNonHttpLinks('[w](file:///docs/a_(b).md) tail');
+      expect(parens.text).toBe('[w](a2uilink:0) tail');
+      expect(parens.links).toEqual(['file:///docs/a_(b).md']);
     });
   });
 });
