@@ -261,5 +261,25 @@ describe('markdown-renderer', () => {
       const htmlGlobal = await renderRichMarkdown('```mermaid\nflowchart LR\n  A --> B\n```');
       expect(htmlGlobal).toContain('GlobalMermaid');
     });
+
+    it('renders Markdown links as anchors', async () => {
+      const httpsHtml = await renderRichMarkdown(
+        '[PR 3339](https://github.com/a2ui-project/a2ui/pull/3339)',
+      );
+      expect(httpsHtml).toContain(
+        '<a href="https://github.com/a2ui-project/a2ui/pull/3339">PR 3339</a>',
+      );
+
+      const jsHtml = await renderRichMarkdown('[x](javascript:alert(1))');
+      expect(jsHtml).not.toContain('href=');
+      expect(jsHtml).toContain('x');
+    });
+
+    it.todo(
+      'renders file:/// links as anchors once protected (currently dropped as plain text by markdown-it validateLink BAD_PROTO_RE)',
+    );
+    it.todo(
+      'renders conversation:// links as anchors once protected (currently stripped by DOMPurify IS_ALLOWED_URI in real browsers)',
+    );
   });
 });
