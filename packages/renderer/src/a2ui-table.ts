@@ -68,6 +68,9 @@ const KIND_SET: ReadonlySet<string> = new Set(TABLE_COLUMN_KINDS);
 const ALIGN_SET: ReadonlySet<string> = new Set(['start', 'center', 'end']);
 const HTTP_URL_RE = /^https?:\/\//i;
 
+/** Default `min-width` of the first column when it has no `width` hint. */
+const FIRST_COLUMN_MIN_WIDTH = '10ch';
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -215,6 +218,12 @@ export class A2uiTableElement extends A2uiLitElement<any, TableResolvedProps> {
         box-sizing: border-box;
       }
 
+      /* Horizontal scroll is the fallback when columns cannot shrink any further. */
+      .a2ui-table-scroll {
+        max-width: 100%;
+        overflow-x: auto;
+      }
+
       .a2ui-table {
         width: 100%;
         border-collapse: collapse;
@@ -303,6 +312,12 @@ export class A2uiTableElement extends A2uiLitElement<any, TableResolvedProps> {
 
       .a2ui-table td[data-kind='number'] {
         font-variant-numeric: tabular-nums;
+      }
+
+      /* Long badge text wraps inside the pill instead of widening the column. */
+      .a2ui-table td[data-kind='badge'] .a2ui-badge {
+        white-space: normal;
+        overflow-wrap: anywhere;
       }
 
       .a2ui-table td[data-kind='progress'] {
@@ -523,7 +538,17 @@ export class A2uiTableElement extends A2uiLitElement<any, TableResolvedProps> {
     return undefined;
   }
 
-  private renderHeader(column: TableColumn, sortable: boolean): TemplateResult {
+  /**
+   * Inline style for a header or body cell of `column`. A `width` hint always wins; without
+   * one, the first column gets `min-width: 10ch` so row labels do not collapse to one word
+   * per line when badge cells wrap.
+   */
+  private columnStyle(column: TableColumn, index: number): string | typeof nothing {
+    if (column.width) return `width: ${column.width};`;
+    return index === 0 ? `min-width: ${FIRST_COLUMN_MIN_WIDTH};` : nothing;
+  }
+
+  private renderHeader(column: TableColumn, index: number, sortable: boolean): TemplateResult {
     const active = sortable && this.sortKey === column.key;
     const ariaSort = active ? (this.sortDir === 'asc' ? 'ascending' : 'descending') : nothing;
     return html`
@@ -534,7 +559,7 @@ export class A2uiTableElement extends A2uiLitElement<any, TableResolvedProps> {
         data-sortable=${sortable ? '' : nothing}
         aria-sort=${ariaSort}
         tabindex=${sortable ? '0' : nothing}
-        style=${column.width ? `width: ${column.width};` : nothing}
+        style=${this.columnStyle(column, index)}
         @click=${sortable ? () => this.toggleSort(column.key) : nothing}
         @keydown=${sortable ? (e: KeyboardEvent) => this.handleHeaderKeydown(e, column.key) : nothing}
       >
@@ -560,11 +585,12 @@ export class A2uiTableElement extends A2uiLitElement<any, TableResolvedProps> {
         @keydown=${(e: KeyboardEvent) => this.handleRowKeydown(e, props, entry.index)}
       >
         ${columns.map(
-          (column) => html`
+          (column, index) => html`
             <td
               data-key=${column.key}
               data-kind=${column.kind ?? 'text'}
               data-align=${this.alignFor(column) ?? nothing}
+              style=${this.columnStyle(column, index)}
             >
               ${this.renderCell(column, entry.row)}
             </td>
@@ -588,29 +614,31 @@ export class A2uiTableElement extends A2uiLitElement<any, TableResolvedProps> {
 
     return html`
       <div class="a2ui-table-container">
-        <table
-          class="a2ui-table"
-          part="table"
-          data-dense=${props.dense === true ? '' : nothing}
-          aria-label=${ariaLabel}
-          aria-description=${props.accessibility?.description ?? nothing}
-        >
-          ${
-            props.caption
-              ? html`<caption>
-                  ${props.caption}
-                </caption>`
-              : nothing
-          }
-          <thead>
-            <tr>
-              ${columns.map((column) => this.renderHeader(column, sortable))}
-            </tr>
-          </thead>
-          <tbody>
-            ${rows.map((entry) => this.renderRow(props, columns, entry, interactive))}
-          </tbody>
-        </table>
+        <div class="a2ui-table-scroll">
+          <table
+            class="a2ui-table"
+            part="table"
+            data-dense=${props.dense === true ? '' : nothing}
+            aria-label=${ariaLabel}
+            aria-description=${props.accessibility?.description ?? nothing}
+          >
+            ${
+              props.caption
+                ? html`<caption>
+                    ${props.caption}
+                  </caption>`
+                : nothing
+            }
+            <thead>
+              <tr>
+                ${columns.map((column, index) => this.renderHeader(column, index, sortable))}
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map((entry) => this.renderRow(props, columns, entry, interactive))}
+            </tbody>
+          </table>
+        </div>
         ${rows.length === 0 ? html`<div class="a2ui-table-empty">No rows</div>` : nothing}
       </div>
     `;

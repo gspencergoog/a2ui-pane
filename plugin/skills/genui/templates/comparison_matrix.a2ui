@@ -1,5 +1,5 @@
 // @genui id=comparison_matrix surface=pane
-// @summary Criteria by options tradeoff: a title and question above a Table with one row per criterion and one badge cell per option (short text with a tone you supply), then a single-choice chip row to pick an option, a notes field, and a submit button. Prefer it over consequence_cards when there are 3 or more options or 4 or more criteria. Redefine matrix_table (column labels are the option titles) and choice_picker (one chip per option, values o1..o3) together so the columns and the chips agree.
+// @summary Criteria by options tradeoff: a title and question above a Table with one row per criterion and one badge cell per option (short text with a tone you supply), then a single-choice chip row to pick an option, a notes field, and a submit button. Prefer it over consequence_cards when there are 3 or more options or 4 or more criteria. Redefine matrix_table (column labels are the option titles; keep width: "14ch" on the criterion column) and choice_picker (one chip per option, values o1..o3) together so the columns and the chips agree.
 // @data /title /question /rows[] {criterion,o1,o2,o3} /choice /notes /submitLabel
 // @action submit_comparison
 // @customize matrix_table choice_picker submit_btn
@@ -15,7 +15,7 @@ root = Card(matrix_col)
 matrix_col = Column([matrix_title, matrix_question, matrix_table, choice_picker, matrix_notes, matrix_footer])
 matrix_title = Text($/title)
 matrix_question = Text($/question)
-matrix_table = Table([{key: "criterion", label: "Criterion"}, {key: "o1", label: "Option 1", kind: "badge"}, {key: "o2", label: "Option 2", kind: "badge"}, {key: "o3", label: "Option 3", kind: "badge"}], $/rows)
+matrix_table = Table([{key: "criterion", label: "Criterion", width: "14ch"}, {key: "o1", label: "Option 1", kind: "badge"}, {key: "o2", label: "Option 2", kind: "badge"}, {key: "o3", label: "Option 3", kind: "badge"}], $/rows)
 choice_picker = ChoicePicker("Pick an option", "mutuallyExclusive", [{label: "Option 1", value: "o1"}, {label: "Option 2", value: "o2"}, {label: "Option 3", value: "o3"}], $/choice, "chips")
 matrix_notes = TextField("Notes, caveats, or a hybrid", $/notes)
 matrix_footer = Row([submit_btn], "end", "center")

@@ -47,7 +47,8 @@
           "columns": [
             {
               "key": "criterion",
-              "label": "Criterion"
+              "label": "Criterion",
+              "width": "14ch"
             },
             {
               "key": "o1",

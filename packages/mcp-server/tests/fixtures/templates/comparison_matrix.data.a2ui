@@ -4,5 +4,5 @@ $/rows = [{criterion: "Time to first value", o1: {text: "Days", tone: "success"}
 $/choice = ["o3"]
 $/notes = ""
 $/submitLabel = "Confirm sequencing"
-matrix_table = Table([{key: "criterion", label: "Criterion"}, {key: "o1", label: "1: Templates only", kind: "badge"}, {key: "o2", label: "2: Table first", kind: "badge"}, {key: "o3", label: "3: Hybrid (Recommended)", kind: "badge"}], $/rows)
+matrix_table = Table([{key: "criterion", label: "Criterion", width: "14ch"}, {key: "o1", label: "1: Templates only", kind: "badge"}, {key: "o2", label: "2: Table first", kind: "badge"}, {key: "o3", label: "3: Hybrid (Recommended)", kind: "badge"}], $/rows)
 choice_picker = ChoicePicker("Pick a sequencing option", "mutuallyExclusive", [{label: "1: Templates only", value: "o1"}, {label: "2: Table first", value: "o2"}, {label: "3: Hybrid (Recommended)", value: "o3"}], $/choice, "chips")
