@@ -1,0 +1,280 @@
+[
+  {
+    "version": "v1.0",
+    "createSurface": {
+      "surfaceId": "stack_board",
+      "sendDataModel": true,
+      "components": [
+        {
+          "id": "root",
+          "component": "Card",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "child": "stack_col"
+        },
+        {
+          "id": "stack_col",
+          "component": "Column",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "children": [
+            "stack_title",
+            "stack_progress",
+            "stack_divider",
+            "stack_rows",
+            "stack_footer"
+          ]
+        },
+        {
+          "id": "stack_title",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@path": "/title"
+          }
+        },
+        {
+          "id": "stack_progress",
+          "component": "ProgressBar",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
+          "items": {
+            "@path": "/items"
+          },
+          "summary": {
+            "@path": "/subtitle"
+          }
+        },
+        {
+          "id": "stack_divider",
+          "component": "Divider",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        },
+        {
+          "id": "stack_rows",
+          "component": "List",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "children": {
+            "path": "/items",
+            "componentId": "stack_row"
+          }
+        },
+        {
+          "id": "stack_row",
+          "component": "Column",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "children": [
+            "stack_row_head",
+            "stack_row_link",
+            "stack_row_meta",
+            "stack_row_details"
+          ]
+        },
+        {
+          "id": "stack_row_head",
+          "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "children": [
+            "stack_row_id",
+            "stack_row_state",
+            "stack_row_ci",
+            "stack_row_review"
+          ],
+          "align": "center"
+        },
+        {
+          "id": "stack_row_id",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@call": "formatString",
+            "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+            "args": {
+              "value": "**${id}**"
+            }
+          }
+        },
+        {
+          "id": "stack_row_state",
+          "component": "Badge",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
+          "text": {
+            "@path": "state"
+          },
+          "tone": {
+            "@path": "tone"
+          }
+        },
+        {
+          "id": "stack_row_ci",
+          "component": "Badge",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
+          "text": {
+            "@path": "ci"
+          },
+          "tone": {
+            "@path": "ciTone"
+          }
+        },
+        {
+          "id": "stack_row_review",
+          "component": "Badge",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
+          "text": {
+            "@path": "review"
+          },
+          "tone": {
+            "@path": "reviewTone"
+          }
+        },
+        {
+          "id": "stack_row_link",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@call": "formatString",
+            "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+            "args": {
+              "value": "[${title}](${url})"
+            }
+          }
+        },
+        {
+          "id": "stack_row_meta",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@call": "formatString",
+            "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+            "args": {
+              "value": "wave ${wave} · base ${base}"
+            }
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "stack_row_details",
+          "component": "Collapsible",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
+          "title": "Details",
+          "child": "stack_row_detail_text"
+        },
+        {
+          "id": "stack_row_detail_text",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@path": "detail"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "stack_footer",
+          "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "children": [
+            "ack_btn"
+          ],
+          "justify": "end",
+          "align": "center"
+        },
+        {
+          "id": "ack_btn",
+          "component": "Button",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "child": "ack_btn_child",
+          "action": {
+            "event": {
+              "name": "acknowledge_stack_board",
+              "context": {
+                "_oneShot": true
+              }
+            }
+          }
+        },
+        {
+          "id": "ack_btn_child",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@path": "/ackLabel"
+          }
+        }
+      ],
+      "dataModel": {
+        "title": "### Ship-it stack: StoreWriter rewrite",
+        "subtitle": "Five changes in two waves; wave 2 rebases after wave 1 merges.",
+        "items": [
+          {
+            "id": "PR 3339",
+            "title": "feat(store): add StoreWriter with buffered append",
+            "url": "https://github.com/a2ui-project/a2ui/pull/3339",
+            "wave": "1",
+            "base": "main",
+            "state": "Merged",
+            "tone": "success",
+            "ci": "CI passed",
+            "ciTone": "success",
+            "review": "Approved",
+            "reviewTone": "success",
+            "detail": "Merged as 3eab437. Unit tests 221 passed; integration 7/7."
+          },
+          {
+            "id": "PR 3340",
+            "title": "fix(store): take the lock before the length check",
+            "url": "https://github.com/a2ui-project/a2ui/pull/3340",
+            "wave": "1",
+            "base": "main",
+            "state": "Open",
+            "tone": "active",
+            "ci": "CI running",
+            "ciTone": "active",
+            "review": "Changes requested",
+            "reviewTone": "warning",
+            "detail": "Reviewer asked for a regression test covering two writers interleaving lines."
+          },
+          {
+            "id": "PR 3341",
+            "title": "refactor(store): extract flush scheduling",
+            "url": "https://github.com/a2ui-project/a2ui/pull/3341",
+            "wave": "2",
+            "base": "PR 3340",
+            "state": "Draft",
+            "tone": "neutral",
+            "ci": "CI failed",
+            "ciTone": "danger",
+            "review": "Unreviewed",
+            "reviewTone": "neutral",
+            "detail": "Lint failure: unused import in flush-scheduler.ts. Rebase onto PR 3340 once it merges."
+          },
+          {
+            "id": "PR 3342",
+            "title": "docs(store): document StoreWriter guarantees",
+            "url": "https://github.com/a2ui-project/a2ui/pull/3342",
+            "wave": "2",
+            "base": "PR 3341",
+            "state": "Draft",
+            "tone": "neutral",
+            "ci": "CI pending",
+            "ciTone": "warning",
+            "review": "Unreviewed",
+            "reviewTone": "neutral",
+            "detail": "Waiting on the API wording decided in PR 3341."
+          },
+          {
+            "id": "CL 812345678",
+            "title": "Roll StoreWriter into the google3 mirror",
+            "url": "https://critique.corp.google.com/cl/812345678",
+            "wave": "2",
+            "base": "PR 3342",
+            "state": "Pending submit",
+            "tone": "warning",
+            "ci": "TAP passed",
+            "ciTone": "success",
+            "review": "LGTM",
+            "reviewTone": "success",
+            "detail": "Submit queue blocked until the external mirror picks up PR 3342."
+          }
+        ],
+        "ackLabel": "Got it"
+      }
+    }
+  }
+]

@@ -1,0 +1,29 @@
+// @genui id=stack_board surface=pane
+// @summary Live board for a stack of PRs or CLs: a title, a segmented progress bar tallied by each item's tone with a subtitle summary, one row per change (bold id with state, CI, and review badges, a clickable title link, a wave and base caption, and collapsible details), and an acknowledge button. Group rows visually by giving items the same `wave`. Update one row with data-only lines such as `$/items/2/state = "merged"` and `$/items/2/tone = "success"`.
+// @data /title /subtitle /items[] {id,title,url,wave,base,state,tone,ci,ciTone,review,reviewTone,detail} /ackLabel
+// @action acknowledge_stack_board
+// @customize ack_btn
+
+$/title = "### Stack"
+$/subtitle = "Updated as each change lands."
+$/items = []
+$/ackLabel = "Acknowledge"
+
+root = Card(stack_col)
+stack_col = Column([stack_title, stack_progress, stack_divider, stack_rows, stack_footer])
+stack_title = Text($/title)
+stack_progress = ProgressBar(items=$/items, summary=$/subtitle)
+stack_divider = Divider()
+stack_rows = List(_template($/items, stack_row))
+stack_row = Column([stack_row_head, stack_row_link, stack_row_meta, stack_row_details])
+stack_row_head = Row([stack_row_id, stack_row_state, stack_row_ci, stack_row_review], _, "center")
+stack_row_id = Text(formatString("**${id}**"))
+stack_row_state = Badge($state, $tone)
+stack_row_ci = Badge($ci, $ciTone)
+stack_row_review = Badge($review, $reviewTone)
+stack_row_link = Text(formatString("[${title}](${url})"))
+stack_row_meta = Text(formatString("wave ${wave} · base ${base}"), "caption")
+stack_row_details = Collapsible("Details", stack_row_detail_text)
+stack_row_detail_text = Text($detail, "caption")
+stack_footer = Row([ack_btn], "end", "center")
+ack_btn = Button(Text($/ackLabel), _, Event("acknowledge_stack_board", {_oneShot: true}))
