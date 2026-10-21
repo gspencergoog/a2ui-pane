@@ -102,6 +102,7 @@ mkdir -p "${REPO_ROOT}/plugin/mcp/dist"
 cp -R "${STAGING_DIR}/sidecars/a2ui-pane/dist/pane"/. "${REPO_ROOT}/plugin/sidecars/a2ui-pane/dist/pane/"
 cp "${STAGING_DIR}/sidecars/a2ui-pane/dist/main.mjs" "${REPO_ROOT}/plugin/sidecars/a2ui-pane/dist/"
 cp "${STAGING_DIR}/mcp/dist/server.mjs" "${REPO_ROOT}/plugin/mcp/dist/"
+cp "${STAGING_DIR}/mcp/dist/embed.iife.js" "${REPO_ROOT}/plugin/mcp/dist/"
 
 echo "--- Creating archives in ${OUTPUT_DIR} ---"
 TARBALL="${OUTPUT_DIR}/a2ui-pane.tar.gz"
