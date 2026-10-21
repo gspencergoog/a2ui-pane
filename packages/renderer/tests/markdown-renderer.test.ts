@@ -4,6 +4,8 @@ import {
   renderLatexToMathMl,
   renderMermaidSvg,
   escapeHtml,
+  protectNonHttpLinks,
+  restoreNonHttpLinks,
 } from '../src/markdown-renderer.js';
 
 describe('markdown-renderer', () => {
@@ -267,19 +269,73 @@ describe('markdown-renderer', () => {
         '[PR 3339](https://github.com/a2ui-project/a2ui/pull/3339)',
       );
       expect(httpsHtml).toContain(
-        '<a href="https://github.com/a2ui-project/a2ui/pull/3339">PR 3339</a>',
+        '<a href="https://github.com/a2ui-project/a2ui/pull/3339" rel="noopener noreferrer">PR 3339</a>',
       );
+      expect(httpsHtml).not.toContain('target=');
 
       const jsHtml = await renderRichMarkdown('[x](javascript:alert(1))');
       expect(jsHtml).not.toContain('href=');
       expect(jsHtml).toContain('x');
     });
 
-    it.todo(
-      'renders file:/// links as anchors once protected (currently dropped as plain text by markdown-it validateLink BAD_PROTO_RE)',
-    );
-    it.todo(
-      'renders conversation:// links as anchors once protected (currently stripped by DOMPurify IS_ALLOWED_URI in real browsers)',
-    );
+    it('renders file:// and conversation:// links as anchors carrying data-a2ui-href', async () => {
+      const fileHtml = await renderRichMarkdown('[notes](file:///tmp/a.md)');
+      expect(fileHtml).toContain('<a data-a2ui-href="file:///tmp/a.md">notes</a>');
+      expect(fileHtml).not.toMatch(/\shref=/);
+      expect(fileHtml).not.toContain('a2uilink');
+
+      const convHtml = await renderRichMarkdown('See [that thread](conversation://abc) first.');
+      expect(convHtml).toContain('<a data-a2ui-href="conversation://abc">that thread</a>');
+      expect(convHtml).not.toMatch(/\shref=/);
+    });
+
+    it('keeps javascript:, vbscript:, and data: links stripped of any destination', async () => {
+      for (const bad of [
+        '[x](javascript:alert(1))',
+        '[x](JavaScript:alert(1))',
+        '[x](vbscript:msgbox)',
+        '[x](data:text/html;base64,PHNjcmlwdD4=)',
+      ]) {
+        const html = await renderRichMarkdown(bad);
+        expect(html).not.toContain('href=');
+        expect(html).not.toContain('data-a2ui-href');
+        expect(html).toContain('x');
+      }
+    });
+
+    it('leaves links inside fenced code blocks and code spans untouched', async () => {
+      const fenced = await renderRichMarkdown('```md\n[a](file:///tmp/a.md)\n```');
+      expect(fenced).toContain('[a](file:///tmp/a.md)');
+      expect(fenced).not.toContain('data-a2ui-href');
+      expect(fenced).not.toContain('a2uilink');
+
+      const span = await renderRichMarkdown('Use `[a](conversation://abc)` literally.');
+      expect(span).toContain('<code>[a](conversation://abc)</code>');
+      expect(span).not.toContain('data-a2ui-href');
+    });
+
+    it('escapes restored destinations and skips images and mailto links', async () => {
+      const quoted = await renderRichMarkdown('[q](file:///tmp/a"b.md)');
+      expect(quoted).toContain('data-a2ui-href="file:///tmp/a&quot;b.md"');
+
+      const image = await renderRichMarkdown('![pic](file:///tmp/a.png)');
+      expect(image).not.toContain('data-a2ui-href');
+      expect(image).not.toContain('a2uilink');
+
+      const mail = await renderRichMarkdown('[mail](mailto:a@b.c)');
+      expect(mail).toContain('href="mailto:a@b.c"');
+      expect(mail).not.toContain('data-a2ui-href');
+    });
+
+    it('exposes protectNonHttpLinks and restoreNonHttpLinks as a round trip', () => {
+      const { text, links } = protectNonHttpLinks(
+        '[a](file:///x) [b](https://h) [c](sidecar://p "t") [d](data:x)',
+      );
+      expect(text).toBe('[a](a2uilink:0) [b](https://h) [c](a2uilink:1 "t") [d](data:x)');
+      expect(links).toEqual(['file:///x', 'sidecar://p']);
+      expect(
+        restoreNonHttpLinks('<a href="a2uilink:1">c</a><a href="a2uilink:9">z</a>', links),
+      ).toBe('<a data-a2ui-href="sidecar://p">c</a><a >z</a>');
+    });
   });
 });

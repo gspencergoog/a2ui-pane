@@ -173,3 +173,16 @@ To switch the default protocol target from `v0.9` to `v1.0`:
 2. Switch `ConversationState` and the inline validator in `tools/render.ts` to the `v1_0` `MessageProcessor` when `A2UI_PANE_PROTOCOL_VERSION=v1.0`, and select the matching renderer in `pane-app` and `embed`.
 3. Regenerate the template golden fixtures with `A2UI_PANE_PROTOCOL_VERSION=v1.0 UPDATE_GOLDENS=1`.
 4. Align the catalog identifier in `CatalogRegistry` with the `v1.0` `catalogId` emitted by the compiler.
+
+### 4.6 Link routing
+
+Markdown links inside `Text` are clickable in both hosts. There is no Link component; the renderer keeps the anchors that `@a2ui/markdown-it` produces and the host decides what a click does.
+
+Rendering (`packages/renderer/src/markdown-renderer.ts`): two filters normally drop non-`http` links. markdown-it's `validateLink` rejects `file:` (alongside `javascript:`, `vbscript:`, and `data:`), and DOMPurify strips `href` values with unknown schemes such as `conversation:`. Neither is configurable through `@a2ui/markdown-it`, so `renderRichMarkdown` runs a protect-and-restore pass next to its existing code-span protection:
+
+1. While fenced blocks and code spans are still masked, `protectNonHttpLinks` rewrites `[label](scheme:rest)` for schemes other than `http`, `https`, and `mailto` to `[label](a2uilink:n)` and remembers the original. `javascript:`, `vbscript:`, and `data:` are skipped so the filters still strip them.
+2. After sanitization, `restoreNonHttpLinks` replaces `href="a2uilink:n"` with `data-a2ui-href="<original>"`. These anchors carry no `href`, so the browser never sees a navigable unknown scheme. `http(s)` anchors keep their `href` and gain `rel="noopener noreferrer"`; they get no `target`, because the router owns navigation.
+
+Dispatch (`A2uiPaneView`): surfaces are open shadow roots and `Text` has no shadow root, so a delegated `click` listener on the view sees anchors through `composedPath()`. On a primary, unmodified click whose path contains an anchor with `href` or `data-a2ui-href`, and no `a2ui-basic-button`, the view calls `preventDefault()` and dispatches `a2ui-link-click` with `{ href, label, scheme }` (`bubbles`, `composed`). Modified clicks (meta, ctrl, shift, middle button) keep the browser default. Links inside a `Button` label are ignored because the button handler has already fired on the inner element.
+
+Routing (`packages/pane-app/src/link-router.ts`, shared source with the embed): `openLink(detail, { open, copy, toast })` opens `http(s)` links with `open(href, "_blank", "noopener,noreferrer")`. When `open` returns `null`, and for every other scheme, it copies the href and shows `Copied <href>`. The pane app uses `window.open`, `navigator.clipboard.writeText`, and `showToast(message, false)`. The inline embed runs in a sandboxed `srcdoc` iframe (`allow-scripts allow-forms allow-popups`, opaque origin) where popups may be blocked and `navigator.clipboard` may throw, so its copy path falls back to `document.execCommand('copy')` on a hidden textarea and reports in a `role="status"` line under the surface; when both fail the status shows the href itself so the user can select it.

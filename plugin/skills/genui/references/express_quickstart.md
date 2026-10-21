@@ -37,6 +37,12 @@ Gotchas that still bite:
 - Inside `_template` bodies use `$field`; `$/field` would read the surface root.
 - Keep ids out of your head: the compiler derives ids for components from variable names, so reuse the same names when updating.
 
+Links: Markdown links are clickable inside `Text`. `[label](https://...)` opens in the browser; `file://` and `conversation://` links copy the path to the clipboard when clicked. Prefer them to a borderless `Button` with `openUrl` for references, and keep links out of `Button` labels (the button action wins).
+
+```text
+ref = Text("Review [PR 3339](https://github.com/a2ui-project/a2ui/pull/3339) and the [notes](file:///tmp/review-notes.md).")
+```
+
 Compact inline chart (`mode: "inline"`, fits well under the 500px inline height cap):
 
 ```text

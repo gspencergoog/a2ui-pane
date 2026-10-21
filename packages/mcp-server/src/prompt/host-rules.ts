@@ -46,4 +46,5 @@ Buttons with \`variant="primary"\` (or a sole \`"default"\` button) disable afte
 - Inside a \`_template($/items, row)\` body, bind item fields relatively (\`$title\`), not absolutely (\`$/title\`).
 - \`Button\` takes a component child (\`Button(Text("Save"), _, Event("save"))\`), \`ChoicePicker\` values are lists even for single selection, and \`Slider\` needs \`max\`.
 - Markdown, LaTeX (\`$...$\`, \`$$...$$\`), and fenced \` \`\`\`mermaid \` blocks (\`flowchart\`, \`stateDiagram-v2\`, \`sequenceDiagram\`) render inside \`Text\` components; use triple-quoted strings for multi-line content.
+- Markdown links are clickable inside \`Text\` (this overrides the basic catalog's "without links" wording): \`[label](https://...)\` opens in the browser; \`file://\` and \`conversation://\` links copy the path to the clipboard when clicked. Prefer them to a borderless \`Button\` with \`openUrl\` for references, and do not put links inside a \`Button\` label.
 `;

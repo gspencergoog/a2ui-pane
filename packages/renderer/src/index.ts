@@ -19,6 +19,7 @@ export {
   type SurfaceChangedDetail,
   type SurfaceSubmissionChangedDetail,
   type SurfaceDismissedDetail,
+  type A2uiLinkClickDetail,
 } from './a2ui-pane-view.js';
 export {
   renderRichMarkdown,

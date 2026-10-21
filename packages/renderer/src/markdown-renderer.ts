@@ -1269,9 +1269,64 @@ export function renderMermaidSvg(code: string): string {
   return `<pre class="a2ui-mermaid-fallback"><code>${escapeHtml(code.trim())}</code></pre>`;
 }
 
+/** Schemes that markdown-it and DOMPurify already keep as navigable `href` values. */
+const PASSTHROUGH_LINK_SCHEMES: ReadonlySet<string> = new Set(['http', 'https', 'mailto']);
+
+/** Schemes that must stay stripped by markdown-it and DOMPurify, never protected. */
+const BLOCKED_LINK_SCHEMES: ReadonlySet<string> = new Set(['javascript', 'vbscript', 'data']);
+
+/** Placeholder scheme that survives markdown-it and DOMPurify so the original can be restored. */
+const LINK_PLACEHOLDER_SCHEME = 'a2uilink';
+
+/**
+ * Matches an inline Markdown link whose destination carries a scheme, such as
+ * `[label](file:///tmp/a.md)` or `[label](conversation://abc "title")`.
+ * The negative lookbehind skips images (`![alt](...)`).
+ */
+const SCHEME_LINK_RE = /(?<!!)\[([^\]\r\n]*)\]\(([a-z][a-z0-9+.-]*):([^)\s]*)((?:\s+"[^"]*")?)\)/gi;
+
+/**
+ * Rewrites Markdown links with schemes other than `http`, `https`, and `mailto` to
+ * `[label](a2uilink:n)` placeholders so markdown-it's `validateLink` and DOMPurify's URI
+ * filter do not drop them. `javascript:`, `vbscript:`, and `data:` links are left alone so
+ * those filters still strip them. Returns the rewritten text and the original destinations.
+ */
+export function protectNonHttpLinks(markdown: string): { text: string; links: string[] } {
+  const links: string[] = [];
+  const text = markdown.replace(
+    SCHEME_LINK_RE,
+    (full: string, label: string, scheme: string, rest: string, title: string) => {
+      const lower = scheme.toLowerCase();
+      if (PASSTHROUGH_LINK_SCHEMES.has(lower) || BLOCKED_LINK_SCHEMES.has(lower)) {
+        return full;
+      }
+      links.push(`${scheme}:${rest}`);
+      return `[${label}](${LINK_PLACEHOLDER_SCHEME}:${links.length - 1}${title})`;
+    },
+  );
+  return { text, links };
+}
+
+/**
+ * Replaces `href="a2uilink:n"` placeholders in sanitized HTML with
+ * `data-a2ui-href="<original>"` (no `href`, so the browser never navigates to an unknown
+ * scheme) and adds `rel="noopener noreferrer"` to the `http(s)` anchors that kept their `href`.
+ */
+export function restoreNonHttpLinks(html: string, links: readonly string[]): string {
+  const placeholderRe = new RegExp(`href="${LINK_PLACEHOLDER_SCHEME}:(\\d+)"`, 'g');
+  return html
+    .replace(placeholderRe, (_, idx: string) => {
+      const original = links[Number(idx)];
+      return original === undefined ? '' : `data-a2ui-href="${escapeHtml(original)}"`;
+    })
+    .replace(/<a\b([^>]*\bhref="https?:[^"]*"[^>]*)>/gi, '<a$1 rel="noopener noreferrer">');
+}
+
 /**
  * Renders Markdown enriched with LaTeX MathML (`$...$`, `$$...$$`, `\(...\)`, `\[...\]`)
  * and Mermaid SVG diagrams (` ```mermaid `), preserving DOMPurify XSS sanitization.
+ * Links with schemes other than `http(s)` and `mailto` render as anchors carrying
+ * `data-a2ui-href` instead of `href`; see `protectNonHttpLinks`.
  */
 export async function renderRichMarkdown(
   value: string,
@@ -1304,6 +1359,11 @@ export async function renderRichMarkdown(
     protectedCode.push(inlineMatch);
     return codeToken;
   });
+
+  // 1b. Protect non-http link destinations while code is still masked, so links inside
+  //     fenced blocks and code spans stay untouched.
+  const { text: withLinksProtected, links: protectedLinks } =
+    protectNonHttpLinks(withInlineCodeProtected);
 
   // 2. Resolve any Mermaid blocks (via custom renderer, globalThis.mermaid, or built-in SVG)
   const customMermaid =
@@ -1342,7 +1402,7 @@ export async function renderRichMarkdown(
     return displayMode ? `\n\n${token}\n\n` : token;
   };
 
-  const withBlockMath = withInlineCodeProtected
+  const withBlockMath = withLinksProtected
     .replace(/\$\$([\s\S]+?)\$\$/g, (_, tex: string) => addMathFragment(tex, true))
     .replace(/\\\[([\s\S]+?)\\\]/g, (_, tex: string) => addMathFragment(tex, true));
 
@@ -1358,10 +1418,14 @@ export async function renderRichMarkdown(
     (_, idx: string) => protectedCode[Number(idx)] ?? '',
   );
 
-  // 5. Render standard Markdown + DOMPurify via @a2ui/markdown-it
-  let rendered = await renderMarkdown(restoredForMarkdown, {
-    tagClassMap: options?.tagClassMap,
-  });
+  // 5. Render standard Markdown + DOMPurify via @a2ui/markdown-it, then restore the
+  //    protected link destinations as data-a2ui-href and harden http(s) anchors
+  let rendered = restoreNonHttpLinks(
+    await renderMarkdown(restoredForMarkdown, {
+      tagClassMap: options?.tagClassMap,
+    }),
+    protectedLinks,
+  );
 
   // 6. Substitute sanitized MathML and Mermaid SVG fragments
   for (const frag of fragments) {

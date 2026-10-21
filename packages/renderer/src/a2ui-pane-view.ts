@@ -35,6 +35,47 @@ export interface SurfaceDismissedDetail {
 }
 
 /**
+ * Event detail dispatched as `a2ui-link-click` when the user clicks a Markdown link inside a
+ * surface. `href` is the original destination (`data-a2ui-href` wins over `href`), `label` is
+ * the anchor text, and `scheme` is the text before the first `:` (empty for relative links).
+ */
+export interface A2uiLinkClickDetail {
+  href: string;
+  label: string;
+  scheme: string;
+}
+
+/**
+ * Returns the link detail for a click whose composed path reaches an anchor with `href` or
+ * `data-a2ui-href`, or `undefined` when there is no such anchor or the path also contains an
+ * `a2ui-basic-button` (the button's own handler has already run, so routing the link would
+ * trigger a second navigation).
+ */
+function resolveLinkClick(path: EventTarget[]): A2uiLinkClickDetail | undefined {
+  let anchor: Element | undefined;
+  for (const node of path) {
+    if (!(node instanceof Element)) continue;
+    const tag = node.tagName.toLowerCase();
+    if (tag === 'a2ui-basic-button') return undefined;
+    if (
+      !anchor &&
+      tag === 'a' &&
+      (node.hasAttribute('href') || node.hasAttribute('data-a2ui-href'))
+    ) {
+      anchor = node;
+    }
+  }
+  if (!anchor) return undefined;
+  const href = anchor.getAttribute('data-a2ui-href') ?? anchor.getAttribute('href') ?? '';
+  const colon = href.indexOf(':');
+  return {
+    href,
+    label: anchor.textContent?.trim() ?? '',
+    scheme: colon > 0 ? href.slice(0, colon).toLowerCase() : '',
+  };
+}
+
+/**
  * Lit custom element rendering multiple A2UI surfaces in creation order.
  * Provides the required markdown context to descendant text components
  * and dispatches 'surface-changed' events when surfaces are added or removed.
@@ -365,10 +406,35 @@ export class A2uiPaneView extends LitElement {
     }
   }
 
+  override connectedCallback(): void {
+    super.connectedCallback();
+    this.addEventListener('click', this.onAnchorClick);
+  }
+
   override disconnectedCallback(): void {
     super.disconnectedCallback();
+    this.removeEventListener('click', this.onAnchorClick);
     this.cleanupSubscriptions();
   }
+
+  /**
+   * Delegated click handler that routes Markdown links to the host. Modified clicks
+   * (meta, ctrl, shift, or a non-primary button) keep the browser default so users can
+   * still open http(s) links in a new tab themselves.
+   */
+  private readonly onAnchorClick = (event: MouseEvent): void => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
+    const detail = resolveLinkClick(event.composedPath());
+    if (!detail) return;
+    event.preventDefault();
+    this.dispatchEvent(
+      new CustomEvent<A2uiLinkClickDetail>('a2ui-link-click', {
+        detail,
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  };
 
   private cleanupSubscriptions(): void {
     if (this.unsubscribeCreated) {

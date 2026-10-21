@@ -5,10 +5,12 @@ import {
   A2uiPaneView,
   type SurfaceSubmissionChangedDetail,
   type SurfaceDismissedDetail,
+  type A2uiLinkClickDetail,
 } from '@a2ui-pane/renderer';
 import { StreamClient, ConnectionStatus } from './stream-client.js';
 import { ActionSender } from './action-sender.js';
 import { showToast } from './toast.js';
+import { openLink } from './link-router.js';
 
 // Inject host theme CSS variables
 injectHostTheme();
@@ -418,6 +420,20 @@ export async function initPaneApp(options: InitOptions = {}): Promise<PaneAppIns
     onPendingChange: (pending) => {
       paneView.pendingComponents = pending;
     },
+  });
+
+  paneView.addEventListener('a2ui-link-click', (evt: Event) => {
+    const detail = (evt as CustomEvent<A2uiLinkClickDetail>).detail;
+    if (!detail?.href) return;
+    void openLink(detail, {
+      open: (url, target, features) => window.open(url, target, features),
+      copy: (text) => navigator.clipboard.writeText(text),
+      toast: (message) => showToast(message, false),
+    }).then((result) => {
+      if (result === 'failed') {
+        showToast(`Could not copy ${detail.href}`);
+      }
+    });
   });
 
   paneView.addEventListener('surface-dismissed', (evt: Event) => {

@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import '../src/a2ui-pane-view.js';
-import { A2uiPaneView, SurfaceChangedDetail } from '../src/a2ui-pane-view.js';
+import {
+  A2uiPaneView,
+  SurfaceChangedDetail,
+  type A2uiLinkClickDetail,
+} from '../src/a2ui-pane-view.js';
 import { ICON_SVG_PATHS, resolveIconSvgPath } from '../src/icon-paths.js';
 import { createProcessor } from '../src/processor.js';
 
@@ -514,5 +518,141 @@ describe('A2uiPaneView', () => {
     expect(approveBtn.disabled).toBe(false);
     expect(approveBtn.hasAttribute('data-submitted')).toBe(false);
     expect(cancelBtn.disabled).toBe(false);
+  });
+
+  describe('Markdown link routing', () => {
+    async function renderLinkSurface(): Promise<ShadowRoot> {
+      const processor = createProcessor();
+      processor.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: { surfaceId: 'surfLinks', catalogId: 'basic' },
+        },
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'surfLinks',
+            components: [
+              { id: 'root', component: 'Column', children: ['web_txt', 'file_txt', 'link_btn'] },
+              {
+                id: 'web_txt',
+                component: 'Text',
+                text: 'See [PR 3339](https://github.com/a2ui-project/a2ui/pull/3339).',
+              },
+              { id: 'file_txt', component: 'Text', text: 'Open [notes](file:///tmp/a.md).' },
+              { id: 'btn_txt', component: 'Text', text: '[docs](https://example.com/docs)' },
+              {
+                id: 'link_btn',
+                component: 'Button',
+                variant: 'borderless',
+                child: 'btn_txt',
+                action: { event: { name: 'inspect', context: { _oneShot: false } } },
+              },
+            ],
+          },
+        },
+      ]);
+
+      element.processor = processor;
+      await element.updateComplete;
+      const surfaceEl = element.shadowRoot!.querySelector('a2ui-surface')!;
+      await (surfaceEl as any).updateComplete;
+      await new Promise((r) => setTimeout(r, 30));
+      return surfaceEl.shadowRoot!;
+    }
+
+    function click(target: Element, init: MouseEventInit = {}): MouseEvent {
+      const evt = new MouseEvent('click', {
+        bubbles: true,
+        composed: true,
+        cancelable: true,
+        button: 0,
+        ...init,
+      });
+      target.dispatchEvent(evt);
+      return evt;
+    }
+
+    it('routes a primary click on an http(s) anchor to a2ui-link-click and prevents default', async () => {
+      const root = await renderLinkSurface();
+      const events: CustomEvent<A2uiLinkClickDetail>[] = [];
+      element.addEventListener('a2ui-link-click', (e) => {
+        events.push(e as CustomEvent<A2uiLinkClickDetail>);
+      });
+
+      const anchor = root.querySelector('a[href^="https://github.com"]')!;
+      expect(anchor).not.toBeNull();
+      expect(anchor.getAttribute('rel')).toBe('noopener noreferrer');
+      const evt = click(anchor);
+
+      expect(evt.defaultPrevented).toBe(true);
+      expect(events).toHaveLength(1);
+      expect(events[0].detail).toEqual({
+        href: 'https://github.com/a2ui-project/a2ui/pull/3339',
+        label: 'PR 3339',
+        scheme: 'https',
+      });
+    });
+
+    it('routes file:// anchors through data-a2ui-href', async () => {
+      const root = await renderLinkSurface();
+      const events: CustomEvent<A2uiLinkClickDetail>[] = [];
+      element.addEventListener('a2ui-link-click', (e) => {
+        events.push(e as CustomEvent<A2uiLinkClickDetail>);
+      });
+
+      const anchor = root.querySelector('a[data-a2ui-href]')!;
+      expect(anchor).not.toBeNull();
+      expect(anchor.hasAttribute('href')).toBe(false);
+      const evt = click(anchor);
+
+      expect(evt.defaultPrevented).toBe(true);
+      expect(events).toHaveLength(1);
+      expect(events[0].detail).toEqual({
+        href: 'file:///tmp/a.md',
+        label: 'notes',
+        scheme: 'file',
+      });
+    });
+
+    it('does not intercept modified clicks or clicks on non-link content', async () => {
+      const root = await renderLinkSurface();
+      const events: Event[] = [];
+      element.addEventListener('a2ui-link-click', (e) => events.push(e));
+
+      const anchor = root.querySelector('a[href^="https://github.com"]')!;
+      expect(click(anchor, { ctrlKey: true }).defaultPrevented).toBe(false);
+      expect(click(anchor, { metaKey: true }).defaultPrevented).toBe(false);
+      expect(click(anchor, { shiftKey: true }).defaultPrevented).toBe(false);
+      expect(click(anchor, { button: 1 }).defaultPrevented).toBe(false);
+
+      const plainText = root.querySelector('a2ui-basic-text')!;
+      expect(click(plainText).defaultPrevented).toBe(false);
+      expect(events).toHaveLength(0);
+    });
+
+    it('does not intercept an anchor rendered inside a Button', async () => {
+      const root = await renderLinkSurface();
+      const events: Event[] = [];
+      element.addEventListener('a2ui-link-click', (e) => events.push(e));
+
+      const buttonHost = root.querySelector('a2ui-basic-button')!;
+      await (buttonHost as any).updateComplete;
+      const anchor = buttonHost.querySelector('a')!;
+      expect(anchor).not.toBeNull();
+
+      const evt = click(anchor);
+      expect(evt.defaultPrevented).toBe(false);
+      expect(events).toHaveLength(0);
+    });
+
+    it('stops listening once disconnected', async () => {
+      const root = await renderLinkSurface();
+      const anchor = root.querySelector('a[href^="https://github.com"]')!;
+      document.body.removeChild(element);
+
+      const evt = click(anchor);
+      expect(evt.defaultPrevented).toBe(false);
+    });
   });
 });
