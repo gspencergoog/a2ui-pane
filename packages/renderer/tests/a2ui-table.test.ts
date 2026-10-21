@@ -313,9 +313,22 @@ describe('<a2ui-table>', () => {
     const badgeRule = /td\[data-kind='badge'\] \.a2ui-badge \{([^}]*)\}/.exec(cssText)?.[1] ?? '';
     expect(badgeRule).toContain('white-space: normal');
     expect(badgeRule).toContain('overflow-wrap: anywhere');
+    expect(badgeRule).toContain('border-radius: 10px');
+    const multilineRule =
+      /td\[data-kind='badge'\] \.a2ui-badge\[data-multiline\] \{([^}]*)\}/.exec(cssText)?.[1] ?? '';
+    expect(multilineRule).toContain('border-radius: 6px');
     const scrollRule = /\.a2ui-table-scroll \{([^}]*)\}/.exec(cssText)?.[1] ?? '';
     expect(scrollRule).toContain('overflow-x: auto');
     expect(scrollRule).toContain('max-width: 100%');
+
+    const badge = root.querySelector<HTMLElement>('td[data-kind="badge"] .a2ui-badge')!;
+    expect(badge.hasAttribute('data-multiline')).toBe(false);
+    Object.defineProperty(badge, 'offsetHeight', { value: 48, configurable: true });
+    (tableEl as any).syncBadgeMultiline();
+    expect(badge.hasAttribute('data-multiline')).toBe(true);
+    Object.defineProperty(badge, 'offsetHeight', { value: 32, configurable: true });
+    (tableEl as any).syncBadgeMultiline();
+    expect(badge.hasAttribute('data-multiline')).toBe(false);
 
     const scroll = root.querySelector('.a2ui-table-container > .a2ui-table-scroll')!;
     expect(scroll).not.toBeNull();

@@ -42,10 +42,9 @@ export class ConversationState {
     });
 
     const lines = this.store.readAll(this.conversationId);
-    if (lines.length > 0) {
-      const messages = lines.map((l) => l.message);
+    for (const line of lines) {
       try {
-        this.processor.processMessages(messages as any);
+        this.processor.processMessages([line.message as any]);
       } catch (err: any) {
         console.error(
           `[ConversationState] Warning: Failed replaying history for ${this.conversationId}:`,

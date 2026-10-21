@@ -476,8 +476,13 @@ export async function handleRenderA2ui(
   if (args.replace) {
     const existing = createdSurfaceIds(batch).filter((sid) => state.hasSurface(sid));
     if (existing.length > 0) {
+      const surfaces = state.getSurfaces();
       batch = [
-        ...existing.map((sid) => ({ version: 'v0.9', deleteSurface: { surfaceId: sid } })),
+        ...existing.map((sid) => {
+          const ver =
+            surfaces.get(sid)?.defaultCatalog?.protocolVersion === '1.0' ? 'v1.0' : 'v0.9';
+          return { version: ver, deleteSurface: { surfaceId: sid } };
+        }),
         ...batch,
       ];
     }
