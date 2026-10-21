@@ -210,68 +210,62 @@ rl.on('line', (line) => {
           confidence: 0.1,
           entropy: 0.9,
           dsl: '',
+          fallbackSource: null,
+          selectedTemplateId: null,
         }) + '\n',
       );
       return;
     }
+    // Mirrors DecisionRenderTool: a JSON-string payload is decoded, and an
+    // abstention with fallbackDsl (or the default card) still yields messages.
+    const payload = typeof req.payload === 'string' ? JSON.parse(req.payload) : req.payload || {};
+    const fallbackSource =
+      req.intent === 'ABSTAIN_WITH_FALLBACK' ? (req.fallbackDsl ? 'fallback_dsl' : 'fallback_card') : null;
+    const stage = fallbackSource ? 'abstain_fallback' : 'fast_1pass_leaf';
+    const confidence = fallbackSource ? 0.1 : 0.95;
     const msgVersion = req.version || workerVersion || 'v1.0';
-    if (msgVersion === 'v0.9') {
-      process.stdout.write(
-        JSON.stringify({
-          id: req.id,
-          ok: true,
-          messages: [
-            {
-              version: 'v0.9',
-              createSurface: { surfaceId: req.surfaceId || 'main', catalogId: 'basic' },
-            },
+    const surfaceId = req.surfaceId || 'main';
+    const text = `Synthesized: ${req.intent}`;
+    const messages =
+      msgVersion === 'v0.9'
+        ? [
+            { version: 'v0.9', createSurface: { surfaceId, catalogId: 'basic' } },
             {
               version: 'v0.9',
               updateComponents: {
-                surfaceId: req.surfaceId || 'main',
+                surfaceId,
+                components: [{ id: 'root', component: 'Text', text }],
+              },
+            },
+          ]
+        : [
+            {
+              version: 'v1.0',
+              createSurface: {
+                surfaceId,
                 components: [
                   {
                     id: 'root',
                     component: 'Text',
-                    text: `Synthesized: ${req.intent}`,
+                    catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+                    text,
                   },
                 ],
+                dataModel: payload,
               },
             },
-          ],
-          stage: 'fast_1pass_leaf',
-          confidence: 0.95,
-          entropy: 0.05,
-          dsl: `surface("${req.surfaceId || 'main'}")\nroot = Text("Synthesized: ${req.intent}")`,
-        }) + '\n',
-      );
-      return;
-    }
+          ];
     process.stdout.write(
       JSON.stringify({
         id: req.id,
         ok: true,
-        messages: [
-          {
-            version: 'v1.0',
-            createSurface: {
-              surfaceId: req.surfaceId || 'main',
-              components: [
-                {
-                  id: 'root',
-                  component: 'Text',
-                  catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
-                  text: `Synthesized: ${req.intent}`,
-                },
-              ],
-              dataModel: req.payload || {},
-            },
-          },
-        ],
-        stage: 'fast_1pass_leaf',
-        confidence: 0.95,
-        entropy: 0.05,
-        dsl: `surface("${req.surfaceId || 'main'}")\nroot = Text("Synthesized: ${req.intent}")`,
+        messages,
+        stage,
+        confidence,
+        entropy: fallbackSource ? 0.9 : 0.05,
+        dsl: `surface("${surfaceId}")\nroot = Text("${text}")`,
+        fallbackSource,
+        selectedTemplateId: null,
       }) + '\n',
     );
     return;

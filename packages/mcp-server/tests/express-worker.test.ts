@@ -217,6 +217,22 @@ describe('ExpressWorker (fake child)', () => {
     expect(res.confidence).toBe(0.95);
     expect(res.messages).toHaveLength(1);
     expect(res.dsl).toContain('Show invoice status');
+    expect(res.fallbackSource).toBeNull();
+    expect(res.selectedTemplateId).toBeNull();
+    worker.dispose();
+  });
+
+  it('passes a JSON-string payload and fallbackDsl through to the worker', async () => {
+    const { worker } = fakeWorker('normal');
+    const res = await worker.synthesize(
+      'ABSTAIN_WITH_FALLBACK',
+      '{"amount": 100}',
+      'inv',
+      'root = Text("fallback")',
+    );
+    expect(res.stage).toBe('abstain_fallback');
+    expect(res.fallbackSource).toBe('fallback_dsl');
+    expect(res.messages).toHaveLength(1);
     worker.dispose();
   });
 });

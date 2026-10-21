@@ -11,6 +11,7 @@ Request shape:
     {"id": 3, "op": "instructions"}
     {"id": 4, "op": "decompile", "messages": [...]}
     {"id": 5, "op": "ping"}
+    {"id": 6, "op": "synthesize", "intent": "...", "payload": {...}, "surfaceId": "main"}
 
 Response shape:
     {"id": 1, "ok": true, ...}
@@ -38,7 +39,7 @@ class WorkerState:
         self.catalogs: list[Any] = []
         self.compiler: Any = None
         self.prompt_generator: Any = None
-        self.synthesizer: Any = None
+        self.render_tool: Any = None
         self.default_version = "v1.0"
 
     def init(self, catalog_paths: str | list[str], version: str | None) -> dict[str, Any]:
@@ -86,12 +87,9 @@ class WorkerState:
         self.prompt_generator = ExpressPromptGenerator(
             self.catalogs, version=self.default_version
         )
-        try:
-            from a2ui.inference_formats.decision import DecisionSynthesizer
-
-            self.synthesizer = DecisionSynthesizer.from_env(self.catalogs)
-        except Exception:
-            self.synthesizer = None
+        # Built lazily by `synthesize`, so an SDK without the decision
+        # package only fails that op, not `init`.
+        self.render_tool = None
         return {
             "catalogId": self.catalogs[0].catalog_id,
             "catalogIds": [c.catalog_id for c in self.catalogs],
@@ -155,46 +153,56 @@ class WorkerState:
         decompiler = ExpressDecompiler(self.catalogs)
         return decompiler.decompile(to_message_models(messages))
 
-    def synthesize(
-        self, intent: str, payload: dict[str, Any], surface_id: str
-    ) -> dict[str, Any]:
-        """Synthesizes A2UI messages from user intent and payload using the decision synthesizer.
+    def synthesize(self, args: dict[str, Any]) -> dict[str, Any]:
+        """Renders A2UI messages from an intent and payload with the decision model.
+
+        Delegates to the SDK's `DecisionRenderTool`, which validates the
+        arguments, decodes a stringified payload, and falls back to a
+        deterministic card when the model abstains.
 
         Args:
-            intent: User goal or prompt.
-            payload: Data model dictionary.
-            surface_id: Target surface identifier.
+            args: The tool-call arguments: `intent`, `payload` (object, array,
+                or JSON string), and optional `surfaceId`, `template`, and
+                `fallbackDsl`.
 
         Returns:
-            Dictionary containing messages, stage, confidence, entropy, and dsl.
+            Dictionary with `messages`, `stage`, `confidence`, `entropy`, `dsl`,
+            `fallbackSource`, and `selectedTemplateId`.
 
         Raises:
-            RuntimeError: If synthesizer is not initialized or fails.
+            RuntimeError: If the agent SDK has no decision package or the
+                backend cannot be created.
+            TypeError, ValueError: If the arguments are invalid.
         """
-        import asyncio
         from a2ui.parser.messages import to_message_dicts
 
         self._require_init()
-        if self.synthesizer is None:
-            try:
-                from a2ui.inference_formats.decision import DecisionSynthesizer
+        tool = self._get_render_tool()
+        out = tool.run_sync(args)
+        return {
+            "messages": to_message_dicts(out.messages),
+            "stage": str(out.stage.value),
+            "confidence": out.confidence,
+            "entropy": out.entropy,
+            "dsl": out.to_express(self.catalogs),
+            "fallbackSource": out.fallback_source,
+            "selectedTemplateId": out.selected_template_id,
+        }
 
-                self.synthesizer = DecisionSynthesizer.from_env(self.catalogs)
+    def _get_render_tool(self) -> Any:
+        """Returns the `DecisionRenderTool`, building it on first use."""
+        if self.render_tool is None:
+            try:
+                from a2ui.inference_formats.decision import DecisionRenderTool
+
+                self.render_tool = DecisionRenderTool.from_env(
+                    self.catalogs, surface_id="main"
+                )
             except Exception as err:
                 raise RuntimeError(
                     f"Decision synthesis is not available: {err}"
                 ) from err
-
-        out = asyncio.run(
-            self.synthesizer.synthesize(intent, payload, surface_id=surface_id)
-        )
-        return {
-            "messages": to_message_dicts(out.messages),
-            "stage": out.stage.value if hasattr(out.stage, "value") else str(out.stage),
-            "confidence": out.confidence,
-            "entropy": out.entropy,
-            "dsl": out.to_express(self.catalogs) if hasattr(out, "to_express") else "",
-        }
+        return self.render_tool
 
     def _require_init(self) -> None:
         if self.compiler is None:
@@ -257,12 +265,8 @@ def handle(state: WorkerState, request: dict[str, Any]) -> dict[str, Any]:
         if op == "decompile":
             return {"id": request_id, "ok": True, "text": state.decompile(request.get("messages", []))}
         if op == "synthesize":
-            res = state.synthesize(
-                request.get("intent", ""),
-                request.get("payload") or {},
-                request.get("surfaceId") or "main",
-            )
-            return {"id": request_id, "ok": True, **res}
+            args = {k: v for k, v in request.items() if k not in ("id", "op")}
+            return {"id": request_id, "ok": True, **state.synthesize(args)}
         return {
             "id": request_id,
             "ok": False,

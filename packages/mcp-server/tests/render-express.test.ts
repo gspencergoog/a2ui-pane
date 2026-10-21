@@ -176,6 +176,37 @@ describe('render_a2ui Express paths', () => {
     const result = await resolveMessages({ intent: 'ABSTAIN', payload: {} }, { worker, templates });
     expect((result as any).isError).toBe(true);
     expect((result as any).content[0].text).toContain('Decision synthesis abstained');
+    expect((result as any).content[0].text).toContain('fallbackDsl');
+  });
+
+  it('reports the fallback that rendered an abstained intent', async () => {
+    const resolved = await resolveMessages(
+      { intent: 'ABSTAIN_WITH_FALLBACK', payload: '{"cpu": 85}' },
+      { worker, templates },
+    );
+    expect('messages' in resolved).toBe(true);
+    if ('messages' in resolved) {
+      expect(resolved.authored).toBe('decision');
+      expect(resolved.fallbackSource).toBe('fallback_card');
+    }
+
+    const result = await handleRenderA2ui(
+      {
+        conversationId: 'conv-fallback',
+        intent: 'ABSTAIN_WITH_FALLBACK',
+        payload: { cpu: 85 },
+        fallbackDsl: 'root = Text("fallback")',
+        surfaceId: 'fb',
+        mode: 'pane',
+      },
+      server.getState,
+      server.catalogs,
+      tempDir,
+      undefined,
+      { worker, templates },
+    );
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain('decision model abstained; rendered its fallback dsl');
   });
 
   it('renders synthesized intent directly to the pane with decision model note', async () => {

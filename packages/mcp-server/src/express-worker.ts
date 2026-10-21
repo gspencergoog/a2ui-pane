@@ -22,8 +22,25 @@ export type WorkerRequest = {
   surfaceId?: string;
   messages?: unknown[];
   intent?: string;
-  payload?: Record<string, unknown>;
+  payload?: DecisionPayload;
+  fallbackDsl?: string;
 };
+
+/** Data for decision-model synthesis: an object, an array, or a JSON-encoded string of either. */
+export type DecisionPayload = Record<string, unknown> | unknown[] | string;
+
+/** Result of a decision-model synthesis request. */
+export interface SynthesisResult {
+  messages: unknown[];
+  stage: string;
+  confidence: number;
+  entropy: number;
+  dsl: string;
+  /** Which fallback produced `messages` after the model abstained, if any. */
+  fallbackSource: string | null;
+  /** The registered template rendered, if Stage 1 selected one. */
+  selectedTemplateId: string | null;
+}
 
 /** JSON-lines response envelope emitted by the Python Express worker over stdout. */
 export type WorkerResponse =
@@ -199,24 +216,26 @@ export class ExpressWorker {
     return String(res.text ?? '');
   }
 
-  /** Synthesizes A2UI messages directly from user intent and payload using the decision model. */
+  /**
+   * Synthesizes A2UI messages from an intent and payload with the decision model.
+   *
+   * The worker delegates to the SDK's `DecisionRenderTool`, so a stringified
+   * payload is decoded and an abstention renders a deterministic card unless
+   * `fallbackDsl` is given. `fallbackSource` tells which fallback applied.
+   */
   async synthesize(
     intent: string,
-    payload: Record<string, unknown>,
+    payload: DecisionPayload,
     surfaceId?: string,
-  ): Promise<{
-    messages: unknown[];
-    stage: string;
-    confidence: number;
-    entropy: number;
-    dsl: string;
-  }> {
+    fallbackDsl?: string,
+  ): Promise<SynthesisResult> {
     const res = await this.send({
       id: 0,
       op: 'synthesize',
       intent,
       payload,
       surfaceId: surfaceId ?? 'main',
+      ...(fallbackDsl ? { fallbackDsl } : {}),
     });
     return {
       messages: (res.messages as unknown[]) ?? [],
@@ -224,6 +243,8 @@ export class ExpressWorker {
       confidence: Number(res.confidence ?? 0),
       entropy: Number(res.entropy ?? 0),
       dsl: String(res.dsl ?? ''),
+      fallbackSource: res.fallbackSource == null ? null : String(res.fallbackSource),
+      selectedTemplateId: res.selectedTemplateId == null ? null : String(res.selectedTemplateId),
     };
   }
 

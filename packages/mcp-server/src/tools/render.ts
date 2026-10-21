@@ -8,11 +8,20 @@ import { CatalogRegistry } from '../catalog-registry.js';
 import { writeEmbed } from '../embed-writer.js';
 import type { ActionEndpoint } from '../action-endpoint.js';
 import {
+  type DecisionPayload,
   ExpressWorker,
   ExpressWorkerError,
   ExpressWorkerUnavailableError,
 } from '../express-worker.js';
 import type { TemplateRegistry } from '../template-registry.js';
+
+/** Messages ready to apply, with how they were authored. */
+export interface ResolvedMessages {
+  messages: unknown[];
+  authored: 'messages' | 'dsl' | 'template' | 'decision';
+  /** For `decision`: which fallback produced the messages after the model abstained, if any. */
+  fallbackSource?: string;
+}
 
 /**
  * Reads `sidecar-endpoint.json` from `dataDir` and returns the authenticated `/_sidecar/send-message` URL if available.
@@ -97,10 +106,16 @@ export const renderA2uiSchema = {
       'Goal or prompt for decision-model UI synthesis (e.g. "show flight details with seat picker"). Combined with `payload`.',
     ),
   payload: z
-    .record(z.unknown())
+    .union([z.record(z.unknown()), z.array(z.unknown()), z.string()])
     .optional()
     .describe(
-      'JSON data model payload for decision-model UI synthesis. Automatically bound to component properties.',
+      'Data for decision-model UI synthesis: a JSON object (preferred), an array, or a JSON-encoded string of either. Bound to component properties automatically.',
+    ),
+  fallbackDsl: z
+    .string()
+    .optional()
+    .describe(
+      'A2UI Express rendered when the decision model is not confident enough to choose components for `intent`.',
     ),
   surfaceId: z
     .string()
@@ -139,7 +154,8 @@ export interface RenderA2uiArgs {
   dsl?: string;
   template?: string;
   intent?: string;
-  payload?: Record<string, unknown>;
+  payload?: DecisionPayload;
+  fallbackDsl?: string;
   surfaceId?: string;
   replace?: boolean;
   stack?: boolean;
@@ -200,9 +216,7 @@ function formatCompileError(err: ExpressWorkerError, source: string): string {
 export async function resolveMessages(
   args: RenderA2uiArgs,
   deps: RenderA2uiDeps,
-): Promise<
-  { messages: unknown[]; authored: 'messages' | 'dsl' | 'template' | 'decision' } | ToolResult
-> {
+): Promise<ResolvedMessages | ToolResult> {
   const hasMessages = args.messages !== undefined;
   const hasDsl = typeof args.dsl === 'string' && args.dsl.trim().length > 0;
   const hasTemplate = typeof args.template === 'string' && args.template.length > 0;
@@ -238,16 +252,25 @@ export async function resolveMessages(
       );
     }
     try {
-      const res = await deps.worker.synthesize(args.intent!, args.payload ?? {}, surfaceId);
+      const res = await deps.worker.synthesize(
+        args.intent!,
+        args.payload ?? {},
+        surfaceId,
+        args.fallbackDsl,
+      );
       if (!res.messages || res.messages.length === 0) {
         return errorResult(
-          `Decision synthesis abstained (stage: ${res.stage}, confidence: ${res.confidence.toFixed(2)}). Try specifying explicit \`dsl\` or \`template\`.`,
+          `Decision synthesis abstained (stage: ${res.stage}, confidence: ${res.confidence.toFixed(2)}). Pass \`fallbackDsl\` with the intent, or author the surface with \`dsl\` or \`template\`.`,
         );
       }
-      return { messages: res.messages, authored: 'decision' };
+      return {
+        messages: res.messages,
+        authored: 'decision',
+        fallbackSource: res.fallbackSource ?? undefined,
+      };
     } catch (err: any) {
       if (err instanceof ExpressWorkerError) {
-        return errorResult(formatCompileError(err, args.intent!));
+        return errorResult(formatCompileError(err, args.fallbackDsl ?? args.intent!));
       }
       if (err instanceof ExpressWorkerUnavailableError) {
         return errorResult(
@@ -567,7 +590,9 @@ export async function handleRenderA2ui(
     resolved.authored === 'messages'
       ? ''
       : resolved.authored === 'decision'
-        ? ' (synthesized via decision model)'
+        ? resolved.fallbackSource
+          ? ` (decision model abstained; rendered its ${resolved.fallbackSource.replace('_', ' ')})`
+          : ' (synthesized via decision model)'
         : ` (compiled from Express ${resolved.authored})`;
   return {
     content: [
