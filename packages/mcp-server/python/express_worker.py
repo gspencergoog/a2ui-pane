@@ -198,7 +198,7 @@ class WorkerState:
             try:
                 from a2ui.inference_formats.decision import DecisionRenderTool
 
-                self.render_tool = DecisionRenderTool.from_env(
+                self.render_tool = DecisionRenderTool.create(
                     self.catalogs, surface_id="main"
                 )
             except Exception as err:
