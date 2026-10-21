@@ -32,6 +32,7 @@ const EXPECTED_TEMPLATES = [
   'scorecard',
   'stack_board',
   'state_walkthrough',
+  'status_matrix',
   'triage_matrix',
   'wave_sequencer',
 ];

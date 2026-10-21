@@ -35,6 +35,7 @@ User templates in `${PLUGIN_DATA}/templates/*.a2ui` are discovered too (the regi
 | `scorecard`          | pane           | Rubric scores: overall progress bar, rows with label, collapsible rationale, score bar, and tone badge, plus notes                                                                                | `/title` `/intro` `/overall {score, max}` `/rows[] {label, score, max, tone, rationale}` `/note` `/submitLabel`                                                                     | `submit_scorecard`                                  | `overall_bar` `submit_btn`                                                                                                                |
 | `stack_board`        | pane           | PR or CL stack: tone-tallied progress bar, rows with state, CI, and review badges, a title link, and details                                                                                      | `/title` `/subtitle` `/items[] {id, title, url, wave, base, state, tone, ci, ciTone, review, reviewTone, detail}` `/ackLabel`                                                       | `acknowledge_stack_board`                           | `ack_btn`                                                                                                                                 |
 | `comparison_matrix`  | pane           | Criteria by options tradeoff: `Table` with one row per criterion and a badge cell per option, option chips, notes; prefer it over `consequence_cards` for 3 or more options or 4 or more criteria | `/title` `/question` `/rows[] {criterion, o1, o2, o3}` (cells are `{text, tone}`) `/choice` `/notes` `/submitLabel`                                                                 | `submit_comparison`                                 | `matrix_table` and `choice_picker` (redefine both together: column labels are the option titles, chip values are `o1`..`o3`) `submit_btn` |
+| `status_matrix`      | pane           | Parity grid: tone-badge legend above a dense `Table` (label column, four badge columns); columns are static                                                                                       | `/title` `/intro` `/legend[] {text, tone}` `/rows[] {label, c1, c2, c3, c4}` (cells are `{text, tone}`) `/ackLabel`                                                                 | `acknowledge_status_matrix`                         | `matrix_table` (redefine for other columns) `legend_badge` `ack_btn`                                                                      |
 
 Notes:
 
@@ -78,4 +79,26 @@ $/items/0/tone = "success"
 $/items/0/ci = "CI passed"
 $/items/0/ciTone = "success"
 $/items/0/detail = "Merged as 3eab437."
+```
+
+## Worked example: `status_matrix`
+
+Table columns are static in A2UI Express, so the template ships with `Suite | Python | TypeScript | Dart | Swift`. Rows carry the cells under the keys `label` and `c1` to `c4`, and each cell is `{text, tone}` with a tone from the legend.
+
+```text
+$/title = "### Conformance by SDK"
+$/legend = [{text: "pass", tone: "success"}, {text: "partial", tone: "warning"}, {text: "fail", tone: "danger"}, {text: "n/a", tone: "neutral"}]
+$/rows = [{label: "Data binding", c1: {text: "pass", tone: "success"}, c2: {text: "pass", tone: "success"}, c3: {text: "partial", tone: "warning"}, c4: {text: "n/a", tone: "neutral"}}]
+```
+
+For a different set of columns, redefine `matrix_table` with your own column keys and labels; the first column is a plain text label and the rest are `kind: "badge"`:
+
+```text
+matrix_table = Table([{key: "label", label: "Feature"}, {key: "c1", label: "Web", kind: "badge"}, {key: "c2", label: "Android", kind: "badge"}, {key: "c3", label: "iOS", kind: "badge"}], $/rows, dense=true)
+```
+
+Flip one cell later with a data-only update:
+
+```text
+$/rows/0/c3 = {text: "pass", tone: "success"}
 ```
