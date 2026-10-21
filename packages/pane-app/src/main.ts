@@ -23,6 +23,8 @@ export interface InitOptions {
   eventSourceFactory?: (url: string) => EventSource;
   sendMessageFn?: (text: string) => Promise<any>;
   onAction?: (action: any, dataModel?: Record<string, unknown>) => void;
+  /** Replaces the page reload that runs when the sidecar serves a new pane build. */
+  reloadFn?: () => void;
 }
 
 /** Handle returned by `initPaneApp` for inspecting and controlling the pane instance. */
@@ -35,6 +37,9 @@ export interface PaneAppInstance {
   isSubmitted: () => boolean;
   setSubmittedState: (submitted: boolean) => void;
 }
+
+/** How long the "new build" toast shows before the page reloads itself. */
+const BUILD_RELOAD_TOAST_MS = 1200;
 
 const STATUS_STYLES: Readonly<
   Record<ConnectionStatus, { text: string; bg: string; color: string }>
@@ -560,6 +565,12 @@ export async function initPaneApp(options: InitOptions = {}): Promise<PaneAppIns
     },
     onError: () => {
       updateErrors();
+    },
+    fetchImpl,
+    onBuildChanged: () => {
+      showToast('Pane updated to a new build', false, BUILD_RELOAD_TOAST_MS);
+      const reload = options.reloadFn ?? (() => location.reload());
+      setTimeout(reload, BUILD_RELOAD_TOAST_MS);
     },
   });
 

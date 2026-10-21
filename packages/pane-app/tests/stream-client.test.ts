@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { StreamClient, ConnectionStatus } from '../src/stream-client.js';
+import {
+  StreamClient,
+  ConnectionStatus,
+  BUILD_RELOAD_MIN_INTERVAL_MS,
+  BUILD_RELOAD_STORAGE_KEY,
+} from '../src/stream-client.js';
 import { LineApplier } from '@a2ui-pane/renderer';
 import { serializeStoreLine, StoreLine } from '@a2ui-pane/protocol';
 
@@ -259,5 +264,119 @@ describe('StreamClient', () => {
 
     client.disconnect();
     vi.useRealTimers();
+  });
+
+  describe('build change detection', () => {
+    const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+    function memoryStorage(initial: Record<string, string> = {}) {
+      const map = new Map(Object.entries(initial));
+      return {
+        map,
+        getItem: (key: string) => map.get(key) ?? null,
+        setItem: (key: string, value: string) => void map.set(key, value),
+      };
+    }
+
+    function setup(buildIds: string[], storage = memoryStorage()) {
+      let call = 0;
+      const fetchImpl = vi.fn(async () => {
+        const buildId = buildIds[Math.min(call++, buildIds.length - 1)];
+        return { ok: true, json: async () => ({ conversationId: 'c', buildId }) } as Response;
+      });
+      const onBuildChanged = vi.fn();
+      const client = new StreamClient({
+        conversationId: 'conv_build',
+        applier: new LineApplier(),
+        eventSourceFactory: (url) => new MockEventSource(url) as any,
+        fetchImpl,
+        storage,
+        onBuildChanged,
+      });
+      client.connect();
+      return { client, fetchImpl, onBuildChanged, storage };
+    }
+
+    async function reconnect(client: StreamClient) {
+      const es = MockEventSource.instances[MockEventSource.instances.length - 1];
+      es.triggerOpen();
+      await flush();
+      // A reset reopens the stream, which counts as a reconnect.
+      es.emit('reset', {});
+      MockEventSource.instances[MockEventSource.instances.length - 1].triggerOpen();
+      await flush();
+      return client;
+    }
+
+    it('fetches the config on every connect and stays quiet while buildId is unchanged', async () => {
+      const { client, fetchImpl, onBuildChanged } = setup(['100', '100']);
+      await reconnect(client);
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+      expect(fetchImpl).toHaveBeenCalledWith('./api/config');
+      expect(onBuildChanged).not.toHaveBeenCalled();
+      client.disconnect();
+    });
+
+    it('fires onBuildChanged once when the served buildId changes', async () => {
+      const { client, onBuildChanged, storage } = setup(['100', '200']);
+      await reconnect(client);
+      expect(onBuildChanged).toHaveBeenCalledTimes(1);
+      expect(Number(storage.map.get(BUILD_RELOAD_STORAGE_KEY))).toBeGreaterThan(0);
+      client.disconnect();
+    });
+
+    it('does not fire again for a second change within the reload window', async () => {
+      const { client, onBuildChanged } = setup(['100', '200', '300']);
+      await reconnect(client);
+      MockEventSource.instances[MockEventSource.instances.length - 1].triggerOpen();
+      await flush();
+      expect(onBuildChanged).toHaveBeenCalledTimes(1);
+      client.disconnect();
+    });
+
+    it('honors a recent reload recorded in storage by a previous page', async () => {
+      const recent = memoryStorage({ [BUILD_RELOAD_STORAGE_KEY]: String(Date.now() - 1_000) });
+      const { client, onBuildChanged } = setup(['100', '200'], recent);
+      await reconnect(client);
+      expect(onBuildChanged).not.toHaveBeenCalled();
+      client.disconnect();
+
+      MockEventSource.instances = [];
+      const old = memoryStorage({
+        [BUILD_RELOAD_STORAGE_KEY]: String(Date.now() - BUILD_RELOAD_MIN_INTERVAL_MS - 1_000),
+      });
+      const second = setup(['100', '200'], old);
+      await reconnect(second.client);
+      expect(second.onBuildChanged).toHaveBeenCalledTimes(1);
+      second.client.disconnect();
+    });
+
+    it('ignores a config response without buildId or a failing fetch', async () => {
+      const onBuildChanged = vi.fn();
+      const fetchImpl = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ conversationId: 'c' }),
+        } as Response)
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValueOnce({ ok: false, json: async () => ({}) } as Response);
+      const client = new StreamClient({
+        conversationId: 'conv_build',
+        applier: new LineApplier(),
+        eventSourceFactory: (url) => new MockEventSource(url) as any,
+        fetchImpl,
+        storage: memoryStorage(),
+        onBuildChanged,
+      });
+      client.connect();
+      for (let i = 0; i < 3; i++) {
+        MockEventSource.instances[MockEventSource.instances.length - 1].triggerOpen();
+        await flush();
+      }
+      expect(fetchImpl).toHaveBeenCalledTimes(3);
+      expect(onBuildChanged).not.toHaveBeenCalled();
+      client.disconnect();
+    });
   });
 });

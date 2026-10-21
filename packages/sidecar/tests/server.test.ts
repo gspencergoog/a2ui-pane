@@ -138,6 +138,18 @@ describe('SidecarServer', () => {
     expect(data.projectId).toBe('test-project');
   });
 
+  it('reports a buildId from index.html mtime that changes after a repackage', async () => {
+    const indexPath = path.join(staticDir, 'index.html');
+    const first = JSON.parse((await request('/api/config')).body).buildId;
+    expect(first).toBe(String(Math.round(fs.statSync(indexPath).mtimeMs)));
+
+    const later = new Date(fs.statSync(indexPath).mtimeMs + 5_000);
+    fs.utimesSync(indexPath, later, later);
+    const second = JSON.parse((await request('/api/config')).body).buildId;
+    expect(second).not.toBe(first);
+    expect(second).toBe(String(Math.round(fs.statSync(indexPath).mtimeMs)));
+  });
+
   it('serves GET /preload.js with javascript content type', async () => {
     const res = await request('/preload.js');
     expect(res.status).toBe(200);
