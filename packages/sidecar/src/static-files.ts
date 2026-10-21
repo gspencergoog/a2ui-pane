@@ -23,6 +23,21 @@ interface CachedAsset {
 
 const staticAssetCache = new Map<string, CachedAsset>();
 
+/**
+ * Returns an identifier for the pane build currently served from `staticDir`: the
+ * `index.html` mtime in whole milliseconds. It changes whenever the bundle is repackaged,
+ * even without a sidecar restart, because it comes from the same `stat` the static cache
+ * uses to invalidate. Returns an empty string when `index.html` does not exist.
+ */
+export function currentBuildId(staticDir: string): string {
+  const indexPath = path.resolve(staticDir, 'index.html');
+  try {
+    return String(Math.round(fs.statSync(indexPath).mtimeMs));
+  } catch {
+    return '';
+  }
+}
+
 function readAssetCached(filePath: string, mtimeMs: number, contentType: string): Buffer {
   const cached = staticAssetCache.get(filePath);
   if (cached && cached.mtimeMs === mtimeMs) {

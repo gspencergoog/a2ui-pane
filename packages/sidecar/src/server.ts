@@ -10,7 +10,7 @@ import { ChangeNotifier } from './change-notifier.js';
 import { handleStream } from './sse-route.js';
 import { handlePreload } from './preload-route.js';
 import { handleSendMessage, ExecFileFn } from './send-message-route.js';
-import { serveStaticFile } from './static-files.js';
+import { currentBuildId, serveStaticFile } from './static-files.js';
 
 /** Injectable dependencies for `createSidecarServer`. */
 export interface SidecarDeps {
@@ -121,6 +121,7 @@ export function createSidecarServer(
         JSON.stringify({
           conversationId: env.conversationId,
           projectId: env.projectId,
+          buildId: currentBuildId(staticDir),
         }),
       );
       return;
