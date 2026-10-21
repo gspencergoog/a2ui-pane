@@ -1,6 +1,11 @@
-import { html, css, nothing } from 'lit';
+import { html, css, nothing, type PropertyValues } from 'lit';
 import { A2uiLitElement } from '@a2ui/web_core/universal';
-import { normalizeStatusTone, type StatusTone } from './a2ui-badge.js';
+import {
+  applyHostWeight,
+  normalizeStatusTone,
+  syncRowItemMarker,
+  type StatusTone,
+} from './a2ui-badge.js';
 
 /** Raw segment input inside `ProgressBar.segments`. */
 export interface ProgressSegmentInput {
@@ -162,8 +167,17 @@ export class A2uiProgressBarElement extends A2uiLitElement<any, ProgressBarResol
   static override styles = css`
     :host {
       display: block;
-      width: 100%;
+      min-width: 0;
+      align-self: stretch;
       box-sizing: border-box;
+    }
+
+    /* Inside a Row the host is a flex item: follow the row's alignment, share the row, and
+       shrink instead of claiming its full width (a weight on the component overrides this
+       stylesheet default through the inline flex set on the host). */
+    :host([data-a2ui-row-item]) {
+      align-self: auto;
+      flex: 1 1 0%;
     }
 
     .a2ui-progress-container {
@@ -260,6 +274,16 @@ export class A2uiProgressBarElement extends A2uiLitElement<any, ProgressBarResol
     }
   `;
 
+  override connectedCallback(): void {
+    super.connectedCallback();
+    syncRowItemMarker(this);
+  }
+
+  override willUpdate(changedProperties: PropertyValues): void {
+    super.willUpdate(changedProperties);
+    applyHostWeight(this, this.controller?.props?.weight);
+  }
+
   override render() {
     const props = this.controller?.props;
     if (!props) return nothing;
@@ -275,10 +299,9 @@ export class A2uiProgressBarElement extends A2uiLitElement<any, ProgressBarResol
       ? segments.filter((s) => s.tone === 'success').reduce((acc, s) => acc + s.value, 0)
       : segments.reduce((acc, s) => acc + s.value, 0);
     const ariaLabel = props.accessibility?.label || label || 'Progress';
-    const flexStyle = typeof props.weight === 'number' ? `flex: ${props.weight};` : nothing;
 
     return html`
-      <div class="a2ui-progress-container" style=${flexStyle}>
+      <div class="a2ui-progress-container">
         ${
           label || summaryText
             ? html`

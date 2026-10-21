@@ -395,4 +395,191 @@ describe('status catalog Web Components (<a2ui-badge>, <a2ui-progress-bar>, <a2u
     // Re-expands on Space key
     expect(collapsibleEl.shadowRoot!.querySelector('.a2ui-collapsible-body')).not.toBeNull();
   });
+
+  describe('weight and Row layout', () => {
+    const BASIC_CATALOG_ID = 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json';
+
+    function hostCssText(el: Element): string {
+      const styles = (el.constructor as any).styles;
+      return (Array.isArray(styles) ? styles.flat() : [styles])
+        .map((s: any) => s.cssText ?? String(s))
+        .join('\n');
+    }
+
+    async function renderRowSurface(): Promise<ShadowRoot> {
+      const processor = createProcessor();
+      processor.processMessages([
+        {
+          version: 'v1.0',
+          createSurface: { surfaceId: 'rowSurface', sendDataModel: true },
+        },
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 'rowSurface',
+            components: [
+              {
+                id: 'root',
+                component: 'Column',
+                catalogId: BASIC_CATALOG_ID,
+                children: ['row', 'column_bar', 'column_collapsible'],
+              },
+              {
+                id: 'row',
+                component: 'Row',
+                catalogId: BASIC_CATALOG_ID,
+                children: ['label_col', 'row_bar', 'row_badge', 'row_collapsible'],
+              },
+              {
+                id: 'label_col',
+                component: 'Column',
+                catalogId: BASIC_CATALOG_ID,
+                children: ['label_text'],
+                weight: 3,
+              },
+              {
+                id: 'label_text',
+                component: 'Text',
+                catalogId: BASIC_CATALOG_ID,
+                text: 'Correctness',
+              },
+              {
+                id: 'row_bar',
+                component: 'ProgressBar',
+                catalogId: STATUS_CATALOG_ID,
+                value: 9,
+                max: 10,
+                weight: 2,
+              },
+              {
+                id: 'row_badge',
+                component: 'Badge',
+                catalogId: STATUS_CATALOG_ID,
+                text: '9/10',
+                tone: 'success',
+                weight: 1,
+              },
+              {
+                id: 'row_collapsible',
+                component: 'Collapsible',
+                catalogId: STATUS_CATALOG_ID,
+                title: 'Rationale',
+                child: 'rationale_text',
+              },
+              {
+                id: 'rationale_text',
+                component: 'Text',
+                catalogId: BASIC_CATALOG_ID,
+                text: 'Looks right.',
+              },
+              {
+                id: 'column_bar',
+                component: 'ProgressBar',
+                catalogId: STATUS_CATALOG_ID,
+                value: 1,
+                max: 2,
+              },
+              {
+                id: 'column_collapsible',
+                component: 'Collapsible',
+                catalogId: STATUS_CATALOG_ID,
+                title: 'Details',
+                child: 'rationale_text',
+              },
+            ],
+          },
+        },
+      ] as any);
+
+      pane.processor = processor;
+      await pane.updateComplete;
+      const surfaceEl = pane.shadowRoot!.querySelector('a2ui-surface')!;
+      await (surfaceEl as any).updateComplete;
+      const root = surfaceEl.shadowRoot!;
+      for (let pass = 0; pass < 2; pass++) {
+        for (const el of Array.from(
+          root.querySelectorAll(
+            'a2ui-basic-column, a2ui-basic-row, a2ui-progress-bar, a2ui-badge, a2ui-collapsible',
+          ),
+        )) {
+          await (el as any).updateComplete;
+        }
+      }
+      return root;
+    }
+
+    it('applies weight as flex on the host elements, matching the basic catalog Column', async () => {
+      const root = await renderRowSurface();
+      const rowEl = root.querySelector('a2ui-basic-row') as HTMLElement;
+      const labelCol = rowEl.querySelector('a2ui-basic-column') as HTMLElement;
+      const bar = rowEl.querySelector('a2ui-progress-bar') as HTMLElement;
+      const badge = rowEl.querySelector('a2ui-badge') as HTMLElement;
+
+      expect(labelCol.style.flexGrow).toBe('3');
+      expect(bar.style.flexGrow).toBe('2');
+      expect(badge.style.flexGrow).toBe('1');
+      // Same inline property as the basic catalog host (web_core sets this.style.flex).
+      expect(bar.getAttribute('style')).toContain('flex');
+      expect(labelCol.getAttribute('style')).toContain('flex');
+
+      // The inner elements no longer carry the flex rule; only the host does.
+      const barInner = bar.shadowRoot!.querySelector('.a2ui-progress-container') as HTMLElement;
+      const badgeInner = badge.shadowRoot!.querySelector('.a2ui-badge') as HTMLElement;
+      expect(barInner.getAttribute('style') ?? '').not.toContain('flex');
+      expect(badgeInner.getAttribute('style') ?? '').not.toContain('flex');
+    });
+
+    it('removes the host flex when a component has no weight, like web_core does', async () => {
+      const root = await renderRowSurface();
+      const rowCollapsible = root.querySelector('a2ui-basic-row a2ui-collapsible') as HTMLElement;
+      const columnBar = root.querySelector('a2ui-progress-bar:not([data-a2ui-row-item])');
+      expect(rowCollapsible.style.flex).toBe('');
+      expect((columnBar as HTMLElement).style.flex).toBe('');
+      const inner = rowCollapsible.shadowRoot!.querySelector('.a2ui-collapsible') as HTMLElement;
+      expect(inner.getAttribute('style') ?? '').not.toContain('flex');
+    });
+
+    it('marks hosts inside a Row so they shrink and share the row instead of claiming its full width', async () => {
+      const root = await renderRowSurface();
+      const rowEl = root.querySelector('a2ui-basic-row')!;
+      const rowBar = rowEl.querySelector('a2ui-progress-bar')!;
+      const rowCollapsible = rowEl.querySelector('a2ui-collapsible')!;
+      const columnBars = Array.from(root.querySelectorAll('a2ui-progress-bar')).filter(
+        (el) => el.parentElement?.localName !== 'a2ui-basic-row',
+      );
+      const columnCollapsibles = Array.from(root.querySelectorAll('a2ui-collapsible')).filter(
+        (el) => el.parentElement?.localName !== 'a2ui-basic-row',
+      );
+
+      expect(rowBar.hasAttribute('data-a2ui-row-item')).toBe(true);
+      expect(rowCollapsible.hasAttribute('data-a2ui-row-item')).toBe(true);
+      expect(columnBars).toHaveLength(1);
+      expect(columnCollapsibles).toHaveLength(1);
+      expect(columnBars[0].hasAttribute('data-a2ui-row-item')).toBe(false);
+      expect(columnCollapsibles[0].hasAttribute('data-a2ui-row-item')).toBe(false);
+
+      // happy-dom does not run layout, so the width guarantee is checked through the host
+      // stylesheet: no fixed 100% width (which made a Row sibling with weight collapse to
+      // 0px), a shrinkable flex basis for Row items, and full-width stretch inside a Column.
+      for (const el of [rowBar, rowCollapsible]) {
+        const cssText = hostCssText(el);
+        const hostRule = /:host\s*\{([^}]*)\}/.exec(cssText)?.[1] ?? '';
+        expect(hostRule).not.toContain('width: 100%');
+        expect(hostRule).toContain('min-width: 0');
+        expect(hostRule).toContain('align-self: stretch');
+        expect(cssText).toMatch(/:host\(\[data-a2ui-row-item\]\)\s*\{[^}]*flex: 1 1 0%/);
+      }
+    });
+
+    it('keeps the Collapsible header readable when its container is narrow', async () => {
+      const root = await renderRowSurface();
+      const rowCollapsible = root.querySelector('a2ui-basic-row a2ui-collapsible')!;
+      await (rowCollapsible as any).updateComplete;
+      const title = rowCollapsible.shadowRoot!.querySelector('.a2ui-collapsible-title');
+      expect(title?.textContent).toBe('Rationale');
+      const cssText = hostCssText(rowCollapsible);
+      expect(cssText).toContain('container: a2ui-collapsible / inline-size');
+      expect(cssText).toMatch(/@container a2ui-collapsible \(max-width: 220px\)/);
+    });
+  });
 });
