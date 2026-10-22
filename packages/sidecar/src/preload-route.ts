@@ -1,5 +1,6 @@
 import { ServerResponse } from 'node:http';
 import fs from 'node:fs';
+import path from 'node:path';
 
 /** Browser preload shim injected when the host `sidecar_sdk/preload.js` is not installed. */
 export const PRELOAD_SHIM_JS = `// A2UI Pane Preload Shim
@@ -68,18 +69,24 @@ export function loadSdkPreload(resolver?: (specifier: string) => string | undefi
     ((import.meta as any).resolve ? (import.meta as any).resolve.bind(import.meta) : undefined);
 
   if (resolveFn) {
-    try {
-      const resolved = resolveFn('sidecar_sdk/preload.js');
-      if (resolved && typeof resolved === 'string' && resolved.startsWith('file://')) {
-        const filePath = new URL(resolved).pathname;
-        if (fs.existsSync(filePath)) {
-          const content = fs.readFileSync(filePath, 'utf-8');
-          if (!resolver) cachedSdkPreload = content;
-          return content;
+    for (const specifier of ['sidecar_sdk/preload.js', 'sidecar_sdk']) {
+      try {
+        const resolved = resolveFn(specifier);
+        if (resolved && typeof resolved === 'string' && resolved.startsWith('file://')) {
+          const resolvedPath = new URL(resolved).pathname;
+          const filePath =
+            specifier === 'sidecar_sdk'
+              ? path.resolve(path.dirname(resolvedPath), '..', 'preload.js')
+              : resolvedPath;
+          if (fs.existsSync(filePath)) {
+            const content = fs.readFileSync(filePath, 'utf-8');
+            if (!resolver) cachedSdkPreload = content;
+            return content;
+          }
         }
+      } catch {
+        // SDK preload not found for this specifier
       }
-    } catch {
-      // SDK preload not found
     }
   }
 

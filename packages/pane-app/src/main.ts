@@ -243,26 +243,104 @@ function setupVisibilityTracking(
   token: string | undefined,
   fetchImpl?: typeof fetch,
 ): { reannounce: () => void } {
-  const isCurrentlyVisible = () =>
-    typeof window !== 'undefined' ? window.innerWidth > 0 && window.innerHeight > 0 : true;
+  let seenPositiveClientBox = false;
+  const isCurrentlyVisible = () => {
+    if (typeof window === 'undefined') return true;
+    const winVisible = window.innerWidth > 0 && window.innerHeight > 0;
+    if (!winVisible) return false;
+    if (typeof document !== 'undefined' && document.documentElement) {
+      const docEl = document.documentElement;
+      const rect =
+        typeof docEl.getBoundingClientRect === 'function'
+          ? docEl.getBoundingClientRect()
+          : undefined;
+      const clientW = Math.max(docEl.clientWidth || 0, rect?.width || 0);
+      const clientH = Math.max(docEl.clientHeight || 0, rect?.height || 0);
+      if (clientW > 0 && clientH > 0) {
+        seenPositiveClientBox = true;
+        return true;
+      }
+      if (seenPositiveClientBox) {
+        // In Chromium, hiding an ancestor slot with `display: none` leaves
+        // `window.innerWidth`/`innerHeight` at their last open dimensions
+        // while collapsing `documentElement` client/bounding rects to 0x0.
+        return false;
+      }
+    }
+    return true;
+  };
 
   let lastVisible = isCurrentlyVisible();
-  void reportPaneVisibility(conversationId, lastVisible, token, fetchImpl);
+  let inFlightCount = 0;
+  let lastSettledVisible: boolean | undefined;
+
+  const sendVisibility = (visible: boolean) => {
+    inFlightCount += 1;
+    void reportPaneVisibility(conversationId, visible, token, fetchImpl).finally(() => {
+      inFlightCount -= 1;
+      lastSettledVisible = visible;
+      if (inFlightCount === 0 && lastSettledVisible !== lastVisible) {
+        sendVisibility(lastVisible);
+      }
+    });
+  };
+
+  const syncVisibility = (force = false) => {
+    const nextVisible = isCurrentlyVisible();
+    if (force || nextVisible !== lastVisible) {
+      lastVisible = nextVisible;
+      sendVisibility(nextVisible);
+    }
+  };
+
+  sendVisibility(lastVisible);
 
   if (typeof window !== 'undefined') {
     window.addEventListener('resize', () => {
-      const nextVisible = isCurrentlyVisible();
-      if (nextVisible !== lastVisible) {
-        lastVisible = nextVisible;
-        void reportPaneVisibility(conversationId, nextVisible, token, fetchImpl);
+      syncVisibility();
+    });
+    window.addEventListener('message', (event: MessageEvent) => {
+      const msgType = event?.data && typeof event.data === 'object' ? event.data.type : undefined;
+      if (msgType === 'theme-change' || msgType === 'workspace-change') {
+        // IframeView mounts <IframeActiveSync> and posts theme-change/workspace-change
+        // whenever the hoisted slot's `visible` prop flips from false to true.
+        syncVisibility(isCurrentlyVisible());
+      }
+    });
+    window.addEventListener('focus', () => {
+      if (isCurrentlyVisible()) {
+        syncVisibility(true);
       }
     });
   }
 
+  if (typeof document !== 'undefined' && document.documentElement) {
+    const docEl = document.documentElement;
+    if (typeof ResizeObserver !== 'undefined') {
+      try {
+        const ro = new ResizeObserver(() => {
+          syncVisibility();
+        });
+        ro.observe(docEl);
+      } catch {
+        // Ignore ResizeObserver errors in restricted environments
+      }
+    }
+    if (typeof IntersectionObserver !== 'undefined') {
+      try {
+        const io = new IntersectionObserver(() => {
+          syncVisibility();
+        });
+        io.observe(docEl);
+      } catch {
+        // Ignore IntersectionObserver errors in restricted environments
+      }
+    }
+  }
+
   return {
     reannounce: () => {
-      lastVisible = isCurrentlyVisible();
-      void reportPaneVisibility(conversationId, lastVisible, token, fetchImpl);
+      syncVisibility(true);
     },
   };
 }

@@ -410,6 +410,157 @@ describe('initPaneApp', () => {
     );
   });
 
+  it('tracks HoistedFrameHost display:none transitions via ResizeObserver/IntersectionObserver, host postMessage, focus, and out-of-order fetch settlement', async () => {
+    let roCallback: (() => void) | undefined;
+    let ioCallback: (() => void) | undefined;
+    const origRO = (globalThis as any).ResizeObserver;
+    const origIO = (globalThis as any).IntersectionObserver;
+    (globalThis as any).ResizeObserver = class {
+      constructor(cb: () => void) {
+        roCallback = cb;
+      }
+      observe() {}
+      disconnect() {}
+    };
+    (globalThis as any).IntersectionObserver = class {
+      constructor(cb: () => void) {
+        ioCallback = cb;
+      }
+      observe() {}
+      disconnect() {}
+    };
+
+    const pendingResolvers: Array<() => void> = [];
+    const mockFetch = vi.fn().mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          pendingResolvers.push(() =>
+            resolve({
+              ok: true,
+              json: async () => ({ ok: true }),
+            }),
+          );
+        }),
+    );
+
+    Object.defineProperty(window, 'innerWidth', { value: 0, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: 0, configurable: true });
+    Object.defineProperty(document.documentElement, 'clientWidth', {
+      value: 0,
+      configurable: true,
+    });
+    Object.defineProperty(document.documentElement, 'clientHeight', {
+      value: 0,
+      configurable: true,
+    });
+
+    await initPaneApp({
+      container,
+      search: '?conversationId=conv_hoisted&token=tok_hoisted',
+      fetchFn: mockFetch as any,
+      eventSourceFactory: (url) => new FakeEventSource(url) as any,
+    });
+
+    // Request #1: initial visible=false (still in flight)
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual({
+      conversationId: 'conv_hoisted',
+      visible: false,
+    });
+
+    // Slot opens to 420x600 while Request #1 is still in flight
+    Object.defineProperty(window, 'innerWidth', { value: 420, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: 600, configurable: true });
+    Object.defineProperty(document.documentElement, 'clientWidth', {
+      value: 420,
+      configurable: true,
+    });
+    Object.defineProperty(document.documentElement, 'clientHeight', {
+      value: 600,
+      configurable: true,
+    });
+    roCallback?.();
+
+    // Request #2: visible=true sent while Request #1 is still in flight
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(mockFetch.mock.calls[1][1].body)).toEqual({
+      conversationId: 'conv_hoisted',
+      visible: true,
+    });
+
+    // Simulate out-of-order network completion: Request #2 (true) finishes first, Request #1 (false) finishes last!
+    pendingResolvers[1]();
+    await new Promise((r) => setTimeout(r, 0));
+    pendingResolvers[0]();
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Corrective Request #3 (visible=true) automatically sent because Request #1 settled last with false
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(JSON.parse(mockFetch.mock.calls[2][1].body)).toEqual({
+      conversationId: 'conv_hoisted',
+      visible: true,
+    });
+    pendingResolvers[2]();
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Now HoistedFrameHost hides the slot with display:none -> window.innerWidth stays 420, but documentElement.clientWidth collapses to 0
+    Object.defineProperty(document.documentElement, 'clientWidth', {
+      value: 0,
+      configurable: true,
+    });
+    Object.defineProperty(document.documentElement, 'clientHeight', {
+      value: 0,
+      configurable: true,
+    });
+    ioCallback?.();
+    expect(mockFetch).toHaveBeenCalledTimes(4);
+    expect(JSON.parse(mockFetch.mock.calls[3][1].body)).toEqual({
+      conversationId: 'conv_hoisted',
+      visible: false,
+    });
+    pendingResolvers[3]();
+    await new Promise((r) => setTimeout(r, 0));
+
+    // HoistedFrameHost re-shows the slot with display:block and IframeActiveSync posts theme-change
+    Object.defineProperty(document.documentElement, 'clientWidth', {
+      value: 420,
+      configurable: true,
+    });
+    Object.defineProperty(document.documentElement, 'clientHeight', {
+      value: 600,
+      configurable: true,
+    });
+    window.dispatchEvent(new MessageEvent('message', { data: { type: 'theme-change' } }));
+    expect(mockFetch).toHaveBeenCalledTimes(5);
+    expect(JSON.parse(mockFetch.mock.calls[4][1].body)).toEqual({
+      conversationId: 'conv_hoisted',
+      visible: true,
+    });
+    pendingResolvers[4]();
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Focus while visible re-announces visible:true
+    window.dispatchEvent(new Event('focus'));
+    expect(mockFetch).toHaveBeenCalledTimes(6);
+    expect(JSON.parse(mockFetch.mock.calls[5][1].body)).toEqual({
+      conversationId: 'conv_hoisted',
+      visible: true,
+    });
+    pendingResolvers[5]();
+    await new Promise((r) => setTimeout(r, 0));
+
+    (globalThis as any).ResizeObserver = origRO;
+    (globalThis as any).IntersectionObserver = origIO;
+    Object.defineProperty(document.documentElement, 'clientWidth', {
+      value: 0,
+      configurable: true,
+    });
+    Object.defineProperty(document.documentElement, 'clientHeight', {
+      value: 0,
+      configurable: true,
+    });
+  });
+
   it('keeps surface visible with one-shot button disabled after action submission, notifies agent on X dismiss button click, and restores submitted and dismissed state from sessionStorage', async () => {
     const toggleSpy = vi.fn();
     const sentMessages: string[] = [];

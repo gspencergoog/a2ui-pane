@@ -58,6 +58,21 @@ describe('preload-route', () => {
     expect(result).toBe('// Official Host SDK Preload Content');
   });
 
+  it('resolves preload.js relative to bare sidecar_sdk specifier when sidecar_sdk/preload.js is unmapped', () => {
+    const sdkNodeDir = path.join(tmpDir, 'sdk', 'node');
+    fs.mkdirSync(sdkNodeDir, { recursive: true });
+    const sdkPreloadFile = path.join(tmpDir, 'sdk', 'preload.js');
+    fs.writeFileSync(sdkPreloadFile, '// Host SDK Preload via bare specifier');
+
+    const result = loadSdkPreload((specifier) => {
+      if (specifier === 'sidecar_sdk') {
+        return `file://${path.join(sdkNodeDir, 'index.mjs')}`;
+      }
+      throw new Error(`Cannot find module ${specifier}`);
+    });
+    expect(result).toBe('// Host SDK Preload via bare specifier');
+  });
+
   it('falls back to PRELOAD_SHIM_JS when resolver throws or returns missing file', () => {
     const throwingResult = loadSdkPreload(() => {
       throw new Error('Module not found');
