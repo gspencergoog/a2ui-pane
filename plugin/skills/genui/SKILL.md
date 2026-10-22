@@ -10,7 +10,7 @@ description: >-
   as the fallback. Use when presenting a chart, dashboard, form, decision batch,
   scorecard, stack board, status matrix, comparison matrix, triage list,
   progress board, or confirmation gate, when asking more than one question, or
-  when another skill (grill-me, just-brainstorm, plan, code-merge, pr-review,
+  when another skill (grill-me, just-brainstorm, plan, merge-code, pr-review,
   code-review, ship-it, branch-cleanup, what-if, api-review,
   estimate-conversation-tokens, cognitive-complexity, conversation-auditor,
   cost-optimization, duckdb, git-stack, pr-feedback-handler) says "render with
