@@ -193,6 +193,12 @@ export function installRichTextVariantRenderer(): void {
     if (!props) return nothing;
     const variant = props.variant || 'body';
     const rawText = typeof props.text === 'string' ? props.text : String(props.text ?? '');
+    const hostEl = this as unknown as HTMLElement;
+    if (rawText.trim() === '') {
+      hostEl.hidden = true;
+      return nothing;
+    }
+    hostEl.hidden = false;
     const flexStyle = typeof props.weight === 'number' ? `flex: ${props.weight};` : nothing;
     const cleanedText = /^h[1-5]$/.test(variant) ? rawText.replace(/^#{1,6}\s+/, '') : rawText;
     const renderedMarkdown = markdown(cleanedText, this.markdownRenderer);

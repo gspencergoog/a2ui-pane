@@ -47,6 +47,10 @@ export class A2uiCollapsibleElement extends A2uiLitElement<any, CollapsibleResol
         box-sizing: border-box;
       }
 
+      :host([hidden]) {
+        display: none;
+      }
+
       /* Inside a Row the host is a flex item: follow the row's alignment, share the row, and
          shrink instead of claiming its full width (a weight on the component overrides this
          stylesheet default through the inline flex set on the host). */
@@ -190,6 +194,11 @@ export class A2uiCollapsibleElement extends A2uiLitElement<any, CollapsibleResol
 
     const isOpen = this.isExpanded(props);
     const title = typeof props.title === 'string' ? props.title : String(props.title ?? '');
+    if (title.trim() === '') {
+      this.hidden = true;
+      return nothing;
+    }
+    this.hidden = false;
     const summary = typeof props.summary === 'string' ? props.summary.trim() : '';
 
     return html`

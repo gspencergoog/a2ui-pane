@@ -1,11 +1,14 @@
 // @genui id=consequence_cards surface=either
-// @summary Architectural fork: side-by-side consequence cards (one per option) above a single-choice chip row, with notes and "explain further" / "park for later" flags.
-// @data /question /options[] {title,impact,tradeoff} /choice /notes /moreInfo /defer /submitLabel
+// @summary Architectural fork: side-by-side consequence cards (title, optional semantic badge, Markdown impact bullets, and tradeoff caption) above an optional blast-radius collapsible, a single-choice chip row, notes, and explain/defer flags.
+// @data /question /options[] {title,badge,tone,impact,tradeoff} /traceTitle /traceSummary /trace /choice /notes /moreInfo /defer /submitLabel
 // @action submit_alignment
 // @customize choice_picker submit_btn
 
 $/question = "**Context**: which strategy should we use?"
 $/options = []
+$/traceTitle = ""
+$/traceSummary = ""
+$/trace = ""
 $/choice = []
 $/notes = ""
 $/moreInfo = false
@@ -13,14 +16,18 @@ $/defer = false
 $/submitLabel = "Submit Alignment"
 
 root = Card(fork_col)
-fork_col = Column([fork_question, option_cards, choice_picker, fork_notes, fork_footer])
+fork_col = Column([fork_question, option_cards, fork_trace, choice_picker, fork_notes, fork_footer])
 fork_question = Text($/question)
 option_cards = Row(_template($/options, option_card), _, "stretch")
 option_card = Card(option_col, 1)
-option_col = Column([option_title, option_impact, option_tradeoff])
-option_title = Text($title)
-option_impact = Text($impact, "caption")
+option_col = Column([option_head, option_impact, option_tradeoff])
+option_head = Row([option_title, option_badge], "spaceBetween", "center")
+option_title = Text($title, "body", 1)
+option_badge = Badge($badge, $tone)
+option_impact = Text($impact)
 option_tradeoff = Text($tradeoff, "caption")
+fork_trace = Collapsible($/traceTitle, fork_trace_body, $/traceSummary)
+fork_trace_body = Text($/trace, "caption")
 choice_picker = ChoicePicker("Select an option", "mutuallyExclusive", [{label: "Option A", value: "a"}, {label: "Option B", value: "b"}], $/choice, "chips")
 fork_notes = TextField("Caveats, or propose a hybrid", $/notes)
 fork_footer = Row([fork_flags, submit_btn], "spaceBetween", "center")

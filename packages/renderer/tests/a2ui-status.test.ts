@@ -581,5 +581,131 @@ describe('status catalog Web Components (<a2ui-badge>, <a2ui-progress-bar>, <a2u
       expect(cssText).toContain('container: a2ui-collapsible / inline-size');
       expect(cssText).toMatch(/@container a2ui-collapsible \(max-width: 220px\)/);
     });
+
+    it('collapses Badge, Collapsible, and Text hosts when bound data is empty and unhides on update', async () => {
+      const processor = createProcessor();
+      processor.processMessages([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'emptySlotsSurface',
+            sendDataModel: true,
+          },
+        },
+        {
+          version: 'v1.0',
+          updateDataModel: {
+            surfaceId: 'emptySlotsSurface',
+            path: '/',
+            value: {
+              badgeText: '',
+              hintText: '',
+              traceTitle: '',
+              traceBody: 'Affected: src/index.ts',
+            },
+          },
+        },
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 'emptySlotsSurface',
+            components: [
+              {
+                id: 'root',
+                component: 'Column',
+                catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+                children: ['opt_badge', 'opt_hint', 'opt_trace'],
+              },
+              {
+                id: 'opt_badge',
+                component: 'Badge',
+                catalogId: STATUS_CATALOG_ID,
+                text: { '@path': '/badgeText' },
+              },
+              {
+                id: 'opt_hint',
+                component: 'Text',
+                catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+                text: { '@path': '/hintText' },
+                variant: 'caption',
+              },
+              {
+                id: 'opt_trace',
+                component: 'Collapsible',
+                catalogId: STATUS_CATALOG_ID,
+                title: { '@path': '/traceTitle' },
+                child: 'opt_trace_body',
+              },
+              {
+                id: 'opt_trace_body',
+                component: 'Text',
+                catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+                text: { '@path': '/traceBody' },
+                variant: 'caption',
+              },
+            ],
+          },
+        },
+      ] as any);
+
+      pane.processor = processor;
+      await pane.updateComplete;
+
+      const surfaceEl = pane.shadowRoot!.querySelector('a2ui-surface')!;
+      await (surfaceEl as any).updateComplete;
+      const root = surfaceEl.shadowRoot!;
+      for (const el of Array.from(
+        root.querySelectorAll('a2ui-basic-column, a2ui-badge, a2ui-basic-text, a2ui-collapsible'),
+      )) {
+        await (el as any).updateComplete;
+      }
+      for (const el of Array.from(
+        root.querySelectorAll('a2ui-basic-column, a2ui-badge, a2ui-basic-text, a2ui-collapsible'),
+      )) {
+        await (el as any).updateComplete;
+      }
+
+      const badgeEl = root.querySelector('a2ui-badge') as HTMLElement;
+      const hintEl = root.querySelector('a2ui-basic-text') as HTMLElement;
+      const traceEl = root.querySelector('a2ui-collapsible') as HTMLElement;
+
+      expect(badgeEl.hidden).toBe(true);
+      expect(badgeEl.shadowRoot!.querySelector('.a2ui-badge')).toBeNull();
+      expect(hintEl.hidden).toBe(true);
+      expect((hintEl.shadowRoot ?? hintEl).querySelector('.a2ui-text')).toBeNull();
+      expect(traceEl.hidden).toBe(true);
+      expect(traceEl.shadowRoot!.querySelector('.a2ui-collapsible')).toBeNull();
+
+      // Update data model with non-empty values and verify hosts unhide.
+      processor.processMessages([
+        {
+          version: 'v1.0',
+          updateDataModel: {
+            surfaceId: 'emptySlotsSurface',
+            path: '/',
+            value: {
+              badgeText: '2 files',
+              hintText: 'One-line hint',
+              traceTitle: 'Affected files & blast radius',
+              traceBody: 'Affected: src/index.ts',
+            },
+          },
+        },
+      ] as any);
+      for (const el of [badgeEl, hintEl, traceEl]) {
+        await (el as any).updateComplete;
+      }
+
+      expect(badgeEl.hidden).toBe(false);
+      expect(badgeEl.shadowRoot!.querySelector('.a2ui-badge-text')?.textContent).toBe('2 files');
+      expect(hintEl.hidden).toBe(false);
+      expect((hintEl.shadowRoot ?? hintEl).querySelector('.a2ui-text')?.textContent).toContain(
+        'One-line hint',
+      );
+      expect(traceEl.hidden).toBe(false);
+      expect(traceEl.shadowRoot!.querySelector('.a2ui-collapsible-title')?.textContent).toBe(
+        'Affected files & blast radius',
+      );
+    });
   });
 });

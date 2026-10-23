@@ -18,6 +18,7 @@
           "children": [
             "fork_question",
             "option_cards",
+            "fork_trace",
             "choice_picker",
             "fork_notes",
             "fork_footer"
@@ -53,10 +54,21 @@
           "component": "Column",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
-            "option_title",
+            "option_head",
             "option_impact",
             "option_tradeoff"
           ]
+        },
+        {
+          "id": "option_head",
+          "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "children": [
+            "option_title",
+            "option_badge"
+          ],
+          "justify": "spaceBetween",
+          "align": "center"
         },
         {
           "id": "option_title",
@@ -64,6 +76,19 @@
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
             "@path": "title"
+          },
+          "variant": "body",
+          "weight": 1
+        },
+        {
+          "id": "option_badge",
+          "component": "Badge",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
+          "text": {
+            "@path": "badge"
+          },
+          "tone": {
+            "@path": "tone"
           }
         },
         {
@@ -72,8 +97,7 @@
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
             "@path": "impact"
-          },
-          "variant": "caption"
+          }
         },
         {
           "id": "option_tradeoff",
@@ -81,6 +105,27 @@
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
             "@path": "tradeoff"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "fork_trace",
+          "component": "Collapsible",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
+          "title": {
+            "@path": "/traceTitle"
+          },
+          "child": "fork_trace_body",
+          "summary": {
+            "@path": "/traceSummary"
+          }
+        },
+        {
+          "id": "fork_trace_body",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@path": "/trace"
           },
           "variant": "caption"
         },
@@ -193,15 +238,22 @@
         "options": [
           {
             "title": "**A: Dual-Write + Shadow Reads (Recommended)**",
-            "impact": "Impact: 3 adapter files; zero downtime.",
+            "badge": "Zero downtime",
+            "tone": "success",
+            "impact": "**Consequences of this decision:**\n- Touches 3 adapter files.\n- Keeps writes live during cutover.",
             "tradeoff": "Tradeoff: temporary shadow-diff logging ($< 2\\text{ms}$ p99)."
           },
           {
             "title": "**B: In-Place Maintenance Cutover**",
-            "impact": "Impact: one migration script; 1 file.",
+            "badge": "15m write freeze",
+            "tone": "warning",
+            "impact": "**Consequences of this decision:**\n- Single migration script.\n- Blocks writes during table swap.",
             "tradeoff": "Tradeoff: 15-minute write freeze during deploy."
           }
         ],
+        "traceTitle": "Affected files & blast radius",
+        "traceSummary": "3 files",
+        "trace": "- `src/orders/repository.ts`\n- `src/orders/shadow-reader.ts`\n- `migrations/042_orders_v2.sql`",
         "choice": [
           "dual_write"
         ],

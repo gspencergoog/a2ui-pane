@@ -19,6 +19,7 @@
             "decision_title",
             "decision_intro",
             "decision_list",
+            "decision_note",
             "decision_divider",
             "decision_footer"
           ]
@@ -62,8 +63,7 @@
           "children": [
             "decision_item_prompt",
             "decision_item_hint",
-            "choice_picker",
-            "decision_item_fields"
+            "choice_picker"
           ]
         },
         {
@@ -108,35 +108,13 @@
           "displayStyle": "chips"
         },
         {
-          "id": "decision_item_fields",
-          "component": "Row",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-          "children": [
-            "decision_item_text",
-            "decision_item_note"
-          ],
-          "align": "center"
-        },
-        {
-          "id": "decision_item_text",
+          "id": "decision_note",
           "component": "TextField",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-          "label": "Or specify",
+          "label": "Overall notes or overrides",
           "value": {
-            "@path": "text"
-          },
-          "placeholder": "free text, name, or condition",
-          "weight": 1
-        },
-        {
-          "id": "decision_item_note",
-          "component": "TextField",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-          "label": "Note",
-          "value": {
-            "@path": "note"
-          },
-          "weight": 1
+            "@path": "/note"
+          }
         },
         {
           "id": "decision_divider",
@@ -165,6 +143,9 @@
               "context": {
                 "items": {
                   "@path": "/items"
+                },
+                "note": {
+                  "@path": "/note"
                 }
               }
             }
@@ -188,29 +169,24 @@
             "hint": "Draft: \"Good catch. Switched `append` to take the lock before the length check; see 3eab437.\"",
             "choice": [
               "yes"
-            ],
-            "text": "",
-            "note": ""
+            ]
           },
           {
             "prompt": "**Name the new helper `mergeRootDataUpdates`?**",
-            "hint": "Matches the `merge*` helpers in render.ts; type a different name under Or specify.",
+            "hint": "Matches the `merge*` helpers in render.ts.",
             "choice": [
               "yes"
-            ],
-            "text": "mergeRootDataUpdates",
-            "note": ""
+            ]
           },
           {
             "prompt": "**Delete the merged branch `fix/store-writer-race` locally and on origin?**",
             "hint": "Its commits are on main as 3eab437; nothing else points at it.",
             "choice": [
               "defer"
-            ],
-            "text": "",
-            "note": "Wait until the release branch is cut"
+            ]
           }
         ],
+        "note": "Wait until the release branch is cut before deleting fix/store-writer-race.",
         "submitLabel": "Confirm decisions"
       }
     }

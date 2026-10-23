@@ -148,6 +148,16 @@ describe.skipIf(!pythonBin && !agentSdkPath)('bundled genui templates (compiled 
     expect(() => validate(messages)).not.toThrow();
   });
 
+  it('compiles consequence_cards cleanly when caller options omit optional badge, tone, and trace', async () => {
+    const legacyCallerDsl =
+      '$/options = [{title: "**Option A**", impact: "Impact: 1 file", tradeoff: "Tradeoff: none"}]';
+    const messages = await worker.compile(
+      registry.inflate('consequence_cards', 'legacy_fork', { callerDsl: legacyCallerDsl }),
+      'legacy_fork',
+    );
+    expect(() => validate(messages)).not.toThrow();
+  });
+
   it('compiles a data-only block to a root-path update that mergeRootDataUpdates splits', async () => {
     const messages = await worker.compile('$/title = "### New"\n$/note = "x"', 'live');
     expect(messages).toEqual([

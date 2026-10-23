@@ -3,6 +3,11 @@
  * to style Light DOM basic catalog components, Markdown blocks, math, and Mermaid diagrams.
  */
 export const SURFACE_LAYOUT_CSS = `
+  a2ui-basic-text[hidden],
+  a2ui-badge[hidden],
+  a2ui-collapsible[hidden] {
+    display: none !important;
+  }
   a2ui-icon {
     display: inline-flex;
     align-items: center;

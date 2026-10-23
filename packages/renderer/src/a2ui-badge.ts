@@ -74,6 +74,10 @@ export class A2uiBadgeElement extends A2uiLitElement<any, BadgeResolvedProps> {
       vertical-align: middle;
     }
 
+    :host([hidden]) {
+      display: none;
+    }
+
     .a2ui-badge {
       display: inline-flex;
       align-items: center;
@@ -171,6 +175,11 @@ export class A2uiBadgeElement extends A2uiLitElement<any, BadgeResolvedProps> {
     const iconName = typeof props.icon === 'string' ? props.icon.trim() : '';
     const svgPath = iconName ? resolveIconSvgPath(iconName) : undefined;
     const showPulse = props.pulse === true;
+    if (text.trim() === '' && !svgPath && !showPulse) {
+      this.hidden = true;
+      return nothing;
+    }
+    this.hidden = false;
     const ariaLabel = props.accessibility?.label || text;
 
     return html`
