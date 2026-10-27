@@ -115,6 +115,20 @@ export const renderA2uiSchema = {
     .describe(
       'Rendering destination: "pane" (live AuxPane side panel) or "inline" (embedded interactive chat card).',
     ),
+  data: z
+    .union([z.record(z.unknown()), z.string()])
+    .optional()
+    .describe(
+      'Data model assignments (key-value record, or JSON string). Adapted to Express data assignments when authoring with `template` or updating a surface.',
+    ),
+  dataModel: z
+    .union([z.record(z.unknown()), z.string()])
+    .optional()
+    .describe('Alias for `data`.'),
+  dataModelJSON: z
+    .string()
+    .optional()
+    .describe('JSON-serialized data model assignments. Alias for `data`.'),
 };
 
 /** Factory that returns the `ConversationState` instance for a given `conversationId`. */
@@ -130,6 +144,9 @@ export interface RenderA2uiArgs {
   replace?: boolean;
   stack?: boolean;
   mode?: 'pane' | 'inline';
+  data?: Record<string, unknown> | string;
+  dataModel?: Record<string, unknown> | string;
+  dataModelJSON?: string;
 }
 
 /** Optional Express compiler and template registry collaborators for `handleRenderA2ui`. */
@@ -180,23 +197,58 @@ function formatCompileError(err: ExpressWorkerError, source: string): string {
 }
 
 /**
- * Turns the authoring input (`messages`, `dsl`, or `template` + `dsl`) into protocol messages.
+ * Normalizes and converts data model dictionary/JSON inputs into Express data assignment statements (`$/key = value`).
+ */
+export function formatDataAsExpressDsl(data: unknown): string | ToolResult {
+  let parsed: unknown = data;
+  if (typeof data === 'string') {
+    try {
+      parsed = JSON.parse(data);
+    } catch (err: any) {
+      return errorResult(`Malformed data JSON string: ${err?.message || err}`);
+    }
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return errorResult('Invalid data: must be an object of data model assignments.');
+  }
+  const lines: string[] = [];
+  for (const [key, val] of Object.entries(parsed as Record<string, unknown>)) {
+    const cleanKey = key.startsWith('$/') ? key.slice(2) : key.startsWith('/') ? key.slice(1) : key;
+    lines.push(`$/${cleanKey} = ${JSON.stringify(val)}`);
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Turns the authoring input (`messages`, `dsl`, `template` + `dsl`, or `template` + `data`) into protocol messages.
  * Returns a tool error result when the input is invalid or the Express worker is unavailable.
  */
 export async function resolveMessages(
   args: RenderA2uiArgs,
   deps: RenderA2uiDeps,
 ): Promise<{ messages: unknown[]; authored: 'messages' | 'dsl' | 'template' } | ToolResult> {
+  const rawData = args.data ?? args.dataModel ?? args.dataModelJSON;
+  let dataDsl = '';
+  if (rawData !== undefined && rawData !== null && rawData !== '') {
+    const formatted = formatDataAsExpressDsl(rawData);
+    if (typeof formatted !== 'string') {
+      return formatted;
+    }
+    dataDsl = formatted;
+  }
+
   const hasMessages = args.messages !== undefined;
-  const hasDsl = typeof args.dsl === 'string' && args.dsl.trim().length > 0;
+  const callerDsl = typeof args.dsl === 'string' ? args.dsl.trim() : '';
+  const effectiveDsl = dataDsl ? (callerDsl ? `${dataDsl}\n${callerDsl}` : dataDsl) : callerDsl;
+  const hasDsl = effectiveDsl.length > 0;
   const hasTemplate = typeof args.template === 'string' && args.template.length > 0;
 
   if (hasMessages && (hasDsl || hasTemplate)) {
-    return errorResult('Pass either `messages` or `dsl`/`template`, not both.');
+    return errorResult('Pass either `messages` or `dsl`/`template`/`data`, not both.');
   }
   if (!hasMessages && !hasDsl && !hasTemplate) {
     return errorResult(
-      'Missing authoring input: pass `dsl`, `template` (optionally with `dsl`), or `messages`.',
+      'Missing authoring input: pass `dsl`, `template` (optionally with `dsl` or `data`), or `messages`.',
     );
   }
 
@@ -219,12 +271,14 @@ export async function resolveMessages(
       );
     }
     try {
-      source = deps.templates.inflate(args.template as string, surfaceId, { callerDsl: args.dsl });
+      source = deps.templates.inflate(args.template as string, surfaceId, {
+        callerDsl: effectiveDsl,
+      });
     } catch (err: any) {
       return errorResult(String(err?.message || err));
     }
   } else {
-    source = args.dsl as string;
+    source = effectiveDsl;
   }
 
   if (!deps.worker) {
@@ -259,21 +313,61 @@ export function createdSurfaceIds(messages: unknown[]): string[] {
   return ids;
 }
 
-function escapePointerSegment(key: string): string {
+const isNumericIndex = (k: string): boolean => /^(0|[1-9]\d*)$/.test(k);
+
+export function escapePointerSegment(key: string): string {
   return key.replace(/~/g, '~0').replace(/\//g, '~1');
 }
 
 /**
- * Splits root-path `updateDataModel` writes aimed at an already-live surface into one
- * write per top-level key, so they merge into the surface's data model instead of
- * replacing it.
+ * Unpacks object updates into leaf-path assignments to avoid overwriting arrays or
+ * existing sibling properties in the client-side data model.
+ */
+export function unpackUpdates(
+  basePath: string,
+  val: unknown,
+): Array<{ path: string; value: unknown }> {
+  if (val === null || typeof val !== 'object' || Array.isArray(val)) {
+    return [{ path: basePath || '/', value: val }];
+  }
+  const entries = Object.entries(val as Record<string, unknown>);
+  if (entries.length === 0) {
+    return [{ path: basePath || '/', value: val }];
+  }
+  const allNumeric = entries.every(([k]) => isNumericIndex(k));
+  if (allNumeric) {
+    return entries.flatMap(([k, itemVal]) => {
+      const itemPath = `${basePath}/${k}`;
+      if (itemVal !== null && typeof itemVal === 'object' && !Array.isArray(itemVal)) {
+        const itemEntries = Object.entries(itemVal as Record<string, unknown>);
+        if (itemEntries.length > 0) {
+          return itemEntries.flatMap(([propKey, propVal]) =>
+            unpackUpdates(`${itemPath}/${escapePointerSegment(propKey)}`, propVal),
+          );
+        }
+      }
+      return [{ path: itemPath, value: itemVal }];
+    });
+  }
+  if (basePath === '/' || basePath === '' || /\/\d+$/.test(basePath)) {
+    const prefix = basePath === '/' ? '' : basePath;
+    return entries.flatMap(([k, v]) => unpackUpdates(`${prefix}/${escapePointerSegment(k)}`, v));
+  }
+  return [{ path: basePath, value: val }];
+}
+
+/**
+ * Splits root-path `updateDataModel` writes and numeric-index dictionary updates aimed at
+ * an already-live surface into leaf-path writes, so they merge into the surface's data
+ * model instead of replacing whole objects or replacing Arrays with Objects.
  *
- * The Express compiler emits `path: "/"` for any data block that assigns a top-level
- * key, which the client applies as a wholesale replacement. That is correct for a
- * surface the same batch creates, but for a live surface it would erase every key the
- * block did not mention (titles, labels, and unsubmitted user input). Messages for
- * surfaces created in this batch, non-root paths, and non-object values pass through
- * unchanged.
+ * The Express compiler emits `path: "/"` for data blocks assigning multiple keys, which the
+ * client applies as a wholesale replacement. For a live surface, that erases keys the block
+ * did not mention. Furthermore, when numeric array indices are assigned, compiler output
+ * collapses them into dictionary keys (e.g. `{ items: { "0": ... } }`), which would replace
+ * the Array with an Object and break list/progress rendering.
+ *
+ * Messages for surfaces created in this batch, scalar values, and arrays pass through unchanged.
  */
 export function mergeRootDataUpdates(
   messages: unknown[],
@@ -287,7 +381,6 @@ export function mergeRootDataUpdates(
     const path = upd?.path ?? '/';
     if (
       !upd ||
-      (path !== '/' && path !== '') ||
       typeof upd.surfaceId !== 'string' ||
       created.has(upd.surfaceId) ||
       !isLive(upd.surfaceId) ||
@@ -297,9 +390,16 @@ export function mergeRootDataUpdates(
     ) {
       return [msg];
     }
-    return Object.entries(value).map(([key, v]) => ({
+    const hasNumericKeys = Object.keys(value).some(isNumericIndex);
+    const isRoot = path === '/' || path === '';
+    const targetsArrayItem = /\/\d+$/.test(path);
+    if (!isRoot && !hasNumericKeys && !targetsArrayItem) {
+      return [msg];
+    }
+    const unpacked = unpackUpdates(path === '/' ? '' : path, value);
+    return unpacked.map(({ path: targetPath, value: targetVal }) => ({
       ...m,
-      updateDataModel: { ...upd, path: `/${escapePointerSegment(key)}`, value: v },
+      updateDataModel: { ...upd, path: targetPath, value: targetVal },
     }));
   });
 }
