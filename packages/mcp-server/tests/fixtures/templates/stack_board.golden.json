@@ -16,7 +16,8 @@
           "component": "Column",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
-            "stack_title",
+            "stack_header",
+            "stack_subtitle",
             "stack_progress",
             "stack_divider",
             "stack_rows",
@@ -24,12 +25,48 @@
           ]
         },
         {
+          "id": "stack_header",
+          "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "children": [
+            "stack_title",
+            "stack_status"
+          ],
+          "justify": "spaceBetween",
+          "align": "center"
+        },
+        {
           "id": "stack_title",
           "component": "Text",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
             "@path": "/title"
+          },
+          "variant": "body",
+          "weight": 1
+        },
+        {
+          "id": "stack_status",
+          "component": "Badge",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
+          "text": {
+            "@path": "/status"
+          },
+          "tone": {
+            "@path": "/statusTone"
+          },
+          "pulse": {
+            "@path": "/statusPulse"
           }
+        },
+        {
+          "id": "stack_subtitle",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@path": "/subtitle"
+          },
+          "variant": "caption"
         },
         {
           "id": "stack_progress",
@@ -37,9 +74,6 @@
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
           "items": {
             "@path": "/items"
-          },
-          "summary": {
-            "@path": "/subtitle"
           }
         },
         {
@@ -152,13 +186,6 @@
         },
         {
           "id": "stack_row_details",
-          "component": "Collapsible",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
-          "title": "Details",
-          "child": "stack_row_detail_text"
-        },
-        {
-          "id": "stack_row_detail_text",
           "component": "Text",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
@@ -214,8 +241,6 @@
         }
       ],
       "dataModel": {
-        "title": "### Ship-it stack: StoreWriter rewrite",
-        "subtitle": "Five changes in two waves; wave 2 rebases after wave 1 merges.",
         "steps": [
           {
             "label": "Draft"
@@ -233,6 +258,11 @@
             "label": "Merged"
           }
         ],
+        "title": "### Ship-it stack: StoreWriter rewrite",
+        "subtitle": "Five changes in two waves; wave 2 rebases after wave 1 merges.",
+        "status": "Watching · 23:08 UTC",
+        "statusTone": "active",
+        "statusPulse": true,
         "items": [
           {
             "id": "PR 3339",
@@ -246,7 +276,7 @@
             "ciTone": "success",
             "review": "Approved",
             "reviewTone": "success",
-            "detail": "Merged as 3eab437. Unit tests 221 passed; integration 7/7.",
+            "detail": "- Merged as `3eab437`\n- Unit tests: 221 passed; integration: 7/7",
             "step": 4
           },
           {
@@ -261,7 +291,7 @@
             "ciTone": "active",
             "review": "Changes requested",
             "reviewTone": "warning",
-            "detail": "Reviewer asked for a regression test covering two writers interleaving lines.",
+            "detail": "- Reviewer asked for a regression test covering two writers interleaving lines",
             "step": 1
           },
           {
@@ -276,7 +306,7 @@
             "ciTone": "danger",
             "review": "Unreviewed",
             "reviewTone": "neutral",
-            "detail": "Lint failure: unused import in flush-scheduler.ts. Rebase onto PR 3340 once it merges.",
+            "detail": "- Lint failure: unused import in `flush-scheduler.ts`\n- Rebase onto PR 3340 once it merges",
             "step": 0
           },
           {
@@ -291,7 +321,7 @@
             "ciTone": "warning",
             "review": "Unreviewed",
             "reviewTone": "neutral",
-            "detail": "Waiting on the API wording decided in PR 3341.",
+            "detail": "- Waiting on the API wording decided in PR 3341",
             "step": 0
           },
           {
@@ -306,7 +336,7 @@
             "ciTone": "success",
             "review": "LGTM",
             "reviewTone": "success",
-            "detail": "Submit queue blocked until the external mirror picks up PR 3342.",
+            "detail": "- Submit queue blocked until the external mirror picks up PR 3342",
             "step": 3
           }
         ],

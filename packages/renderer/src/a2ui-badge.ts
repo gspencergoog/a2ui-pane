@@ -175,7 +175,7 @@ export class A2uiBadgeElement extends A2uiLitElement<any, BadgeResolvedProps> {
     const iconName = typeof props.icon === 'string' ? props.icon.trim() : '';
     const svgPath = iconName ? resolveIconSvgPath(iconName) : undefined;
     const showPulse = props.pulse === true;
-    if (text.trim() === '' && !svgPath && !showPulse) {
+    if (text.trim() === '' && !svgPath) {
       this.hidden = true;
       return nothing;
     }

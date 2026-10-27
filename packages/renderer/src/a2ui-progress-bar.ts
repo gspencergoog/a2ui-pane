@@ -14,12 +14,25 @@ export interface ProgressSegmentInput {
   label?: string;
 }
 
-/** Raw item input inside `ProgressBar.items` (such as `progress_board` `$/items`). */
+/** Raw item input inside `ProgressBar.items` (such as `progress_board` or `stack_board` `$/items`). */
 export interface StatusItemInput {
   tone?: StatusTone | string;
   status?: string;
   label?: string;
   detail?: string;
+  state?: string;
+  ci?: string;
+  ciTone?: StatusTone | string;
+  review?: string;
+  reviewTone?: StatusTone | string;
+  step?: number;
+}
+
+/** Normalized legend item rendered on the left side of the progress header when `label` is omitted. */
+export interface ProgressLegendItem {
+  tone: StatusTone;
+  count: number;
+  label: string;
 }
 
 /** Normalized progress segment with percentage width for rendering. */
@@ -90,26 +103,125 @@ function normalizeExplicitSegments(
   };
 }
 
+function isStackBoardItem(rec: StatusItemInput): boolean {
+  return (
+    rec.ciTone !== undefined ||
+    rec.reviewTone !== undefined ||
+    rec.state !== undefined ||
+    rec.step !== undefined
+  );
+}
+
+function resolveStackItemBucket(rec: StatusItemInput): {
+  tone: StatusTone;
+  bucketLabel: string;
+  isComplete: boolean;
+} {
+  const stateStr = typeof rec.state === 'string' ? rec.state.trim() : '';
+  const stateLower = stateStr.toLowerCase();
+  const stateTone = normalizeStatusTone(rec.tone);
+  const ciTone = normalizeStatusTone(rec.ciTone);
+  const reviewTone = normalizeStatusTone(rec.reviewTone);
+
+  if (rec.step === 4 || stateLower === 'merged' || stateTone === 'success') {
+    return { tone: 'success', bucketLabel: 'Merged', isComplete: true };
+  }
+  if (stateTone === 'danger') {
+    return { tone: 'danger', bucketLabel: stateStr || 'Conflicts', isComplete: false };
+  }
+  if (ciTone === 'danger') {
+    return { tone: 'danger', bucketLabel: 'CI failed', isComplete: false };
+  }
+  if (reviewTone === 'danger') {
+    return { tone: 'danger', bucketLabel: 'Changes requested', isComplete: false };
+  }
+  if (ciTone === 'active') {
+    return { tone: 'active', bucketLabel: 'CI running', isComplete: false };
+  }
+  if (reviewTone === 'success' && ciTone === 'success') {
+    return { tone: 'info', bucketLabel: 'Approved', isComplete: false };
+  }
+  if (stateTone === 'warning') {
+    return { tone: 'warning', bucketLabel: stateStr || 'Behind', isComplete: false };
+  }
+  if (stateTone === 'neutral' && (stateLower === 'draft' || rec.step === 0)) {
+    return { tone: 'neutral', bucketLabel: 'Draft', isComplete: false };
+  }
+  if (reviewTone === 'warning') {
+    return { tone: 'warning', bucketLabel: 'Review required', isComplete: false };
+  }
+  return { tone: stateTone, bucketLabel: stateStr || 'Open', isComplete: false };
+}
+
 function normalizeTalliedItems(rawItems: unknown[]): {
   segments: NormalizedProgressSegment[];
   defaultSummary?: string;
+  legendItems?: ProgressLegendItem[];
   total: number;
 } {
-  const counts = new Map<StatusTone, number>();
-  let total = 0;
+  const validItems: StatusItemInput[] = [];
+  let hasStackFields = false;
   for (const item of rawItems) {
     if (!item || typeof item !== 'object') continue;
-    const tone = normalizeStatusTone((item as StatusItemInput).tone);
-    counts.set(tone, (counts.get(tone) ?? 0) + 1);
-    total += 1;
+    const rec = item as StatusItemInput;
+    validItems.push(rec);
+    if (isStackBoardItem(rec)) {
+      hasStackFields = true;
+    }
   }
+  const total = validItems.length;
   if (total === 0) {
     return { segments: [], defaultSummary: '0 items', total: 0 };
   }
+
+  const counts = new Map<StatusTone, number>();
+  const bucketsByTone = new Map<StatusTone, Map<string, number>>();
+  let completeCount = 0;
+
+  for (const rec of validItems) {
+    if (hasStackFields) {
+      const { tone, bucketLabel, isComplete } = resolveStackItemBucket(rec);
+      counts.set(tone, (counts.get(tone) ?? 0) + 1);
+      let toneBuckets = bucketsByTone.get(tone);
+      if (!toneBuckets) {
+        toneBuckets = new Map<string, number>();
+        bucketsByTone.set(tone, toneBuckets);
+      }
+      toneBuckets.set(bucketLabel, (toneBuckets.get(bucketLabel) ?? 0) + 1);
+      if (isComplete) {
+        completeCount += 1;
+      }
+    } else {
+      const tone = normalizeStatusTone(rec.tone);
+      counts.set(tone, (counts.get(tone) ?? 0) + 1);
+      if (tone === 'success') {
+        completeCount += 1;
+      }
+    }
+  }
+
   const segments: NormalizedProgressSegment[] = [];
+  const legendItems: ProgressLegendItem[] = [];
   for (const tone of TALLY_TONE_ORDER) {
     const count = counts.get(tone) ?? 0;
-    if (count > 0) {
+    if (count <= 0) continue;
+    if (hasStackFields) {
+      const toneBuckets = bucketsByTone.get(tone);
+      const bucketLabels: string[] = [];
+      if (toneBuckets) {
+        for (const [bLabel, bCount] of toneBuckets.entries()) {
+          const formatted = `${bCount} ${bLabel}`;
+          bucketLabels.push(formatted);
+          legendItems.push({ tone, count: bCount, label: formatted });
+        }
+      }
+      segments.push({
+        value: count,
+        widthPercent: (count / total) * 100,
+        tone,
+        label: bucketLabels.join(', ') || `${count} ${tone}`,
+      });
+    } else {
       segments.push({
         value: count,
         widthPercent: (count / total) * 100,
@@ -118,6 +230,16 @@ function normalizeTalliedItems(rawItems: unknown[]): {
       });
     }
   }
+
+  if (hasStackFields) {
+    return {
+      segments,
+      defaultSummary: `${completeCount} / ${total} merged`,
+      legendItems,
+      total,
+    };
+  }
+
   const successCount = counts.get('success') ?? 0;
   const activeCount = counts.get('active') ?? 0;
   const defaultSummary =
@@ -133,6 +255,7 @@ function normalizeTalliedItems(rawItems: unknown[]): {
 export function computeProgressSegments(props: ProgressBarResolvedProps): {
   segments: NormalizedProgressSegment[];
   defaultSummary?: string;
+  legendItems?: ProgressLegendItem[];
   total: number;
 } {
   if (Array.isArray(props.segments)) {
@@ -191,9 +314,10 @@ export class A2uiProgressBarElement extends A2uiLitElement<any, ProgressBarResol
 
     .a2ui-progress-header {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       justify-content: space-between;
-      gap: 8px;
+      flex-wrap: wrap;
+      gap: 6px 10px;
       font-size: 12px;
       line-height: 1.3;
     }
@@ -201,6 +325,54 @@ export class A2uiProgressBarElement extends A2uiLitElement<any, ProgressBarResol
     .a2ui-progress-label {
       font-weight: 600;
       color: var(--a2ui-text-color-text, inherit);
+    }
+
+    .a2ui-progress-legend {
+      display: inline-flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px 10px;
+      color: var(--a2ui-text-caption-color, #70757a);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .a2ui-progress-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+
+    .a2ui-progress-legend-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background-color: var(--a2ui-tone-neutral-bar, #9aa0a6);
+    }
+
+    .a2ui-progress-legend-item[data-tone='neutral'] .a2ui-progress-legend-dot {
+      background-color: var(--a2ui-tone-neutral-bar, #9aa0a6);
+    }
+
+    .a2ui-progress-legend-item[data-tone='info'] .a2ui-progress-legend-dot {
+      background-color: var(--a2ui-tone-info-bar, #0b57d0);
+    }
+
+    .a2ui-progress-legend-item[data-tone='active'] .a2ui-progress-legend-dot {
+      background-color: var(--a2ui-tone-active-bar, #1a73e8);
+    }
+
+    .a2ui-progress-legend-item[data-tone='success'] .a2ui-progress-legend-dot {
+      background-color: var(--a2ui-tone-success-bar, #1e8e3e);
+    }
+
+    .a2ui-progress-legend-item[data-tone='warning'] .a2ui-progress-legend-dot {
+      background-color: var(--a2ui-tone-warning-bar, #f29900);
+    }
+
+    .a2ui-progress-legend-item[data-tone='danger'] .a2ui-progress-legend-dot {
+      background-color: var(--a2ui-tone-danger-bar, #d93025);
     }
 
     .a2ui-progress-summary {
@@ -288,12 +460,13 @@ export class A2uiProgressBarElement extends A2uiLitElement<any, ProgressBarResol
     const props = this.controller?.props;
     if (!props) return nothing;
 
-    const { segments, defaultSummary, total } = computeProgressSegments(props);
+    const { segments, defaultSummary, legendItems, total } = computeProgressSegments(props);
     const label = typeof props.label === 'string' ? props.label.trim() : '';
     const summaryText =
       typeof props.summary === 'string' && props.summary.trim().length > 0
         ? props.summary.trim()
         : (defaultSummary ?? '');
+    const showLegend = !label && Array.isArray(legendItems) && legendItems.length > 0;
     const indeterminate = props.indeterminate === true;
     const completedValue = Array.isArray(props.items)
       ? segments.filter((s) => s.tone === 'success').reduce((acc, s) => acc + s.value, 0)
@@ -303,10 +476,27 @@ export class A2uiProgressBarElement extends A2uiLitElement<any, ProgressBarResol
     return html`
       <div class="a2ui-progress-container">
         ${
-          label || summaryText
+          label || showLegend || summaryText
             ? html`
                 <div class="a2ui-progress-header">
-                  ${label ? html`<span class="a2ui-progress-label">${label}</span>` : nothing}
+                  ${
+                    label
+                      ? html`<span class="a2ui-progress-label">${label}</span>`
+                      : showLegend
+                        ? html`
+                            <div class="a2ui-progress-legend">
+                              ${legendItems!.map(
+                                (item) => html`
+                                  <span class="a2ui-progress-legend-item" data-tone=${item.tone}>
+                                    <span class="a2ui-progress-legend-dot" aria-hidden="true"></span>
+                                    <span class="a2ui-progress-legend-text">${item.label}</span>
+                                  </span>
+                                `,
+                              )}
+                            </div>
+                          `
+                        : nothing
+                  }
                   ${
                     summaryText
                       ? html`<span class="a2ui-progress-summary">${summaryText}</span>`

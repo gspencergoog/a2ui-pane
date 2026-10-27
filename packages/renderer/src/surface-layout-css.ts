@@ -51,6 +51,12 @@ export const SURFACE_LAYOUT_CSS = `
     border-bottom: none;
     padding-bottom: 2px;
   }
+  a2ui-card > .a2ui-card > a2ui-basic-column > a2ui-basic-row:first-child > a2ui-basic-text:first-child .a2ui-text.body,
+  a2ui-card > .a2ui-card > a2ui-basic-column > a2ui-basic-text:first-child .a2ui-text.body {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
   a2ui-basic-text .a2ui-text h5,
   a2ui-list .a2ui-list-item-none > a2ui-basic-row > a2ui-basic-column:first-child > a2ui-basic-text:first-child .a2ui-text.body {
     font-size: 13.5px;
@@ -141,6 +147,14 @@ export const SURFACE_LAYOUT_CSS = `
     padding-inline-start: 18px;
     font-size: var(--a2ui-font-size-m, 14px);
     line-height: var(--a2ui-line-height-body, 1.4);
+  }
+  a2ui-basic-text .a2ui-text.caption ul,
+  a2ui-basic-text .a2ui-text.caption ol,
+  a2ui-basic-text .a2ui-text .a2ui-caption ul,
+  a2ui-basic-text .a2ui-text .a2ui-caption ol {
+    font-size: inherit;
+    line-height: 1.35;
+    color: inherit;
   }
   a2ui-basic-text .a2ui-text li + li {
     margin-top: 2px;

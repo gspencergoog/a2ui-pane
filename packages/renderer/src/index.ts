@@ -58,6 +58,7 @@ export {
   computeProgressSegments,
   type ProgressSegmentInput,
   type StatusItemInput,
+  type ProgressLegendItem,
   type NormalizedProgressSegment,
   type ProgressBarResolvedProps,
 } from './a2ui-progress-bar.js';

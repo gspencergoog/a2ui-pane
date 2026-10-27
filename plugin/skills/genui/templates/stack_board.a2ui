@@ -1,19 +1,25 @@
 // @genui id=stack_board surface=pane
-// @summary Live board for a stack of PRs or CLs: a title, a segmented progress bar tallied by each item's tone with a subtitle summary, one row per change (bold id with state, CI, and review badges, a clickable title link, a wave and base caption, collapsible details, and a five-step lifecycle Stepper driven by `step`), and an acknowledge button. Group rows visually by giving items the same `wave`. Update one row with data-only lines such as `$/items/2/state = "merged"` and `$/items/2/tone = "success"`.
-// @data /title /subtitle /steps[] {label,detail} /items[] {id,title,url,wave,base,state,tone,ci,ciTone,review,reviewTone,detail,step} /ackLabel
+// @summary Live board for a stack of PRs or CLs: a header row with title and optional status badge, an optional Markdown subtitle caption, a segmented progress bar with an auto-tallied tone legend, one row per change (bold id with state, CI, and review badges, a clickable title link, a wave and base caption, Markdown detail bullets, and a five-step lifecycle Stepper driven by `step`), and an acknowledge button. Group rows visually by giving items the same `wave`. Update one row with data-only lines such as `$/items/2/state = "Merged"` and `$/items/2/tone = "success"`.
+// @data /title /subtitle /status /statusTone /statusPulse /steps[] {label,detail} /items[] {id,title,url,wave,base,state,tone,ci,ciTone,review,reviewTone,detail,step} /ackLabel
 // @action acknowledge_stack_board
 // @customize ack_btn
 
 $/title = "### Stack"
-$/subtitle = "Updated as each change lands."
+$/subtitle = ""
+$/status = ""
+$/statusTone = "neutral"
+$/statusPulse = false
 $/steps = [{label: "Draft"}, {label: "Review"}, {label: "Approved"}, {label: "CI green"}, {label: "Merged"}]
 $/items = []
 $/ackLabel = "Acknowledge"
 
 root = Card(stack_col)
-stack_col = Column([stack_title, stack_progress, stack_divider, stack_rows, stack_footer])
-stack_title = Text($/title)
-stack_progress = ProgressBar(items=$/items, summary=$/subtitle)
+stack_col = Column([stack_header, stack_subtitle, stack_progress, stack_divider, stack_rows, stack_footer])
+stack_header = Row([stack_title, stack_status], "spaceBetween", "center")
+stack_title = Text($/title, "body", 1)
+stack_status = Badge($/status, $/statusTone, _, $/statusPulse)
+stack_subtitle = Text($/subtitle, "caption")
+stack_progress = ProgressBar(items=$/items)
 stack_divider = Divider()
 stack_rows = List(_template($/items, stack_row))
 stack_row = Column([stack_row_head, stack_row_link, stack_row_meta, stack_row_details, stack_row_steps])
@@ -24,8 +30,7 @@ stack_row_ci = Badge($ci, $ciTone)
 stack_row_review = Badge($review, $reviewTone)
 stack_row_link = Text(formatString("[${title}](${url})"))
 stack_row_meta = Text(formatString("wave ${wave} · base ${base}"), "caption")
-stack_row_details = Collapsible("Details", stack_row_detail_text)
-stack_row_detail_text = Text($detail, "caption")
+stack_row_details = Text($detail, "caption")
 stack_row_steps = Stepper($/steps, $step, $tone)
 stack_footer = Row([ack_btn], "end", "center")
 ack_btn = Button(Text($/ackLabel), _, Event("acknowledge_stack_board", {_oneShot: true}))

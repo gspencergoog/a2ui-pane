@@ -63,6 +63,30 @@ describe('status catalog helpers', () => {
     const emptyItems = computeProgressSegments({ items: [] });
     expect(emptyItems.segments).toEqual([]);
     expect(emptyItems.defaultSummary).toBe('0 items');
+
+    const stackItems = computeProgressSegments({
+      items: [
+        { state: 'Merged', tone: 'success', ciTone: 'success', reviewTone: 'success', step: 4 },
+        { state: 'Draft', tone: 'neutral', ciTone: 'danger', reviewTone: 'warning', step: 0 },
+        { state: 'Draft', tone: 'neutral', ciTone: 'danger', reviewTone: 'warning', step: 0 },
+        { state: 'Open', tone: 'active', ciTone: 'active', reviewTone: 'neutral', step: 1 },
+        { state: 'Draft', tone: 'neutral', ciTone: 'neutral', reviewTone: 'neutral', step: 0 },
+      ],
+    });
+    expect(stackItems.total).toBe(5);
+    expect(stackItems.defaultSummary).toBe('1 / 5 merged');
+    expect(stackItems.segments.map((s) => ({ tone: s.tone, value: s.value }))).toEqual([
+      { tone: 'success', value: 1 },
+      { tone: 'active', value: 1 },
+      { tone: 'danger', value: 2 },
+      { tone: 'neutral', value: 1 },
+    ]);
+    expect(stackItems.legendItems).toEqual([
+      { tone: 'success', count: 1, label: '1 Merged' },
+      { tone: 'active', count: 1, label: '1 CI running' },
+      { tone: 'danger', count: 2, label: '2 CI failed' },
+      { tone: 'neutral', count: 1, label: '1 Draft' },
+    ]);
   });
 });
 
@@ -254,6 +278,86 @@ describe('status catalog Web Components (<a2ui-badge>, <a2ui-progress-bar>, <a2u
     expect(track0.getAttribute('aria-valuemax')).toBe('3');
 
     expect(bars[1].shadowRoot!.querySelector('.a2ui-progress-indeterminate')).not.toBeNull();
+  });
+
+  it('renders ProgressBar auto-legend dots for stack_board items and hides pulse Badge when text is empty', async () => {
+    const processor = createProcessor();
+    processor.processMessages([
+      {
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 'stackLegendSurface',
+          sendDataModel: true,
+        },
+      },
+      {
+        version: 'v1.0',
+        updateDataModel: {
+          surfaceId: 'stackLegendSurface',
+          path: '/',
+          value: {
+            statusText: '',
+            items: [
+              { state: 'Draft', tone: 'neutral', ciTone: 'danger', reviewTone: 'warning', step: 0 },
+              { state: 'Draft', tone: 'neutral', ciTone: 'danger', reviewTone: 'warning', step: 0 },
+              { state: 'Merged', tone: 'success', ciTone: 'success', reviewTone: 'success', step: 4 },
+            ],
+          },
+        },
+      },
+      {
+        version: 'v1.0',
+        updateComponents: {
+          surfaceId: 'stackLegendSurface',
+          components: [
+            {
+              id: 'root',
+              component: 'Column',
+              catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+              children: ['status_badge', 'stack_bar'],
+            },
+            {
+              id: 'status_badge',
+              component: 'Badge',
+              catalogId: STATUS_CATALOG_ID,
+              text: { '@path': '/statusText' },
+              tone: 'active',
+              pulse: true,
+            },
+            {
+              id: 'stack_bar',
+              component: 'ProgressBar',
+              catalogId: STATUS_CATALOG_ID,
+              items: { '@path': '/items' },
+            },
+          ],
+        },
+      },
+    ] as any);
+
+    pane.processor = processor;
+    await pane.updateComplete;
+
+    const surfaceEl = pane.shadowRoot!.querySelector('a2ui-surface')!;
+    await (surfaceEl as any).updateComplete;
+
+    const badgeEl = surfaceEl.shadowRoot!.querySelector('a2ui-badge') as HTMLElement;
+    const barEl = surfaceEl.shadowRoot!.querySelector('a2ui-progress-bar') as HTMLElement;
+    await (badgeEl as any).updateComplete;
+    await (barEl as any).updateComplete;
+
+    expect(badgeEl.hidden).toBe(true);
+    const legendItems = Array.from(
+      barEl.shadowRoot!.querySelectorAll('.a2ui-progress-legend-item'),
+    );
+    expect(legendItems).toHaveLength(2);
+    expect(legendItems[0].getAttribute('data-tone')).toBe('success');
+    expect(legendItems[0].textContent?.trim()).toBe('1 Merged');
+    expect(legendItems[1].getAttribute('data-tone')).toBe('danger');
+    expect(legendItems[1].textContent?.trim()).toBe('2 CI failed');
+    expect(barEl.shadowRoot!.querySelector('.a2ui-progress-summary')?.textContent).toBe(
+      '1 / 3 merged',
+    );
   });
 
   it('renders Collapsible with badge and child slots and toggles via click and keyboard', async () => {
