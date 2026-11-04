@@ -19,7 +19,7 @@
             "overview_header",
             "glance_list",
             "waves_divider",
-            "waves_list",
+            "wave_diagram",
             "prs_divider",
             "prs_list",
             "open_questions_text",
@@ -106,80 +106,12 @@
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
         },
         {
-          "id": "waves_list",
-          "component": "List",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-          "children": {
-            "path": "/waves",
-            "componentId": "wave_card"
-          }
-        },
-        {
-          "id": "wave_card",
-          "component": "Card",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-          "child": "wave_col"
-        },
-        {
-          "id": "wave_col",
-          "component": "Column",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-          "children": [
-            "wave_head",
-            "wave_detail"
-          ]
-        },
-        {
-          "id": "wave_head",
-          "component": "Row",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-          "children": [
-            "wave_title",
-            "wave_mode"
-          ],
-          "justify": "spaceBetween",
-          "align": "center"
-        },
-        {
-          "id": "wave_title",
+          "id": "wave_diagram",
           "component": "Text",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "@call": "formatString",
-            "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-            "args": {
-              "value": "**${id}: ${title}**"
-            }
-          },
-          "variant": "body",
-          "weight": 1
-        },
-        {
-          "id": "wave_mode",
-          "component": "Badge",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
-          "text": {
-            "@path": "mode"
-          },
-          "tone": {
-            "@path": "modeTone"
+            "@path": "/waveDiagram"
           }
-        },
-        {
-          "id": "wave_detail",
-          "component": "Collapsible",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
-          "title": "Tracks",
-          "child": "wave_detail_text"
-        },
-        {
-          "id": "wave_detail_text",
-          "component": "Text",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-          "text": {
-            "@path": "detail"
-          },
-          "variant": "caption"
         },
         {
           "id": "prs_divider",
@@ -321,29 +253,7 @@
             "value": "the comprehension eval (C3) or the replay eval (C2), and syncing to the public skills repo."
           }
         ],
-        "waves": [
-          {
-            "id": "Wave 1",
-            "title": "Shared parser and overview contract",
-            "mode": "Sequential",
-            "modeTone": "neutral",
-            "detail": "- **Model tier:** Claude Fable 5.1 High (coordinator)"
-          },
-          {
-            "id": "Wave 2",
-            "title": "Checks, surfaces, templates, and pane template",
-            "mode": "Parallel",
-            "modeTone": "active",
-            "detail": "- **Track 2A:** Validator checks (Gemini Pro Next `auto`)\n- **Track 2B:** Post-plan surfaces (Gemini Pro Next `auto`)\n- **Track 2C:** Plan templates and references (Gemini Pro Next `auto`)\n- **Track 2D:** a2ui-pane `plan_overview` template (Gemini Pro Next `auto`)"
-          },
-          {
-            "id": "Wave 3",
-            "title": "Skill workflow, promotion, and commit",
-            "mode": "Sequential",
-            "modeTone": "neutral",
-            "detail": "- **Model tier:** Claude Fable 5.1 High (coordinator)"
-          }
-        ],
+        "waveDiagram": "```mermaid\nflowchart LR\n    W1[\"Wave 1: plan_model.py + overview data contract\"] --> A[\"2A: validator checks\"]\n    W1 --> B[\"2B: plan_surfaces.py\"]\n    W1 --> C[\"2C: plan templates and references\"]\n    W1 --> D[\"2D: a2ui-pane plan_overview template\"]\n    A --> W3[\"Wave 3: SKILL.md, lint, tests, promote, commit\"]\n    B --> W3\n    C --> W3\n    D --> W3\n```",
         "prs": [
           {
             "id": "1",

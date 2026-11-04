@@ -1,6 +1,6 @@
 // @genui id=plan_overview surface=pane
-// @summary Overview of an implementation plan: title and status badge, At a glance fields, one row per wave with mode badge and tracks, a PR or commit table, an open-question count, and an acknowledge button.
-// @data /title /status /statusTone /glance[] {label,value} /waves[] {id,title,mode,modeTone,detail} /prs[] {id,title,repo,wave} /openQuestions /ackLabel
+// @summary Overview of an implementation plan: title and status badge, At a glance fields, a Markdown wave diagram (usually a Mermaid flowchart), a PR or commit list, an open-question count, and an acknowledge button.
+// @data /title /status /statusTone /glance[] {label,value} /waveDiagram /prs[] {id,title,repo,wave} /openQuestions /ackLabel
 // @action acknowledge_plan_overview
 // @customize ack_btn
 
@@ -8,13 +8,13 @@ $/title = "### Plan Overview"
 $/status = ""
 $/statusTone = "neutral"
 $/glance = []
-$/waves = []
+$/waveDiagram = ""
 $/prs = []
 $/openQuestions = 0
 $/ackLabel = "Acknowledge"
 
 root = Card(overview_col)
-overview_col = Column([overview_header, glance_list, waves_divider, waves_list, prs_divider, prs_list, open_questions_text, overview_footer])
+overview_col = Column([overview_header, glance_list, waves_divider, wave_diagram, prs_divider, prs_list, open_questions_text, overview_footer])
 overview_header = Row([overview_title, overview_status], "spaceBetween", "center")
 overview_title = Text($/title, "body", 1)
 overview_status = Badge($/status, $/statusTone)
@@ -23,14 +23,7 @@ glance_row = Row([glance_label, glance_value], "spaceBetween", "center")
 glance_label = Text(formatString("**${label}**"))
 glance_value = Text($value, "body", 1)
 waves_divider = Divider()
-waves_list = List(_template($/waves, wave_card))
-wave_card = Card(wave_col)
-wave_col = Column([wave_head, wave_detail])
-wave_head = Row([wave_title, wave_mode], "spaceBetween", "center")
-wave_title = Text(formatString("**${id}: ${title}**"), "body", 1)
-wave_mode = Badge($mode, $modeTone)
-wave_detail = Collapsible("Tracks", wave_detail_text)
-wave_detail_text = Text($detail, "caption")
+wave_diagram = Text($/waveDiagram)
 prs_divider = Divider()
 prs_list = List(_template($/prs, pr_row))
 pr_row = Column([pr_head, pr_meta])
