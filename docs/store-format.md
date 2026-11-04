@@ -28,13 +28,13 @@ ${PLUGIN_DATA}/conversations/
 
 These names inside `<convId>/` are never surfaces. Readers MUST ignore them:
 
-| Name                       | Purpose                                               |
-| :------------------------- | :---------------------------------------------------- |
-| `_seq`                     | Conversation high-water seq.                          |
-| `.lock`                    | Writer lock.                                          |
-| `.lock.stale.<pid>.<rand>` | A stale lock being removed by a writer that stole it. |
-| `.<surfaceId>.tmp-<pid>`   | Temporary file for a surface write before `rename`.   |
-| `._seq.tmp-<pid>`          | Temporary file for a `_seq` write before `rename`.    |
+| Name                     | Purpose                                                  |
+| :----------------------- | :------------------------------------------------------- |
+| `_seq`                   | Conversation high-water seq.                             |
+| `.lock`                  | Writer lock.                                             |
+| `.lock.steal`            | Guard held by a waiter while it removes a stale `.lock`. |
+| `.<surfaceId>.tmp-<pid>` | Temporary file for a surface write before `rename`.      |
+| `._seq.tmp-<pid>`        | Temporary file for a `_seq` write before `rename`.       |
 
 Readers MUST only treat files matching `^[A-Za-z0-9-][A-Za-z0-9_-]*\.jsonl$` as surface files.
 
@@ -106,19 +106,23 @@ All writes to a conversation happen while holding `<convId>/.lock`. Hold the loc
 
 1. Create the directory if it is missing (mode `0700`).
 2. Create the lock with `O_CREAT | O_EXCL | O_WRONLY` and mode `0600`. On success, write `<pid> <iso-timestamp> <token>\n`, where `<token>` is a random string, close the file, and hold the lock.
-3. If the create fails with `EEXIST`, check whether the lock is stale. A lock is stale when its file **mtime** is more than 10 seconds old.
-   - Not stale: sleep 5 ms and go back to step 2.
-   - Stale: steal it as described below, then go back to step 2 without sleeping.
+3. If the create fails with `EEXIST`, `stat` the lock. A lock is stale when its file **mtime** is more than 10 seconds old.
+   - Missing or not stale: sleep 5 ms and go back to step 2.
+   - Stale: steal it as described below. Go back to step 2 without sleeping only if the steal removed the stale lock. Otherwise sleep 5 ms first.
 4. Give up after 2 seconds of retries and report a lock timeout. The TypeScript code throws `StoreLockError`. The Python writers return `"unavailable"`.
 
 ### Steal a stale lock
 
-1. `rename` `.lock` to `.lock.stale.<pid>.<rand>`. The rename is atomic, so only one waiter moves a given lock file.
-   - If the rename fails with `ENOENT`, another waiter already moved it. Retry the create.
-2. `stat` the renamed file. If its mtime is no longer stale, another writer created a fresh lock between your check and your rename. Put it back with `link(renamed, ".lock")`, ignoring `EEXIST`.
-3. `unlink` the renamed file and retry the create.
+Only the holder of the steal guard, `.lock.steal`, may remove `.lock`:
 
-A waiter never unlinks `.lock` directly. Only the holder does that.
+1. Create `.lock.steal` with `O_CREAT | O_EXCL | O_WRONLY` and mode `0600`, and close it.
+   - If that fails with `EEXIST`, another waiter is stealing. If the guard's mtime is more than 10 seconds old, its owner died mid-steal: `unlink` the guard. Either way, sleep 5 ms and go back to step 2 of [Acquire](#acquire).
+2. While holding the guard, `stat` `.lock` again. If it is missing or no longer stale, `unlink` the guard, sleep 5 ms, and go back to step 2 of Acquire.
+3. Otherwise `unlink` `.lock`, then `unlink` the guard, and go back to step 2 of Acquire at once.
+
+The re-check under the guard is what makes stealing safe. Holders never touch the lock's mtime after creating it, so a `.lock` that is stale while you hold the guard is the abandoned one: nobody can create a fresh `.lock` until it is gone, and no other waiter can remove it while you hold the guard.
+
+Do not steal by renaming `.lock` out of the way. A waiter whose staleness check is out of date then moves a fresh lock, and while it puts the lock back another writer can take it, so two writers hold the lock at once.
 
 ### Release
 

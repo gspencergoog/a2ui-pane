@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./store-fs": "./src/store-fs/index.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
@@ -12,6 +13,9 @@
     "lint:fix": "eslint . --fix"
   },
   "devDependencies": {
+    "@a2ui/web_core": "^0.15.0",
+    "@types/node": "^22",
+    "vite-node": "^3.2.4",
     "vitest": "^3.0.5"
   }
 }

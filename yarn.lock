@@ -53,6 +53,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@a2ui-pane/protocol@workspace:packages/protocol"
   dependencies:
+    "@a2ui/web_core": "npm:^0.15.0"
+    "@types/node": "npm:^22"
+    vite-node: "npm:^3.2.4"
     vitest: "npm:^3.0.5"
   languageName: unknown
   linkType: soft
@@ -1051,6 +1054,15 @@ __metadata:
   version: 7.0.15
   resolution: "@types/json-schema@npm:7.0.15"
   checksum: 10c0/a996a745e6c5d60292f36731dd41341339d4eeed8180bb09226e5c8d23759067692b1d88e5d91d72ee83dfc00d3aca8e7bd43ea120516c17922cbcb7c3e252db
+  languageName: node
+  linkType: hard
+
+"@types/node@npm:^22":
+  version: 22.20.5
+  resolution: "@types/node@npm:22.20.5"
+  dependencies:
+    undici-types: "npm:~6.21.0"
+  checksum: 10c0/0cf61a89c6a69917ab49f976a6bb11a29e3b348a6ae19f5827ceb91d3ade781faab58dcf3b8fa625f975f5d7536b9166ff94e8250c29272c667164f77c28fa88
   languageName: node
   linkType: hard
 
@@ -3792,6 +3804,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"undici-types@npm:~6.21.0":
+  version: 6.21.0
+  resolution: "undici-types@npm:6.21.0"
+  checksum: 10c0/c01ed51829b10aa72fc3ce64b747f8e74ae9b60eafa19a7b46ef624403508a54c526ffab06a14a26b3120d055e1104d7abe7c9017e83ced038ea5cf52f8d5e04
+  languageName: node
+  linkType: hard
+
 "undici@npm:^8.4.1":
   version: 8.11.2
   resolution: "undici@npm:8.11.2"
@@ -3829,7 +3848,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vite-node@npm:3.2.4":
+"vite-node@npm:3.2.4, vite-node@npm:^3.2.4":
   version: 3.2.4
   resolution: "vite-node@npm:3.2.4"
   dependencies:
