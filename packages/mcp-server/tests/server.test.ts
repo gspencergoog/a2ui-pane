@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, rmSync, existsSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, writeFileSync, readFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createServer, isMainModule, run } from '../src/server.js';
@@ -187,10 +187,13 @@ describe('MCP Server Tools and Entrypoint', () => {
       expect(result.content[0].text).toContain('Rendered 2 message(s)');
       expect(result.content[0].text).toContain('[ui-main]');
 
+      // One compacted snapshot line per surface.
       const stored = serverInstance.store.readAll('valid-conv-1');
-      expect(stored).toHaveLength(2);
+      expect(stored).toHaveLength(1);
       expect(stored[0].seq).toBe(1);
-      expect(stored[1].seq).toBe(2);
+      expect(stored[0].message.createSurface?.components).toEqual([
+        { id: 'root', component: 'Text', text: 'Rendered Title' },
+      ]);
     });
 
     it('accepts a JSON-serialized messages string for call_mcp_tool compatibility', async () => {
@@ -372,23 +375,39 @@ describe('MCP Server Tools and Entrypoint', () => {
 
     it('handles replaying history with corrupted message by warning and continuing', () => {
       const convId = 'corrupt-replay';
-      // Write a line that will fail validation during state replay
-      serverInstance.store.append(convId, 'corrupt-call', [
-        {
-          version: 'v0.9',
-          updateDataModel: {
-            surfaceId: 'nonexistent',
-            path: '/x',
-            value: 1,
+      // Write surface files directly: one whose snapshot fails validation on
+      // replay, one that is not JSON, and one valid surface.
+      const dir = serverInstance.store.getConversationDir(convId);
+      mkdirSync(dir, { recursive: true });
+      const snapshotLine = (seq: number, surfaceId: string, component: string) =>
+        JSON.stringify({
+          seq,
+          callId: 'direct-write',
+          ts: new Date().toISOString(),
+          message: {
+            version: 'v0.9',
+            createSurface: {
+              surfaceId,
+              catalogId: 'basic',
+              components: [{ id: 'root', component, text: 'x' }],
+            },
           },
-        },
-      ]);
+        }) + '\n';
+      writeFileSync(join(dir, 'broken.jsonl'), snapshotLine(1, 'broken', 'NoSuchWidget'));
+      writeFileSync(join(dir, 'garbage.jsonl'), '{not json\n');
+      writeFileSync(join(dir, 'healthy.jsonl'), snapshotLine(2, 'healthy', 'Text'));
+      writeFileSync(join(dir, '_seq'), '2');
 
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const freshState = serverInstance.getState(convId);
       expect(freshState).toBeDefined();
       expect(consoleSpy).toHaveBeenCalled();
+      expect(freshState.hasSurface('broken')).toBe(false);
+      expect(freshState.hasSurface('garbage')).toBe(false);
+      expect(freshState.hasSurface('healthy')).toBe(true);
       consoleSpy.mockRestore();
+      warnSpy.mockRestore();
     });
 
     it('renders 0 messages in pane mode and covers empty surface text branch', async () => {
