@@ -28,6 +28,7 @@ const EXPECTED_TEMPLATES = [
   'contract_workbench',
   'decision_batch',
   'metrics_dashboard',
+  'plan_overview',
   'progress_board',
   'scorecard',
   'stack_board',

@@ -12,6 +12,7 @@ Read and use the `genui` skill (`render_a2ui`) instead of plain prose or a modal
 - Gate a consequential action such as a PR action or branch deletion (`confirm_gate`).
 - Present 3 or more items to triage, sequence into waves, walk through state transitions, or track live across phases (`triage_matrix`, `wave_sequencer`, `state_walkthrough`, `progress_board`).
 - Present a table of PRs or CLs with states and CI status (`stack_board`).
+- Present an implementation plan's waves, PRs, and open questions (`plan_overview`).
 - Present an evaluation rubric with 3 or more scored rows (`scorecard`).
 - Present a test suite by platform or feature by SDK grid (`status_matrix`).
 - Visualize quantitative series, distributions, or benchmarks with 4 or more data points (or 2 or more series across 3 or more categories) sharing a single unit axis (`Chart` in `mode: "inline"` when compact under 500px, or `metrics_dashboard` in `mode: "pane"` for larger or multi-part displays). Keep 1 to 3 scalar numbers, mixed-unit summaries, string lookup tables, and brief factual lookups or status checks in plain Markdown.
