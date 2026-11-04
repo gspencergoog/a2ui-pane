@@ -140,6 +140,69 @@ describe('StreamClient', () => {
     consoleSpy.mockRestore();
   });
 
+  it('reconciles the applier with a snapshot event', () => {
+    const applier = new LineApplier();
+    const reconcileSpy = vi.spyOn(applier, 'reconcile');
+    const client = new StreamClient({
+      conversationId: 'conv_snap',
+      applier,
+      eventSourceFactory: (url) => new MockEventSource(url) as any,
+    });
+    client.connect();
+    const es = MockEventSource.instances[0];
+
+    const line: StoreLine = {
+      seq: 7,
+      ts: '2026-11-04T00:00:00.000Z',
+      callId: 'call_1',
+      message: { version: 'v0.9', createSurface: { surfaceId: 'snap', catalogId: 'basic' } },
+    };
+    es.emit('snapshot', { data: JSON.stringify({ lines: [line] }) });
+
+    expect(reconcileSpy).toHaveBeenCalledWith([line]);
+    expect(applier.getProcessor().getSurface('snap')).toBeDefined();
+    expect(MockEventSource.instances).toHaveLength(1);
+  });
+
+  it('reconciles an empty snapshot by clearing every surface', () => {
+    const applier = new LineApplier();
+    applier.apply([
+      {
+        seq: 1,
+        ts: '2026-11-04T00:00:00.000Z',
+        callId: 'call_1',
+        message: { version: 'v0.9', createSurface: { surfaceId: 'old', catalogId: 'basic' } },
+      },
+    ]);
+    const client = new StreamClient({
+      conversationId: 'conv_snap_empty',
+      applier,
+      eventSourceFactory: (url) => new MockEventSource(url) as any,
+    });
+    client.connect();
+    MockEventSource.instances[0].emit('snapshot', { data: '{"lines":[]}' });
+    expect(applier.getProcessor().getSurface('old')).toBeUndefined();
+  });
+
+  it('ignores a malformed snapshot event', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const applier = new LineApplier();
+    const reconcileSpy = vi.spyOn(applier, 'reconcile');
+    const client = new StreamClient({
+      conversationId: 'conv_snap_bad',
+      applier,
+      eventSourceFactory: (url) => new MockEventSource(url) as any,
+    });
+    client.connect();
+    const es = MockEventSource.instances[0];
+    es.emit('snapshot', { data: 'not-json' });
+    es.emit('snapshot', { data: '{"lines":"nope"}' });
+    es.emit('snapshot', { data: '{"lines":[{"seq":"x"}]}' });
+    expect(reconcileSpy).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledTimes(3);
+    errorSpy.mockRestore();
+  });
+
   it('handles reset event by resetting applier and reopening stream', () => {
     MockEventSource.instances = [];
     const applier = new LineApplier();

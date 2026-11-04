@@ -1,4 +1,4 @@
-import { parseStoreLine } from '@a2ui-pane/protocol';
+import { STREAM_EVENT_SNAPSHOT, StoreLine, parseStoreLine } from '@a2ui-pane/protocol';
 import { LineApplier } from '@a2ui-pane/renderer';
 
 /** Lifecycle states of the SSE connection to the sidecar stream endpoint. */
@@ -46,8 +46,25 @@ function defaultStorage(): BuildReloadStorage | undefined {
 }
 
 /**
+ * Parses the data of a `snapshot` event: `{lines: StoreLine[]}` with one line per live surface.
+ *
+ * @throws {Error} When the payload is not an object with a `lines` array or a line is malformed.
+ */
+export function parseSnapshotLines(data: string): StoreLine[] {
+  const payload = JSON.parse(data) as { lines?: unknown };
+  if (!payload || !Array.isArray(payload.lines)) {
+    throw new Error('Snapshot event has no lines array');
+  }
+  return payload.lines.map((line) => parseStoreLine(JSON.stringify(line)));
+}
+
+/**
  * Manages the Server-Sent Events (SSE) connection between the pane frontend and the sidecar backend.
- * Reconnects on drops with Last-Event-ID resume, applies incoming lines, and triggers resets.
+ * Reconnects on drops, applies incoming lines, and triggers resets.
+ *
+ * Each connection starts with a `snapshot` event that lists every live surface; the client
+ * reconciles the processor with it, which removes surfaces deleted while it was disconnected.
+ * Later `line` events carry per-surface changes, including `deleteSurface` tombstones.
  *
  * On every successful (re)connect it also fetches `/api/config` and compares `buildId` with
  * the first value it saw. A different value means the sidecar now serves a new bundle while
@@ -178,6 +195,11 @@ export class StreamClient {
       }
     };
 
+    this.addDataListeners(es);
+  }
+
+  /** Routes `line`, `snapshot`, and legacy `reset` events to the applier. */
+  private addDataListeners(es: EventSource): void {
     es.addEventListener('line', (event: MessageEvent) => {
       try {
         const line = parseStoreLine(event.data);
@@ -187,6 +209,15 @@ export class StreamClient {
       }
     });
 
+    es.addEventListener(STREAM_EVENT_SNAPSHOT, (event: MessageEvent) => {
+      try {
+        this.options.applier.reconcile(parseSnapshotLines(event.data));
+      } catch (err) {
+        console.error('[StreamClient] Failed to parse stream snapshot:', err);
+      }
+    });
+
+    // Sent only by sidecars built before the per-surface store; kept for one release.
     es.addEventListener('reset', () => {
       console.warn(
         '[StreamClient] Received reset event from server. Resetting applier and reconnecting.',

@@ -27,6 +27,14 @@ export class ActionSender {
     return this.pendingComponents.has(componentId);
   }
 
+  /**
+   * Sends one action to the agent as a chat message.
+   *
+   * @returns `true` only when the message was handed to the host (or simulated in
+   *     standalone mode). `false` means nothing was sent: the same component already
+   *     has an action in flight, or delivery failed and an error toast was shown.
+   *     Callers must not retire the surface on `false`.
+   */
   async sendAction(
     action: A2uiActionDetails,
     dataModel?: Record<string, unknown>,

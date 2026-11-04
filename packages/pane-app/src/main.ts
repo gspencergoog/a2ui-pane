@@ -1,9 +1,7 @@
 import { injectHostTheme } from '@a2ui-pane/theme';
-import { StoreLine } from '@a2ui-pane/protocol';
 import {
   LineApplier,
   A2uiPaneView,
-  type SurfaceSubmissionChangedDetail,
   type SurfaceDismissedDetail,
   type A2uiLinkClickDetail,
   openLink,
@@ -34,8 +32,6 @@ export interface PaneAppInstance {
   actionSender: ActionSender;
   updateStatus: (status: ConnectionStatus) => void;
   updateErrors: () => void;
-  isSubmitted: () => boolean;
-  setSubmittedState: (submitted: boolean) => void;
 }
 
 /** How long the "new build" toast shows before the page reloads itself. */
@@ -71,148 +67,51 @@ function applyErrorBanner(
   }
 }
 
-interface PersistedSurfaceEntry {
-  status: 'submitted' | 'dismissed';
-  label?: string;
-  seq: number;
-  components?: string[];
-  groups?: string[];
-}
+/** Why the pane removes a surface from the store. */
+type SurfaceDeleteReason = 'dismissed' | 'submitted';
 
-type PersistedStateMap = Record<string, PersistedSurfaceEntry>;
-
-function getLineSurfaceId(msg: unknown): string | undefined {
-  if (!msg || typeof msg !== 'object') return undefined;
-  const record = msg as Record<string, any>;
-  return (
-    record.createSurface?.surfaceId ||
-    record.updateComponents?.surfaceId ||
-    record.updateDataModel?.surfaceId ||
-    record.deleteSurface?.surfaceId
-  );
-}
-
-function readPersistedState(conversationId: string | null): PersistedStateMap {
-  if (!conversationId || typeof sessionStorage === 'undefined') return {};
-  try {
-    const raw = sessionStorage.getItem(`a2ui-pane-state:${conversationId}`);
-    return raw ? (JSON.parse(raw) as PersistedStateMap) : {};
-  } catch {
-    return {};
-  }
-}
-
-function writePersistedState(conversationId: string | null, state: PersistedStateMap): void {
-  if (!conversationId || typeof sessionStorage === 'undefined') return;
-  try {
-    sessionStorage.setItem(`a2ui-pane-state:${conversationId}`, JSON.stringify(state));
-  } catch {
-    // Ignore storage quota or sandbox errors
-  }
-}
-
-function restorePersistedSurfaceEntry(
-  paneView: A2uiPaneView,
-  sid: string,
-  entry: PersistedSurfaceEntry,
-): void {
-  if (entry.status === 'dismissed') {
-    paneView.dismissSurface(sid);
-    return;
-  }
-  const comps = entry.components ?? [];
-  const groups = entry.groups ?? [];
-  if (comps.length > 0 || groups.length > 0) {
-    for (const compId of comps) {
-      paneView.markComponentSubmitted(sid, compId);
-    }
-    for (const grp of groups) {
-      paneView.markComponentSubmitted(sid, undefined, grp);
-    }
-    return;
-  }
-  paneView.markComponentSubmitted(sid);
-}
-
-function syncLinesWithPersistedState(
-  lines: StoreLine[],
-  prevLastSeq: number,
-  paneView: A2uiPaneView,
-  persisted: PersistedStateMap,
-  conversationId: string | null,
-): void {
-  let changed = false;
-  for (const line of lines) {
-    if (!line || typeof line !== 'object' || line.seq <= prevLastSeq) continue;
-    const sid = getLineSurfaceId(line.message);
-    if (!sid) continue;
-
-    const entry = persisted[sid];
-    if (!entry) {
-      if (paneView.isSurfaceSubmitted(sid)) {
-        paneView.unsubmitSurface(sid);
-      }
-      continue;
-    }
-
-    if (line.seq > entry.seq) {
-      delete persisted[sid];
-      changed = true;
-      paneView.unsubmitSurface(sid);
-    } else {
-      restorePersistedSurfaceEntry(paneView, sid, entry);
-    }
-  }
-  if (changed) {
-    writePersistedState(conversationId, persisted);
-  }
-}
-
-function recordSubmittedComponentState(
-  persistedState: PersistedStateMap,
-  conversationId: string | null,
+/**
+ * Asks the sidecar to delete a surface's store file, so the surface stays
+ * gone after a pane reload or a language server restart.
+ *
+ * Logs failures (including a `423` lock timeout) and never throws.
+ *
+ * @returns Whether the sidecar confirmed the request.
+ */
+async function deleteSurfaceOnDisk(
+  conversationId: string,
   surfaceId: string,
-  seq: number,
-  sourceComponentId?: string,
-  group?: string,
-): void {
-  const prev = persistedState[surfaceId];
-  const comps = new Set(prev?.status === 'submitted' ? (prev.components ?? []) : []);
-  const groups = new Set(prev?.status === 'submitted' ? (prev.groups ?? []) : []);
-  if (sourceComponentId) {
-    comps.add(sourceComponentId);
+  reason: SurfaceDeleteReason,
+  token: string | undefined,
+  fetchImpl?: typeof fetch,
+): Promise<boolean> {
+  if (!fetchImpl) return false;
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['X-Sidecar-Token'] = token;
+    }
+    const resp = await fetchImpl('./api/surfaces/delete', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ conversationId, surfaceId, reason }),
+    });
+    if (!resp?.ok) {
+      console.warn(`[main] Deleting surface ${surfaceId} failed: HTTP ${resp?.status}`);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn(`[main] Deleting surface ${surfaceId} failed:`, err);
+    return false;
   }
-  if (group) {
-    groups.add(group);
-  }
-  persistedState[surfaceId] = {
-    status: 'submitted',
-    seq,
-    components: Array.from(comps),
-    groups: Array.from(groups),
-  };
-  writePersistedState(conversationId, persistedState);
 }
 
-function applyPaneSubmittedState(
-  paneView: A2uiPaneView,
-  submittedBanner: HTMLElement,
-  submitted: boolean,
-): void {
-  if (submitted) {
-    if (paneView.surfaceIds.length > 0) {
-      for (const id of paneView.surfaceIds) {
-        if (!paneView.isSurfaceDismissed(id)) {
-          paneView.dismissSurface(id);
-        }
-      }
-      submittedBanner.style.display = 'none';
-    } else {
-      submittedBanner.style.display = 'flex';
-    }
-  } else {
-    paneView.clearSubmittedSurfaces();
-    submittedBanner.style.display = 'none';
+function closeAuxPane(): void {
+  try {
+    (window as any).sidecar?.ui?.toggleAuxPane?.({ open: false });
+  } catch {
+    // Ignore host bridge errors
   }
 }
 
@@ -374,26 +273,13 @@ async function resolveConversationId(
   return null;
 }
 
-/**
- * Initializes the A2UI auxiliary pane DOM, SSE stream client, and action sender.
- */
-export async function initPaneApp(options: InitOptions = {}): Promise<PaneAppInstance | undefined> {
-  const appContainer =
-    options.container !== undefined ? options.container : document.getElementById('app');
-  if (!appContainer) return undefined;
+function resolveSearch(options: InitOptions): string {
+  if (options.search !== undefined) return options.search;
+  return typeof window !== 'undefined' ? window.location.search : '';
+}
 
-  const search =
-    options.search !== undefined
-      ? options.search
-      : typeof window !== 'undefined'
-        ? window.location.search
-        : '';
-  const urlParams = new URLSearchParams(search);
-  const token = urlParams.get('token') || undefined;
-  const fetchImpl = options.fetchFn ?? fetch;
-  const conversationId = await resolveConversationId(urlParams.get('conversationId'), fetchImpl);
-
-  appContainer.innerHTML = `
+function paneTemplate(conversationId: string | null): string {
+  return `
     <header style="
       display: flex;
       align-items: center;
@@ -438,73 +324,13 @@ export async function initPaneApp(options: InitOptions = {}): Promise<PaneAppIns
         font-weight: bold;
       ">✕</button>
     </div>
-    <div id="submitted-banner" style="
-      display: none;
-      background-color: var(--a2ui-color-secondary, #f1f3f4);
-      color: var(--a2ui-text-color-text, #1f1f1f);
-      padding: 6px 16px;
-      font-size: 12px;
-      border-bottom: 1px solid var(--a2ui-color-border, #e1e4e8);
-      justify-content: space-between;
-      align-items: center;
-    ">
-      <span>✓ Submitted to agent.</span>
-      <button id="resubmit-pane-btn" type="button" style="
-        background: transparent;
-        border: 1px solid var(--a2ui-color-border, #6a737d);
-        border-radius: 4px;
-        color: inherit;
-        cursor: pointer;
-        font-size: 11px;
-        padding: 2px 8px;
-      ">Edit / Resubmit</button>
-    </div>
     <main style="flex: 1; overflow: hidden; position: relative;">
       <a2ui-pane-view id="pane-view"></a2ui-pane-view>
     </main>
   `;
+}
 
-  const statusBadge = appContainer.querySelector('#status-badge') as HTMLElement;
-  const errorBanner = appContainer.querySelector('#error-banner') as HTMLElement;
-  const errorMessage = appContainer.querySelector('#error-message') as HTMLElement;
-  const dismissBtn = appContainer.querySelector('#dismiss-error') as HTMLButtonElement;
-  const submittedBanner = appContainer.querySelector('#submitted-banner') as HTMLElement;
-  const resubmitBtn = appContainer.querySelector('#resubmit-pane-btn') as HTMLButtonElement;
-  const paneView = appContainer.querySelector('#pane-view') as A2uiPaneView;
-  paneView.dismissibleSurfaces = true;
-
-  let submittedState = false;
-  const persistedState = readPersistedState(conversationId);
-
-  const setSubmittedState = (next: boolean) => {
-    submittedState = next;
-    applyPaneSubmittedState(paneView, submittedBanner, next);
-    if (!next) {
-      for (const k of Object.keys(persistedState)) {
-        delete persistedState[k];
-      }
-      writePersistedState(conversationId, persistedState);
-    }
-  };
-
-  resubmitBtn.addEventListener('click', () => setSubmittedState(false));
-
-  const updateStatus = (status: ConnectionStatus) => applyStatusBadge(statusBadge, status);
-  const updateErrors = () => applyErrorBanner(errorBanner, errorMessage, applier.getErrors());
-
-  dismissBtn.addEventListener('click', () => {
-    applier.clearErrors();
-    updateErrors();
-  });
-
-  const actionSender = new ActionSender({
-    conversationId,
-    sendMessageFn: options.sendMessageFn,
-    onPendingChange: (pending) => {
-      paneView.pendingComponents = pending;
-    },
-  });
-
+function wireLinkClicks(paneView: A2uiPaneView): void {
   paneView.addEventListener('a2ui-link-click', (evt: Event) => {
     const detail = (evt as CustomEvent<A2uiLinkClickDetail>).detail;
     if (!detail?.href) return;
@@ -518,117 +344,90 @@ export async function initPaneApp(options: InitOptions = {}): Promise<PaneAppIns
       }
     });
   });
+}
 
+type DeleteOnDisk = (surfaceId: string, reason: SurfaceDeleteReason) => Promise<boolean>;
+
+/**
+ * Retires a surface when the user presses its ✕: hides it at once, deletes its
+ * store file, and then tells the agent with a `dismiss_surface` action.
+ */
+function wireSurfaceDismissal(
+  paneView: A2uiPaneView,
+  actionSender: ActionSender,
+  deleteOnDisk: DeleteOnDisk,
+): void {
   paneView.addEventListener('surface-dismissed', (evt: Event) => {
-    const detail = (evt as CustomEvent<SurfaceDismissedDetail>).detail;
-    if (!detail?.surfaceId) return;
-    actionSender
-      .sendAction({
-        name: 'dismiss_surface',
-        surfaceId: detail.surfaceId,
-        sourceComponentId: 'surface-close-btn',
-        timestamp: new Date().toISOString(),
-        context: { label: 'Dismissed' },
-      })
+    const surfaceId = (evt as CustomEvent<SurfaceDismissedDetail>).detail?.surfaceId;
+    if (!surfaceId) return;
+    if (!paneView.isSurfaceDismissed(surfaceId)) {
+      paneView.dismissSurface(surfaceId);
+    }
+    void deleteOnDisk(surfaceId, 'dismissed')
+      .then(() =>
+        actionSender.sendAction({
+          name: 'dismiss_surface',
+          surfaceId,
+          sourceComponentId: 'surface-close-btn',
+          timestamp: new Date().toISOString(),
+          context: { label: 'Dismissed' },
+        }),
+      )
       .catch((err) => {
         console.error('[main] dismiss sendAction failed:', err);
       });
   });
+}
 
-  const onAction =
-    options.onAction ??
-    ((action: any, dataModel?: Record<string, unknown>) => {
-      const targetSurfaceId = typeof action?.surfaceId === 'string' ? action.surfaceId : undefined;
-      if (targetSurfaceId && paneView.isSurfaceDismissed(targetSurfaceId)) return;
-      if (!targetSurfaceId && submittedState) return;
-
-      const isOneShot = action?.oneShot !== false;
-      actionSender
-        .sendAction(action, dataModel)
-        .then((sent) => {
-          if (sent) {
-            if (isOneShot) {
-              submittedState = true;
-              if (targetSurfaceId) {
-                recordSubmittedComponentState(
-                  persistedState,
-                  conversationId,
-                  targetSurfaceId,
-                  applier.getLastAppliedSeq(),
-                  typeof action.sourceComponentId === 'string'
-                    ? action.sourceComponentId
-                    : undefined,
-                  typeof action.group === 'string' ? action.group : undefined,
-                );
-              } else {
-                setSubmittedState(true);
-              }
-              try {
-                (window as any).sidecar?.ui?.toggleAuxPane?.({ open: false });
-              } catch {
-                // Ignore host bridge errors
-              }
-            }
-            showToast('Submitted to agent', false);
-          }
-        })
-        .catch((err) => {
-          console.error('[main] sendAction failed:', err);
-        });
-    });
-
-  const applier = new LineApplier(undefined, onAction);
-
-  paneView.addEventListener('surface-submission-changed', (evt: Event) => {
-    const detail = (evt as CustomEvent<SurfaceSubmissionChangedDetail>).detail;
-    if (!detail?.surfaceId) return;
-    if (detail.status === 'active') {
-      delete persistedState[detail.surfaceId];
-    } else {
-      persistedState[detail.surfaceId] = {
-        status: detail.status,
-        label: detail.label,
-        seq: applier.getLastAppliedSeq(),
-      };
+/**
+ * Returns the default action handler: it sends the action to the agent and,
+ * once a one-shot action is delivered, hides its surface and deletes the
+ * surface's store file. A failed send keeps the surface; `ActionSender` has
+ * already shown the error toast.
+ */
+function createActionHandler(
+  paneView: A2uiPaneView,
+  actionSender: ActionSender,
+  deleteOnDisk: DeleteOnDisk,
+): NonNullable<InitOptions['onAction']> {
+  const onSent = (isOneShot: boolean, surfaceId: string | undefined) => {
+    if (isOneShot) {
+      if (surfaceId) {
+        paneView.dismissSurface(surfaceId);
+        void deleteOnDisk(surfaceId, 'submitted');
+      }
+      closeAuxPane();
     }
-    writePersistedState(conversationId, persistedState);
-  });
-
-  const origApply = applier.apply.bind(applier);
-  applier.apply = (lines) => {
-    const prevLastSeq = applier.getLastAppliedSeq();
-    if (lines.length > 0 && submittedState) {
-      submittedState = false;
-      submittedBanner.style.display = 'none';
-    }
-    origApply(lines);
-    syncLinesWithPersistedState(lines, prevLastSeq, paneView, persistedState, conversationId);
+    showToast('Submitted to agent', false);
   };
 
-  paneView.processor = applier.getProcessor();
+  return (action: any, dataModel?: Record<string, unknown>) => {
+    const surfaceId = typeof action?.surfaceId === 'string' ? action.surfaceId : undefined;
+    if (surfaceId && paneView.isSurfaceDismissed(surfaceId)) return;
+    const isOneShot = action?.oneShot !== false;
+    actionSender
+      .sendAction(action, dataModel)
+      .then((sent) => {
+        if (sent) onSent(isOneShot, surfaceId);
+      })
+      .catch((err) => {
+        console.error('[main] sendAction failed:', err);
+      });
+  };
+}
 
-  applier.onReset((newProcessor) => {
-    setSubmittedState(false);
-    paneView.processor = newProcessor;
-    updateErrors();
-  });
+interface StreamWiring {
+  conversationId: string;
+  token: string | undefined;
+  fetchImpl: typeof fetch;
+  applier: LineApplier;
+  updateStatus: (status: ConnectionStatus) => void;
+  updateErrors: () => void;
+}
 
-  if (!conversationId) {
-    statusBadge.textContent = 'No Conversation';
-    statusBadge.style.background = '#ffeef0';
-    statusBadge.style.color = '#b31d28';
-    return {
-      applier,
-      actionSender,
-      updateStatus,
-      updateErrors,
-      isSubmitted: () => submittedState,
-      setSubmittedState,
-    };
-  }
-
+function connectStream(options: InitOptions, wiring: StreamWiring): StreamClient {
+  const { conversationId, token, fetchImpl, applier, updateStatus, updateErrors } = wiring;
   const visibilityTracker = setupVisibilityTracking(conversationId, token, fetchImpl);
-
   const client = new StreamClient({
     conversationId,
     token,
@@ -651,18 +450,84 @@ export async function initPaneApp(options: InitOptions = {}): Promise<PaneAppIns
       setTimeout(reload, BUILD_RELOAD_TOAST_MS);
     },
   });
-
   client.connect();
+  return client;
+}
 
-  return {
+/**
+ * Initializes the A2UI auxiliary pane DOM, SSE stream client, and action sender.
+ */
+export async function initPaneApp(options: InitOptions = {}): Promise<PaneAppInstance | undefined> {
+  const appContainer =
+    options.container !== undefined ? options.container : document.getElementById('app');
+  if (!appContainer) return undefined;
+
+  const urlParams = new URLSearchParams(resolveSearch(options));
+  const token = urlParams.get('token') || undefined;
+  const fetchImpl = options.fetchFn ?? fetch;
+  const conversationId = await resolveConversationId(urlParams.get('conversationId'), fetchImpl);
+
+  appContainer.innerHTML = paneTemplate(conversationId);
+
+  const statusBadge = appContainer.querySelector('#status-badge') as HTMLElement;
+  const errorBanner = appContainer.querySelector('#error-banner') as HTMLElement;
+  const errorMessage = appContainer.querySelector('#error-message') as HTMLElement;
+  const dismissBtn = appContainer.querySelector('#dismiss-error') as HTMLButtonElement;
+  const paneView = appContainer.querySelector('#pane-view') as A2uiPaneView;
+  paneView.dismissibleSurfaces = true;
+
+  const updateStatus = (status: ConnectionStatus) => applyStatusBadge(statusBadge, status);
+  const updateErrors = () => applyErrorBanner(errorBanner, errorMessage, applier.getErrors());
+
+  dismissBtn.addEventListener('click', () => {
+    applier.clearErrors();
+    updateErrors();
+  });
+
+  const actionSender = new ActionSender({
+    conversationId,
+    sendMessageFn: options.sendMessageFn,
+    onPendingChange: (pending) => {
+      paneView.pendingComponents = pending;
+    },
+  });
+
+  const deleteOnDisk: DeleteOnDisk = (surfaceId, reason) =>
+    conversationId
+      ? deleteSurfaceOnDisk(conversationId, surfaceId, reason, token, fetchImpl)
+      : Promise.resolve(false);
+
+  wireLinkClicks(paneView);
+  wireSurfaceDismissal(paneView, actionSender, deleteOnDisk);
+
+  const onAction = options.onAction ?? createActionHandler(paneView, actionSender, deleteOnDisk);
+  const applier = new LineApplier(undefined, onAction);
+
+  paneView.processor = applier.getProcessor();
+
+  applier.onReset((newProcessor) => {
+    paneView.clearSubmittedSurfaces();
+    paneView.processor = newProcessor;
+    updateErrors();
+  });
+
+  if (!conversationId) {
+    statusBadge.textContent = 'No Conversation';
+    statusBadge.style.background = '#ffeef0';
+    statusBadge.style.color = '#b31d28';
+    return { applier, actionSender, updateStatus, updateErrors };
+  }
+
+  const client = connectStream(options, {
+    conversationId,
+    token,
+    fetchImpl,
     applier,
-    client,
-    actionSender,
     updateStatus,
     updateErrors,
-    isSubmitted: () => submittedState,
-    setSubmittedState,
-  };
+  });
+
+  return { applier, client, actionSender, updateStatus, updateErrors };
 }
 
 /**

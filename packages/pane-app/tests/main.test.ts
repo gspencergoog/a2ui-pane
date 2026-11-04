@@ -561,212 +561,214 @@ describe('initPaneApp', () => {
     });
   });
 
-  it('keeps surface visible with one-shot button disabled after action submission, notifies agent on X dismiss button click, and restores submitted and dismissed state from sessionStorage', async () => {
-    const toggleSpy = vi.fn();
-    const sentMessages: string[] = [];
-    (window as any).sidecar = { ui: { toggleAuxPane: toggleSpy } };
-    sessionStorage.clear();
+  describe('surface removal on dismiss and submit', () => {
+    interface Harness {
+      instance: NonNullable<Awaited<ReturnType<typeof initPaneApp>>>;
+      paneView: A2uiPaneView;
+      log: string[];
+      deleteBodies: Array<Record<string, unknown>>;
+      deleteHeaders: Array<Record<string, string>>;
+    }
 
-    const instance = await initPaneApp({
-      container,
-      search: '?conversationId=conv_submit_lock',
-      sendMessageFn: async (text: string) => {
-        sentMessages.push(text);
-        return { ok: true };
-      },
-      eventSourceFactory: (url) => new FakeEventSource(url) as any,
-    });
+    const flush = () => new Promise((r) => setTimeout(r, 20));
 
-    instance!.applier.apply([
-      {
-        seq: 1,
-        ts: new Date().toISOString(),
-        callId: 'c1',
-        message: {
-          version: 'v0.9',
-          createSurface: { surfaceId: 'surfLock', catalogId: 'basic' },
+    function buttonSurfaceLines(surfaceId: string) {
+      return [
+        {
+          seq: 1,
+          ts: new Date().toISOString(),
+          callId: 'c1',
+          message: { version: 'v0.9', createSurface: { surfaceId, catalogId: 'basic' } },
         },
-      },
-      {
-        seq: 2,
-        ts: new Date().toISOString(),
-        callId: 'c1',
-        message: {
-          version: 'v0.9',
-          updateComponents: {
-            surfaceId: 'surfLock',
-            components: [
-              { id: 'root', component: 'Row', children: ['submit_btn', 'helper_btn'] },
-              { id: 'submit_txt', component: 'Text', text: 'Submit Alignment' },
-              { id: 'helper_txt', component: 'Text', text: 'Filter' },
-              {
-                id: 'submit_btn',
-                component: 'Button',
-                variant: 'primary',
-                child: 'submit_txt',
-                action: {
-                  event: {
-                    name: 'submit_alignment',
-                    context: { label: 'Submit Alignment', _group: 'align_grp' },
-                  },
+        {
+          seq: 2,
+          ts: new Date().toISOString(),
+          callId: 'c1',
+          message: {
+            version: 'v0.9',
+            updateComponents: {
+              surfaceId,
+              components: [
+                { id: 'root', component: 'Row', children: ['submit_btn', 'helper_btn'] },
+                { id: 'submit_txt', component: 'Text', text: 'Submit' },
+                { id: 'helper_txt', component: 'Text', text: 'Filter' },
+                {
+                  id: 'submit_btn',
+                  component: 'Button',
+                  variant: 'primary',
+                  child: 'submit_txt',
+                  action: { event: { name: 'submit', context: { label: 'Submit' } } },
                 },
-              },
-              {
-                id: 'helper_btn',
-                component: 'Button',
-                variant: 'borderless',
-                child: 'helper_txt',
-                action: {
-                  event: {
-                    name: 'filter_items',
-                    context: { _oneShot: false },
-                  },
+                {
+                  id: 'helper_btn',
+                  component: 'Button',
+                  variant: 'borderless',
+                  child: 'helper_txt',
+                  action: { event: { name: 'filter', context: { _oneShot: false } } },
                 },
-              },
-            ],
+              ],
+            },
           },
         },
-      },
-    ]);
+      ];
+    }
 
-    const paneView = container.querySelector('#pane-view') as A2uiPaneView;
-    await paneView.updateComplete;
-
-    const surface = instance!.applier.getProcessor().getSurface('surfLock');
-
-    // Repeatable helper button does not close AuxPane or set submittedState
-    surface?.dispatchAction({ name: 'filter_items', context: { _oneShot: false } }, 'helper_btn');
-    await new Promise((r) => setTimeout(r, 20));
-    expect(instance!.isSubmitted()).toBe(false);
-    expect(toggleSpy).not.toHaveBeenCalled();
-
-    // One-shot primary button disables button while keeping surface visible
-    surface?.dispatchAction(
-      { name: 'submit_alignment', context: { label: 'Submit Alignment', _group: 'align_grp' } },
-      'submit_btn',
-    );
-    await new Promise((r) => setTimeout(r, 20));
-    await paneView.updateComplete;
-
-    expect(instance!.isSubmitted()).toBe(true);
-    expect(paneView.isSurfaceDismissed('surfLock')).toBe(false);
-    expect(paneView.shadowRoot!.querySelector('[data-surface-id="surfLock"]')).not.toBeNull();
-    expect(surface?.dataModel.get('/_submitted/submit_btn')).toBe(true);
-    expect(surface?.dataModel.get('/_submitted/_group/align_grp')).toBe(true);
-    expect(toggleSpy).toHaveBeenCalledWith({ open: false });
-
-    // Apply a new surface surfLock2 -> renders with X dismiss button
-    instance!.applier.apply([
-      {
-        seq: 3,
-        ts: new Date().toISOString(),
-        callId: 'c2',
-        message: {
-          version: 'v0.9',
-          createSurface: { surfaceId: 'surfLock2', catalogId: 'basic' },
+    async function setup(
+      opts: { sendFails?: boolean; deleteStatus?: number; surfaceId?: string } = {},
+    ): Promise<Harness> {
+      const log: string[] = [];
+      const deleteBodies: Array<Record<string, unknown>> = [];
+      const deleteHeaders: Array<Record<string, string>> = [];
+      const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === './api/surfaces/delete') {
+          log.push('delete');
+          deleteBodies.push(JSON.parse(String(init?.body)));
+          deleteHeaders.push(init?.headers as Record<string, string>);
+          const status = opts.deleteStatus ?? 200;
+          return { ok: status === 200, status, json: async () => ({ deleted: true }) };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      });
+      const instance = await initPaneApp({
+        container,
+        search: '?conversationId=conv_remove&token=tok_remove',
+        fetchFn: fetchFn as any,
+        sendMessageFn: async (text: string) => {
+          log.push(text.includes('dismiss_surface') ? 'send:dismiss' : 'send');
+          if (opts.sendFails) throw new Error('host offline');
+          return { ok: true };
         },
-      },
-    ]);
-    await paneView.updateComplete;
-    expect(instance!.isSubmitted()).toBe(false);
-    expect(paneView.shadowRoot!.querySelector('[data-surface-id="surfLock2"]')).not.toBeNull();
+        eventSourceFactory: (url) => new FakeEventSource(url) as any,
+      });
+      instance!.applier.apply(buttonSurfaceLines(opts.surfaceId ?? 'surf') as any);
+      const paneView = container.querySelector('#pane-view') as A2uiPaneView;
+      await paneView.updateComplete;
+      return { instance: instance!, paneView, log, deleteBodies, deleteHeaders };
+    }
 
-    // Clicking the built-in X dismiss button clears surfLock2 and notifies the agent
-    const closeBtns = paneView.shadowRoot!.querySelectorAll('.a2ui-surface-close-btn');
-    const closeBtn2 = closeBtns[closeBtns.length - 1] as HTMLButtonElement;
-    expect(closeBtn2).not.toBeNull();
-    closeBtn2.click();
-    await new Promise((r) => setTimeout(r, 20));
-    await paneView.updateComplete;
-
-    expect(paneView.isSurfaceDismissed('surfLock2')).toBe(true);
-    expect(sentMessages.some((m) => m.includes('dismiss_surface') && m.includes('surfLock2'))).toBe(
-      true,
-    );
-
-    // Reload initPaneApp to verify sessionStorage restores surfLock's disabled button and surfLock2's dismissed state
-    const reloadedContainer = document.createElement('div');
-    document.body.appendChild(reloadedContainer);
-    const reloaded = await initPaneApp({
-      container: reloadedContainer,
-      search: '?conversationId=conv_submit_lock',
-      eventSourceFactory: (url) => new FakeEventSource(url) as any,
+    afterEach(() => {
+      delete (window as any).sidecar;
     });
-    reloaded!.applier.apply([
-      {
-        seq: 1,
-        ts: new Date().toISOString(),
-        callId: 'c1',
-        message: {
-          version: 'v0.9',
-          createSurface: { surfaceId: 'surfLock', catalogId: 'basic' },
-        },
-      },
-      {
-        seq: 2,
-        ts: new Date().toISOString(),
-        callId: 'c1',
-        message: {
-          version: 'v0.9',
-          updateComponents: {
-            surfaceId: 'surfLock',
-            components: [
-              { id: 'root', component: 'Row', children: ['submit_btn'] },
-              { id: 'submit_txt', component: 'Text', text: 'Submit Alignment' },
-              {
-                id: 'submit_btn',
-                component: 'Button',
-                variant: 'primary',
-                child: 'submit_txt',
-                action: { event: { name: 'submit_alignment' } },
-              },
-            ],
-          },
-        },
-      },
-      {
-        seq: 3,
-        ts: new Date().toISOString(),
-        callId: 'c2',
-        message: {
-          version: 'v0.9',
-          createSurface: { surfaceId: 'surfLock2', catalogId: 'basic' },
-        },
-      },
-    ]);
-    const reloadedPaneView = reloadedContainer.querySelector('#pane-view') as A2uiPaneView;
-    await reloadedPaneView.updateComplete;
-    const reloadedSurfLock = reloaded!.applier.getProcessor().getSurface('surfLock');
-    expect(reloadedSurfLock?.dataModel.get('/_submitted/submit_btn')).toBe(true);
-    expect(reloadedSurfLock?.dataModel.get('/_submitted/_group/align_grp')).toBe(true);
-    expect(reloadedPaneView.isSurfaceDismissed('surfLock2')).toBe(true);
 
-    // Applying a newer seq (seq 4) for surfLock and surfLock2 clears their persisted state
-    reloaded!.applier.apply([
-      {
-        seq: 4,
-        ts: new Date().toISOString(),
-        callId: 'c3',
-        message: {
-          version: 'v0.9',
-          updateDataModel: { surfaceId: 'surfLock', path: '/updated', value: true },
-        },
-      },
-      {
-        seq: 5,
-        ts: new Date().toISOString(),
-        callId: 'c4',
-        message: {
-          version: 'v0.9',
-          updateDataModel: { surfaceId: 'surfLock2', path: '/updated', value: true },
-        },
-      },
-    ]);
-    await reloadedPaneView.updateComplete;
-    expect(reloadedSurfLock?.dataModel.get('/_submitted/submit_btn')).toBeUndefined();
-    expect(reloadedPaneView.isSurfaceDismissed('surfLock2')).toBe(false);
+    it('posts the delete route on dismiss and then sends dismiss_surface', async () => {
+      const { paneView, log, deleteBodies, deleteHeaders } = await setup();
 
-    document.body.removeChild(reloadedContainer);
-    delete (window as any).sidecar;
+      const closeBtn = paneView.shadowRoot!.querySelector(
+        '.a2ui-surface-close-btn',
+      ) as HTMLButtonElement;
+      closeBtn.click();
+      expect(paneView.isSurfaceDismissed('surf')).toBe(true);
+      await flush();
+
+      expect(log).toEqual(['delete', 'send:dismiss']);
+      expect(deleteBodies).toEqual([
+        { conversationId: 'conv_remove', surfaceId: 'surf', reason: 'dismissed' },
+      ]);
+      expect(deleteHeaders[0]['X-Sidecar-Token']).toBe('tok_remove');
+    });
+
+    it('still sends dismiss_surface when the delete route reports a lock timeout', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { paneView, log } = await setup({ deleteStatus: 423 });
+
+      (paneView.shadowRoot!.querySelector('.a2ui-surface-close-btn') as HTMLButtonElement).click();
+      await flush();
+
+      expect(log).toEqual(['delete', 'send:dismiss']);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('HTTP 423'));
+      warn.mockRestore();
+    });
+
+    it('deletes a surface after a one-shot action is sent', async () => {
+      const toggleSpy = vi.fn();
+      (window as any).sidecar = { ui: { toggleAuxPane: toggleSpy } };
+      const { instance, paneView, log, deleteBodies } = await setup();
+      const surface = instance.applier.getProcessor().getSurface('surf');
+
+      surface?.dispatchAction({ name: 'submit', context: { label: 'Submit' } }, 'submit_btn');
+      await flush();
+
+      expect(log).toEqual(['send', 'delete']);
+      expect(deleteBodies).toEqual([
+        { conversationId: 'conv_remove', surfaceId: 'surf', reason: 'submitted' },
+      ]);
+      expect(paneView.isSurfaceDismissed('surf')).toBe(true);
+      expect(toggleSpy).toHaveBeenCalledWith({ open: false });
+    });
+
+    it('keeps the surface and skips the delete when the send fails', async () => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const { instance, paneView, log } = await setup({ sendFails: true });
+      const surface = instance.applier.getProcessor().getSurface('surf');
+
+      surface?.dispatchAction({ name: 'submit', context: { label: 'Submit' } }, 'submit_btn');
+      await flush();
+
+      expect(log).toEqual(['send']);
+      expect(paneView.isSurfaceDismissed('surf')).toBe(false);
+      expect(instance.applier.getProcessor().getSurface('surf')).toBeDefined();
+      error.mockRestore();
+    });
+
+    it('never deletes for a repeatable button', async () => {
+      const toggleSpy = vi.fn();
+      (window as any).sidecar = { ui: { toggleAuxPane: toggleSpy } };
+      const { instance, paneView, log } = await setup();
+      const surface = instance.applier.getProcessor().getSurface('surf');
+
+      surface?.dispatchAction({ name: 'filter', context: { _oneShot: false } }, 'helper_btn');
+      await flush();
+
+      expect(log).toEqual(['send']);
+      expect(paneView.isSurfaceDismissed('surf')).toBe(false);
+      expect(toggleSpy).not.toHaveBeenCalled();
+    });
+
+    it('drops actions from a surface the user already dismissed', async () => {
+      const { instance, paneView, log } = await setup();
+      const surface = instance.applier.getProcessor().getSurface('surf');
+      paneView.dismissSurface('surf');
+
+      surface?.dispatchAction({ name: 'submit', context: { label: 'Submit' } }, 'submit_btn');
+      await flush();
+
+      expect(log).toEqual([]);
+    });
+
+    it('stores no surface outcome in sessionStorage', async () => {
+      sessionStorage.clear();
+      const { paneView } = await setup();
+      (paneView.shadowRoot!.querySelector('.a2ui-surface-close-btn') as HTMLButtonElement).click();
+      await flush();
+      expect(sessionStorage.getItem('a2ui-pane-state:conv_remove')).toBeNull();
+    });
+
+    it('shows a surface again when a re-created snapshot arrives after the tombstone', async () => {
+      const { instance, paneView } = await setup();
+      (paneView.shadowRoot!.querySelector('.a2ui-surface-close-btn') as HTMLButtonElement).click();
+      await flush();
+
+      // The sidecar streams the tombstone for the deleted file, then a re-render.
+      instance.applier.apply([
+        {
+          seq: 3,
+          ts: new Date().toISOString(),
+          callId: 'store',
+          message: { version: 'v0.9', deleteSurface: { surfaceId: 'surf' } },
+        },
+      ]);
+      instance.applier.apply([
+        {
+          seq: 4,
+          ts: new Date().toISOString(),
+          callId: 'c2',
+          message: { version: 'v0.9', createSurface: { surfaceId: 'surf', catalogId: 'basic' } },
+        },
+      ]);
+      await paneView.updateComplete;
+
+      expect(paneView.isSurfaceDismissed('surf')).toBe(false);
+      expect(paneView.shadowRoot!.querySelector('[data-surface-id="surf"]')).not.toBeNull();
+    });
   });
 });
