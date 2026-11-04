@@ -58,7 +58,7 @@ flowchart LR
     W -->|"messages or line/column error"| MCP
     MCP -->|"errors or ok"| Agent
     MCP -->|"commit (fold + atomic replace)"| Store
-    Store -->|"recursive fs.watch + _seq poll"| Side
+    Store -->|"recursive fs.watch + 1 s _seq poll"| Side
     Side -->|"SSE /api/stream: snapshot, then line diffs"| App
     App -->|"POST /api/surfaces/delete (dismiss or submit)"| Side
     Side -->|"unlink surface file"| Store
@@ -87,7 +87,7 @@ sequenceDiagram
     else Validation Succeeded
       M->>S: Fold into <conversationId>/<surfaceId>.jsonl under the lock
       M-->>A: Ok (surfaces updated, AuxPane hint)
-      S-->>C: fs.watch / _seq poll triggers a diff
+      S-->>C: fs.watch or the _seq poll triggers a diff
       C-->>P: SSE event: line (seq, createSurface snapshot)
       P->>P: LineApplier updates the surface in place or re-creates it
       P-->>U: DOM updates smoothly
@@ -146,7 +146,7 @@ The on-disk contract, including the lock protocol that the Python `/monitor` wri
   - `Content-Type: text/event-stream`, `Cache-Control: no-cache, no-transform`, `X-Accel-Buffering: no`.
   - On connect it subscribes to change notifications, then sends one `snapshot` event: every live surface's line, sorted by seq. It ignores `Last-Event-ID`, because a snapshot is a few KB and a reconnect simply starts over.
   - On each change it diffs the directory against the seqs the client already has and sends `line` events: a `createSurface` line for each new or changed surface, and a synthetic `deleteSurface` line for each surface whose file is gone.
-  - Changes are detected with a recursive `fs.watch` on `conversations/`, plus a poll of each conversation's `_seq`.
+  - Changes are detected with a recursive `fs.watch` on `conversations/`. A 1 s poll of each subscribed conversation's `_seq` also runs, as a backstop for missed or unsupported watch events.
   - The legacy `reset` event is still understood by the pane for one release, but the sidecar no longer sends it.
 - `POST /api/surfaces/delete` (token-checked) with `{conversationId, surfaceId, reason}` unlinks one surface file under the async lock. It returns `200 {deleted}`, or `423` when the lock is busy.
 - Serves `/preload.js` (SDK script or fallback shim), static pane SPA assets, and `POST /_sidecar/send-message`.
@@ -156,7 +156,7 @@ The on-disk contract, including the lock protocol that the Python `/monitor` wri
 - The pane's `LineApplier` tracks the seq it applied per surface. A `snapshot` event reconciles the view: surfaces missing from the snapshot are removed, and the rest are applied.
 - A `createSurface` line for a mounted surface updates it in place (components, then the data model) when the component set only grows and the surface settings are unchanged, so Lit keeps the element and its scroll position. Otherwise the surface is deleted and re-created.
 - Pressing ✕ hides the surface at once, posts `/api/surfaces/delete` with reason `dismissed`, and sends the `dismiss_surface` action to the agent.
-- A one-shot action (any button that is not `_oneShot: false`, borderless, or a modal trigger) deletes its surface with reason `submitted`, but only after the action message was delivered. A failed send keeps the surface and shows a toast.
+- A one-shot action deletes its surface with reason `submitted`, but only after the action message was delivered. A failed send keeps the surface and shows a toast. Which buttons are one-shot follows `isOneShotButton` in `packages/renderer/src/button-state.ts`: an explicit `_oneShot` wins; modal triggers and borderless buttons are repeatable; primary buttons are one-shot; a default button is repeatable when the surface has a primary button and one-shot otherwise.
 - Because the file is gone, a dismissed or submitted surface stays gone after a pane reload or a host restart. An agent that needs it again re-renders it with `replace: true`.
 
 ### 4.3 Action Round-Trip
