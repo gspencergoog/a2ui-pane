@@ -83,9 +83,11 @@ export class LineApplier {
           msg && typeof msg === 'object'
             ? (msg.createSurface as Record<string, unknown> | undefined)
             : undefined;
-        const inferredVer = cs && Array.isArray(cs.components) && !cs.catalogId ? 'v1.0' : 'v0.9';
+        const inferredVer = cs && Array.isArray(cs.components) && !cs.catalogId ? '1.0' : 'v0.9';
+        const rawVer = msg && typeof msg === 'object' ? msg.version || inferredVer : inferredVer;
+        const normalizedVer = rawVer === 'v1.0' ? '1.0' : rawVer;
         const versionedMsg =
-          msg && typeof msg === 'object' && !msg.version ? { version: inferredVer, ...msg } : msg;
+          msg && typeof msg === 'object' ? { ...msg, version: normalizedVer } : msg;
 
         this.processor.processMessages([versionedMsg as any]);
         this.lastAppliedSeq = line.seq;

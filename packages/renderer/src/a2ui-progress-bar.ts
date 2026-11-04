@@ -287,6 +287,10 @@ export function computeProgressSegments(props: ProgressBarResolvedProps): {
 export class A2uiProgressBarElement extends A2uiLitElement<any, ProgressBarResolvedProps> {
   static tagName = 'a2ui-progress-bar';
 
+  protected override createRenderRoot(): HTMLElement | DocumentFragment {
+    return this.attachShadow({ mode: 'open' });
+  }
+
   static override styles = css`
     :host {
       display: block;
@@ -488,7 +492,10 @@ export class A2uiProgressBarElement extends A2uiLitElement<any, ProgressBarResol
                               ${legendItems!.map(
                                 (item) => html`
                                   <span class="a2ui-progress-legend-item" data-tone=${item.tone}>
-                                    <span class="a2ui-progress-legend-dot" aria-hidden="true"></span>
+                                    <span
+                                      class="a2ui-progress-legend-dot"
+                                      aria-hidden="true"
+                                    ></span>
                                     <span class="a2ui-progress-legend-text">${item.label}</span>
                                   </span>
                                 `,

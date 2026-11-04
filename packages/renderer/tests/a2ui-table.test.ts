@@ -88,9 +88,9 @@ function tableMessages(surfaceId: string, opts: TableSurfaceOptions) {
     table.action = { event: { name: 'pick_row', context: { picked: { '@path': '/picked' } } } };
   }
   return [
-    { version: 'v1.0', createSurface: { surfaceId, sendDataModel: true } },
+    { version: '1.0', createSurface: { surfaceId, sendDataModel: true } },
     {
-      version: 'v1.0',
+      version: '1.0',
       updateDataModel: {
         surfaceId,
         path: '/',
@@ -98,7 +98,7 @@ function tableMessages(surfaceId: string, opts: TableSurfaceOptions) {
       },
     },
     {
-      version: 'v1.0',
+      version: '1.0',
       updateComponents: {
         surfaceId,
         components: [
@@ -230,10 +230,12 @@ describe('<a2ui-table>', () => {
     await pane.updateComplete;
     const surfaceEl = pane.shadowRoot!.querySelector('a2ui-surface')!;
     await (surfaceEl as any).updateComplete;
-    for (const col of Array.from(surfaceEl.shadowRoot!.querySelectorAll('a2ui-basic-column'))) {
+    for (const col of Array.from(
+      (surfaceEl.shadowRoot ?? surfaceEl).querySelectorAll('a2ui-basic-column'),
+    )) {
       await (col as any).updateComplete;
     }
-    const tableEl = surfaceEl.shadowRoot!.querySelector('a2ui-table')!;
+    const tableEl = (surfaceEl.shadowRoot ?? surfaceEl).querySelector('a2ui-table')!;
     expect(tableEl).not.toBeNull();
     await (tableEl as any).updateComplete;
     return { processor, tableEl, root: tableEl.shadowRoot! };

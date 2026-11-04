@@ -15,7 +15,7 @@ export interface DispatchedActionDetails extends A2uiActionDetails {
 export type ActionHandler = (
   action: DispatchedActionDetails,
   dataModel?: Record<string, unknown>,
-) => void;
+) => unknown;
 
 /**
  * Creates an alias Catalog proxy with a rewritten `id` property.
@@ -31,12 +31,15 @@ function createCatalogAlias(baseCatalog: Catalog<any>, aliasId: string): Catalog
   return proxy;
 }
 
+let submittedButtonRevision = 0;
+
 function notifySurfaceButtons(surface: any): void {
   const values: Iterable<any> | undefined = surface?.componentsModel?.values;
   if (!values) return;
+  const rev = ++submittedButtonRevision;
   for (const comp of values) {
     if (comp?.type === 'Button' && comp.properties && typeof comp.properties === 'object') {
-      comp.properties = { ...comp.properties };
+      comp.properties = { ...comp.properties, _submittedRev: rev };
     }
   }
 }
@@ -143,7 +146,8 @@ function getActionDataModel(
   surface: any,
 ): Record<string, unknown> | undefined {
   if (!surface?.sendDataModel) return undefined;
-  const targetVersion = surface.defaultCatalog?.protocolVersion === '1.0' ? 'v1.0' : 'v0.9';
+  const targetVersion =
+    (surface.protocolVersion ?? surface.defaultCatalog?.protocolVersion) === '1.0' ? '1.0' : 'v0.9';
   const rawDataModel = processor.getClientDataModel(targetVersion) as
     Record<string, unknown> | undefined;
   return stripSubmittedFromDataModel(rawDataModel);
@@ -153,7 +157,7 @@ function handleProcessorAction(
   processor: MessageProcessor<any>,
   action: any,
   onAction?: ActionHandler,
-): void {
+): unknown {
   const surfaceId = action?.surfaceId;
   const surface = surfaceId ? processor.getSurface(surfaceId) : undefined;
   const { oneShot, group } = resolveActionOneShotMetadata(surface, action);
@@ -171,8 +175,9 @@ function handleProcessorAction(
   }
 
   if (onAction) {
-    onAction(action as DispatchedActionDetails, dataModel);
+    return onAction(action as DispatchedActionDetails, dataModel);
   }
+  return undefined;
 }
 
 /**
@@ -204,18 +209,18 @@ export function createProcessor(
 
   const allCatalogs = [...aliases, ...additionalCatalogs];
 
-  const processor: MessageProcessor<any> = new MessageProcessor(
-    allCatalogs,
-    (action: any) => handleProcessorAction(processor, action, onAction),
-    {
-      validationConfig: {
-        allowUnknownElements: false,
-        allowOrphanComponents: false,
-        allowDanglingReferences: false,
-        allowMissingRoot: false,
-      },
+  const processor: MessageProcessor<any> = new MessageProcessor(allCatalogs, undefined, {
+    validationConfig: {
+      allowUnknownElements: false,
+      allowOrphanComponents: false,
+      allowDanglingReferences: false,
+      allowMissingRoot: false,
     },
-  );
+  });
+
+  processor.model.onSurfaceCreated.subscribe((surface: any) => {
+    surface.onAction.subscribe((action: any) => handleProcessorAction(processor, action, onAction));
+  });
 
   return processor;
 }

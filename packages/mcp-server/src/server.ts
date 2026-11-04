@@ -57,7 +57,7 @@ export function createExpressWorkerFromEnv(): ExpressWorker | undefined {
           path.join(dist, 'catalogs', 'v1_0', 'charts', 'catalog.json'),
           path.join(dist, 'catalogs', 'v1_0', 'status', 'catalog.json'),
         ],
-    defaultVersion: envValue('A2UI_PANE_PROTOCOL_VERSION') ?? 'v1.0',
+    defaultVersion: envValue('A2UI_PANE_PROTOCOL_VERSION') ?? '1.0',
   });
 }
 

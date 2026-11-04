@@ -145,7 +145,7 @@ export function installIconSvgRenderer(): void {
     if (typeof name === 'object' && name !== null && 'svgPath' in name) {
       const svgPath = String(name.svgPath ?? '');
       return html`
-        <svg class="a2ui-icon svg" viewBox="0 0 24 24" aria-hidden="true">
+        <svg class="a2ui-icon a2ui-icon-svg svg" viewBox="0 0 24 24" aria-hidden="true">
           <path d=${svgPath}></path>
         </svg>
       `;
@@ -154,7 +154,12 @@ export function installIconSvgRenderer(): void {
       const svgPath = resolveIconSvgPath(name);
       if (svgPath) {
         return html`
-          <svg class="a2ui-icon svg" data-icon=${name} viewBox="0 0 24 24" aria-hidden="true">
+          <svg
+            class="a2ui-icon a2ui-icon-svg svg"
+            data-icon=${name}
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
             <path d=${svgPath}></path>
           </svg>
         `;
@@ -224,6 +229,8 @@ export function installRichTextVariantRenderer(): void {
         content = html`<span class="a2ui-caption">${renderedMarkdown}</span>`;
         break;
     }
-    return html`<span class="a2ui-text ${variant}" style=${flexStyle}>${content}</span>`;
+    return html`<span class="a2ui-text ${variant} a2ui-text-${variant}" style=${flexStyle}
+      >${content}</span
+    >`;
   };
 }

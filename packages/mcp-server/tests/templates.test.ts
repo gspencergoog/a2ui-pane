@@ -158,12 +158,16 @@ describe.skipIf(!pythonBin && !agentSdkPath)('bundled genui templates (compiled 
     expect(() => validate(messages)).not.toThrow();
   });
 
-  it('compiles a data-only block to a root-path update that mergeRootDataUpdates splits', async () => {
+  it('compiles a data-only block to leaf-path updates that mergeRootDataUpdates preserves', async () => {
     const messages = await worker.compile('$/title = "### New"\n$/note = "x"', 'live');
     expect(messages).toEqual([
       {
-        version: 'v1.0',
-        updateDataModel: { surfaceId: 'live', path: '/', value: { title: '### New', note: 'x' } },
+        version: '1.0',
+        updateDataModel: { surfaceId: 'live', path: '/title', value: '### New' },
+      },
+      {
+        version: '1.0',
+        updateDataModel: { surfaceId: 'live', path: '/note', value: 'x' },
       },
     ]);
     expect(mergeRootDataUpdates(messages, () => true).map((m: any) => m.updateDataModel)).toEqual([

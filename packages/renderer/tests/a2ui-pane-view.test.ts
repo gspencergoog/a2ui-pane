@@ -55,7 +55,7 @@ describe('A2uiPaneView', () => {
 
     const surfaceElements = shadowRoot.querySelectorAll('a2ui-surface');
     expect(surfaceElements).toHaveLength(2);
-    const layoutStyle = surfaceElements[0].shadowRoot?.querySelector(
+    const layoutStyle = (surfaceElements[0].shadowRoot ?? surfaceElements[0]).querySelector(
       'style[data-a2ui-surface-layout]',
     );
     expect(layoutStyle).not.toBeNull();
@@ -269,7 +269,9 @@ describe('A2uiPaneView', () => {
     expect(wrapper.hasAttribute('data-dismissible')).toBe(true);
     expect(surfaceEl.hasAttribute('data-dismissible')).toBe(true);
 
-    const layoutStyle = surfaceEl.shadowRoot?.querySelector('style[data-a2ui-surface-layout]');
+    const layoutStyle = (surfaceEl.shadowRoot ?? surfaceEl).querySelector(
+      'style[data-a2ui-surface-layout]',
+    );
     expect(layoutStyle?.textContent).toContain('--a2ui-collapsible-close-clearance: 26px');
     expect(layoutStyle?.textContent).toContain('--a2ui-progress-close-clearance: 32px');
 
@@ -328,7 +330,7 @@ describe('A2uiPaneView', () => {
 
     const surfaceEl = element.shadowRoot!.querySelector('a2ui-surface')!;
     await (surfaceEl as any).updateComplete;
-    const iconEl = surfaceEl.shadowRoot!.querySelector('a2ui-icon');
+    const iconEl = (surfaceEl.shadowRoot ?? surfaceEl).querySelector('a2ui-icon');
     expect(iconEl).not.toBeNull();
     await (iconEl as any).updateComplete;
 
@@ -380,12 +382,14 @@ describe('A2uiPaneView', () => {
     await (surfaceEl as any).updateComplete;
     await new Promise((r) => setTimeout(r, 30));
 
-    const captionSpan = surfaceEl.shadowRoot!.querySelector('.a2ui-text.caption .a2ui-caption');
+    const captionSpan = (surfaceEl.shadowRoot ?? surfaceEl).querySelector(
+      '.a2ui-text.caption .a2ui-caption',
+    );
     expect(captionSpan).not.toBeNull();
     expect(captionSpan!.innerHTML).toContain('<strong>Rollout:</strong>');
     expect(captionSpan!.innerHTML).toContain('<code>Stacked PRs</code>');
 
-    const h4El = surfaceEl.shadowRoot!.querySelector('.a2ui-text.h4 h4');
+    const h4El = (surfaceEl.shadowRoot ?? surfaceEl).querySelector('.a2ui-text.h4 h4');
     expect(h4El).not.toBeNull();
     expect(h4El!.innerHTML).toContain('<code>code</code>');
   });
@@ -462,7 +466,9 @@ describe('A2uiPaneView', () => {
     await (surfaceEl as any).updateComplete;
     await new Promise((r) => setTimeout(r, 30));
 
-    const buttonHosts = Array.from(surfaceEl.shadowRoot!.querySelectorAll('a2ui-basic-button'));
+    const buttonHosts = Array.from(
+      (surfaceEl.shadowRoot ?? surfaceEl).querySelectorAll('a2ui-basic-button'),
+    );
     expect(buttonHosts).toHaveLength(3);
     for (const host of buttonHosts) {
       await (host as any).updateComplete;
@@ -521,7 +527,7 @@ describe('A2uiPaneView', () => {
   });
 
   describe('Markdown link routing', () => {
-    async function renderLinkSurface(): Promise<ShadowRoot> {
+    async function renderLinkSurface(): Promise<ParentNode> {
       const processor = createProcessor();
       processor.processMessages([
         {
@@ -558,7 +564,7 @@ describe('A2uiPaneView', () => {
       const surfaceEl = element.shadowRoot!.querySelector('a2ui-surface')!;
       await (surfaceEl as any).updateComplete;
       await new Promise((r) => setTimeout(r, 30));
-      return surfaceEl.shadowRoot!;
+      return surfaceEl.shadowRoot ?? surfaceEl;
     }
 
     function click(target: Element, init: MouseEventInit = {}): MouseEvent {

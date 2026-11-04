@@ -41,9 +41,9 @@ function stepperMessages(surfaceId: string, opts: StepperSurfaceOptions) {
   if (opts.weight !== undefined) stepper.weight = opts.weight;
   if (opts.label !== undefined) stepper.accessibility = { label: opts.label };
   return [
-    { version: 'v1.0', createSurface: { surfaceId, sendDataModel: true } },
+    { version: '1.0', createSurface: { surfaceId, sendDataModel: true } },
     {
-      version: 'v1.0',
+      version: '1.0',
       updateDataModel: {
         surfaceId,
         path: '/',
@@ -51,7 +51,7 @@ function stepperMessages(surfaceId: string, opts: StepperSurfaceOptions) {
       },
     },
     {
-      version: 'v1.0',
+      version: '1.0',
       updateComponents: {
         surfaceId,
         components: [
@@ -155,10 +155,12 @@ describe('<a2ui-stepper>', () => {
     await pane.updateComplete;
     const surfaceEl = pane.shadowRoot!.querySelector('a2ui-surface')!;
     await (surfaceEl as any).updateComplete;
-    for (const col of Array.from(surfaceEl.shadowRoot!.querySelectorAll('a2ui-basic-column'))) {
+    for (const col of Array.from(
+      (surfaceEl.shadowRoot ?? surfaceEl).querySelectorAll('a2ui-basic-column'),
+    )) {
       await (col as any).updateComplete;
     }
-    const stepperEl = surfaceEl.shadowRoot!.querySelector('a2ui-stepper')!;
+    const stepperEl = (surfaceEl.shadowRoot ?? surfaceEl).querySelector('a2ui-stepper')!;
     expect(stepperEl).not.toBeNull();
     await (stepperEl as any).updateComplete;
     return { processor, stepperEl: stepperEl as HTMLElement, root: stepperEl.shadowRoot! };
@@ -251,7 +253,7 @@ describe('<a2ui-stepper>', () => {
     expect(tones(root)).toEqual(['active', 'neutral', 'neutral', 'neutral', 'neutral']);
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: { surfaceId: 'stepperLive', path: '/cur', value: 4 },
       },
     ] as any);

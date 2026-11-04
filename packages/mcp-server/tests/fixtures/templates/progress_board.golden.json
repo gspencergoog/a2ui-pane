@@ -1,6 +1,6 @@
 [
   {
-    "version": "v1.0",
+    "version": "1.0",
     "createSurface": {
       "surfaceId": "progress_board",
       "sendDataModel": true,
@@ -139,6 +139,7 @@
         }
       ],
       "dataModel": {
+        "ackLabel": "Acknowledge",
         "title": "### Ship-it: PR #42 checks",
         "subtitle": "Live status; rows update as each step finishes.",
         "items": [
@@ -160,8 +161,7 @@
             "label": "Manual UI check",
             "detail": "waiting for reviewer"
           }
-        ],
-        "ackLabel": "Acknowledge"
+        ]
       }
     }
   }

@@ -171,8 +171,8 @@ Template inflation reduces agent token output by 2x to 4x compared to raw JSON. 
 To switch the default protocol target from `v0.9` to `v1.0`:
 
 1. Upgrade `@a2ui/lit` to a release that exports a `v1_0` basic catalog (`@a2ui/web_core` already includes `v1_0`).
-2. Switch `ConversationState` and the inline validator in `tools/render.ts` to the `v1_0` `MessageProcessor` when `A2UI_PANE_PROTOCOL_VERSION=v1.0`, and select the matching renderer in `pane-app` and `embed`.
-3. Regenerate the template golden fixtures with `A2UI_PANE_PROTOCOL_VERSION=v1.0 UPDATE_GOLDENS=1`.
+2. Switch `ConversationState` and the inline validator in `tools/render.ts` to the `v1_0` `MessageProcessor` when `A2UI_PANE_PROTOCOL_VERSION=1.0`, and select the matching renderer in `pane-app` and `embed`.
+3. Regenerate the template golden fixtures with `A2UI_PANE_PROTOCOL_VERSION=1.0 UPDATE_GOLDENS=1`.
 4. Align the catalog identifier in `CatalogRegistry` with the `v1.0` `catalogId` emitted by the compiler.
 
 ### 4.6 Link routing

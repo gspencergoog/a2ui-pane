@@ -24,6 +24,10 @@ export interface CollapsibleResolvedProps {
 export class A2uiCollapsibleElement extends A2uiLitElement<any, CollapsibleResolvedProps> {
   static tagName = 'a2ui-collapsible';
 
+  protected override createRenderRoot(): HTMLElement | DocumentFragment {
+    return this.attachShadow({ mode: 'open' });
+  }
+
   static override properties = {
     ...A2uiLitElement.properties,
     localOpen: { state: true },

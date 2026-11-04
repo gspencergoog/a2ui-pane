@@ -1,6 +1,6 @@
 [
   {
-    "version": "v1.0",
+    "version": "1.0",
     "createSurface": {
       "surfaceId": "assumption_ledger",
       "sendDataModel": true,
@@ -146,6 +146,7 @@
         }
       ],
       "dataModel": {
+        "submitLabel": "Confirm Assumptions",
         "title": "### Template 1: Assumption & Inferred-Spec Ledger",
         "intro": "Uncheck any inferred assumption that does not hold, or add a constraint override below.",
         "assumptions": [
@@ -167,8 +168,7 @@
             "holds": false,
             "override": "Keep v0.9 basicCatalog aliases in processor.ts"
           }
-        ],
-        "submitLabel": "Confirm Assumptions"
+        ]
       }
     }
   }

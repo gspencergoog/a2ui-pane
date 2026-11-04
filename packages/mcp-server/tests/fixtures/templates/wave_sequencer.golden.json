@@ -1,6 +1,6 @@
 [
   {
-    "version": "v1.0",
+    "version": "1.0",
     "createSurface": {
       "surfaceId": "wave_sequencer",
       "sendDataModel": true,
@@ -225,6 +225,7 @@
         }
       ],
       "dataModel": {
+        "submitLabel": "Lock In Execution Sequence",
         "title": "### Template 5: Execution Phase & Dependency Sequencer",
         "intro": "Assign each work item to a rollout wave and set the verification depth before transitioning to `/plan`.",
         "dag": "```mermaid\nflowchart LR\n    T1[\"T1: Schema & Types\"] --> T2[\"T2: StoreWriter Lock\"]\n    T1 --> T3[\"T3: Lit Catalog Components\"]\n    T2 --> T4[\"T4: E2E Golden Suite\"]\n    T3 --> T4\n```",
@@ -280,8 +281,7 @@
             ],
             "note": "Run full Vitest suite + live smoke test"
           }
-        ],
-        "submitLabel": "Lock In Execution Sequence"
+        ]
       }
     }
   }

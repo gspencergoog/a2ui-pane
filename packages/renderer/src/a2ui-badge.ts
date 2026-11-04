@@ -66,6 +66,10 @@ export interface BadgeResolvedProps {
 export class A2uiBadgeElement extends A2uiLitElement<any, BadgeResolvedProps> {
   static tagName = 'a2ui-badge';
 
+  protected override createRenderRoot(): HTMLElement | DocumentFragment {
+    return this.attachShadow({ mode: 'open' });
+  }
+
   static override styles = css`
     :host {
       display: inline-flex;

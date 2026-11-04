@@ -1,6 +1,6 @@
 [
   {
-    "version": "v1.0",
+    "version": "1.0",
     "createSurface": {
       "surfaceId": "state_walkthrough",
       "sendDataModel": true,

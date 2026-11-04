@@ -37,17 +37,17 @@ export const SURFACE_LAYOUT_CSS = `
     --a2ui-column-gap: 2px;
     gap: 2px;
   }
-  a2ui-list .a2ui-list.vertical:not(:has(> .a2ui-list-item-none > a2ui-card)) {
+  a2ui-list :is(.a2ui-list-vertical, .a2ui-list.vertical):not(:has(> .a2ui-list-item-none > a2ui-card)) {
     gap: 0;
   }
-  a2ui-list .a2ui-list.vertical > .a2ui-list-item-none:not(:has(> a2ui-card)) {
+  a2ui-list :is(.a2ui-list-vertical, .a2ui-list.vertical) > .a2ui-list-item-none:not(:has(> a2ui-card)) {
     padding: 8px 2px;
     border-bottom: 1px solid color-mix(in srgb, var(--a2ui-color-border, #dadce0) 60%, transparent);
   }
-  a2ui-list .a2ui-list.vertical > .a2ui-list-item-none:not(:has(> a2ui-card)):first-child {
+  a2ui-list :is(.a2ui-list-vertical, .a2ui-list.vertical) > .a2ui-list-item-none:not(:has(> a2ui-card)):first-child {
     padding-top: 4px;
   }
-  a2ui-list .a2ui-list.vertical > .a2ui-list-item-none:not(:has(> a2ui-card)):last-child {
+  a2ui-list :is(.a2ui-list-vertical, .a2ui-list.vertical) > .a2ui-list-item-none:not(:has(> a2ui-card)):last-child {
     border-bottom: none;
     padding-bottom: 2px;
   }
@@ -210,26 +210,37 @@ export const SURFACE_LAYOUT_CSS = `
     width: 100%;
     align-self: stretch;
   }
-  :host([data-dismissible]) > a2ui-collapsible {
+  :host([data-dismissible]) > a2ui-collapsible,
+  a2ui-surface[data-dismissible] > a2ui-collapsible {
     --a2ui-collapsible-close-clearance: 26px;
   }
-  :host([data-dismissible]) > a2ui-progress-bar {
+  :host([data-dismissible]) > a2ui-progress-bar,
+  a2ui-surface[data-dismissible] > a2ui-progress-bar {
     --a2ui-progress-close-clearance: 32px;
   }
-  :host([data-dismissible]) > a2ui-table {
+  :host([data-dismissible]) > a2ui-table,
+  a2ui-surface[data-dismissible] > a2ui-table {
     --a2ui-table-close-clearance: 32px;
   }
   :host([data-dismissible]) > a2ui-tabs > .a2ui-tabs > .a2ui-tab-bar,
   :host([data-dismissible]) > a2ui-basic-row,
   :host([data-dismissible]) > a2ui-basic-column > a2ui-basic-row:first-child,
-  :host([data-dismissible]) > a2ui-basic-column > a2ui-basic-text:first-child {
+  :host([data-dismissible]) > a2ui-basic-column > a2ui-basic-text:first-child,
+  a2ui-surface[data-dismissible] > a2ui-tabs > .a2ui-tabs > .a2ui-tab-bar,
+  a2ui-surface[data-dismissible] > a2ui-basic-row,
+  a2ui-surface[data-dismissible] > a2ui-basic-column > a2ui-basic-row:first-child,
+  a2ui-surface[data-dismissible] > a2ui-basic-column > a2ui-basic-text:first-child {
     padding-inline-end: 32px;
     box-sizing: border-box;
   }
   :host([data-dismissible]) > a2ui-card > .a2ui-card > a2ui-basic-row:first-child,
   :host([data-dismissible]) > a2ui-card > .a2ui-card > a2ui-basic-text:first-child,
   :host([data-dismissible]) > a2ui-card > .a2ui-card > a2ui-basic-column:first-child > a2ui-basic-row:first-child,
-  :host([data-dismissible]) > a2ui-card > .a2ui-card > a2ui-basic-column:first-child > a2ui-basic-text:first-child {
+  :host([data-dismissible]) > a2ui-card > .a2ui-card > a2ui-basic-column:first-child > a2ui-basic-text:first-child,
+  a2ui-surface[data-dismissible] > a2ui-card > .a2ui-card > a2ui-basic-row:first-child,
+  a2ui-surface[data-dismissible] > a2ui-card > .a2ui-card > a2ui-basic-text:first-child,
+  a2ui-surface[data-dismissible] > a2ui-card > .a2ui-card > a2ui-basic-column:first-child > a2ui-basic-row:first-child,
+  a2ui-surface[data-dismissible] > a2ui-card > .a2ui-card > a2ui-basic-column:first-child > a2ui-basic-text:first-child {
     padding-inline-end: 22px;
     box-sizing: border-box;
   }

@@ -619,7 +619,9 @@ describe('initEmbed', () => {
     await (surfaceEl as any).updateComplete;
     await new Promise((r) => setTimeout(r, 30));
 
-    const buttonHosts = Array.from(surfaceEl.shadowRoot!.querySelectorAll('a2ui-basic-button'));
+    const buttonHosts = Array.from(
+      (surfaceEl.shadowRoot ?? surfaceEl).querySelectorAll('a2ui-basic-button'),
+    );
     for (const host of buttonHosts) {
       await (host as any).updateComplete;
     }

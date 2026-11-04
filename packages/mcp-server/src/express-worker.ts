@@ -44,7 +44,7 @@ export interface ExpressWorkerOptions {
   catalogPath?: string;
   /** Ordered list of catalog JSON paths loaded into the Express compiler and prompt generator. */
   catalogPaths?: string[];
-  /** Protocol version passed to the compiler (`v0.9`, `v0.9.1`, `v1.0`). Defaults to `v1.0`. */
+  /** Protocol version passed to the compiler (`v0.9`, `v0.9.1`, `1.0`). Defaults to `1.0`. */
   defaultVersion?: string;
   startupTimeoutMs?: number;
   requestTimeoutMs?: number;
@@ -336,7 +336,7 @@ export class ExpressWorker {
       op: 'init',
       catalogPath: this.catalogPaths[0],
       catalogPaths: this.catalogPaths,
-      version: this.opts.defaultVersion ?? 'v1.0',
+      version: this.opts.defaultVersion ?? '1.0',
     };
     try {
       const response = await this.enqueue(initRequest, true, startupTimeoutMs);

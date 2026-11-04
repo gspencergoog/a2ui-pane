@@ -53,6 +53,10 @@ interface CartesianPlotBox {
 export class A2uiChartElement extends A2uiLitElement<any, ChartResolvedProps> {
   static tagName = 'a2ui-chart';
 
+  protected override createRenderRoot(): HTMLElement | DocumentFragment {
+    return this.attachShadow({ mode: 'open' });
+  }
+
   static override properties = {
     ...A2uiLitElement.properties,
     hoveredItem: { state: true },

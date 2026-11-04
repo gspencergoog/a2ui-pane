@@ -405,7 +405,7 @@ describe('render_a2ui Express paths', () => {
   it('preserves array data model and sibling item fields across live surface updates', async () => {
     const initialMessages = [
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'board',
           components: [
@@ -487,6 +487,55 @@ describe('render_a2ui Express paths', () => {
       step: 0,
     });
     expect(dataModel().get('/subtitle')).toBe('Wave 2 updated');
+  });
+
+  it('normalizes legacy v1.0 message envelopes in pane and inline modes', async () => {
+    const legacyMessages = [
+      {
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 'legacy-surf',
+          components: [
+            {
+              id: 'root',
+              component: 'Text',
+              catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+              text: 'legacy',
+            },
+          ],
+        },
+      },
+    ];
+    const paneRes = await handleRenderA2ui(
+      {
+        conversationId: 'conv-legacy-v1',
+        messages: legacyMessages,
+        surfaceId: 'legacy-surf',
+        mode: 'pane',
+      },
+      server.getState,
+      server.catalogs,
+      tempDir,
+      undefined,
+      { worker, templates },
+    );
+    expect(paneRes.isError).toBeUndefined();
+    expect(server.getState('conv-legacy-v1').hasSurface('legacy-surf')).toBe(true);
+
+    const inlineRes = await handleRenderA2ui(
+      {
+        conversationId: 'conv-legacy-v1',
+        messages: legacyMessages,
+        surfaceId: 'legacy-surf',
+        mode: 'inline',
+      },
+      server.getState,
+      server.catalogs,
+      tempDir,
+      undefined,
+      { worker, templates },
+    );
+    expect(inlineRes.isError).toBeUndefined();
   });
 
   it('formatDataAsExpressDsl converts dictionary and JSON data to Express statements', () => {

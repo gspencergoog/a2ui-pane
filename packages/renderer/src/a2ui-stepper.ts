@@ -75,6 +75,10 @@ export function clampStepperIndex(current: unknown, stepCount: number): number {
 export class A2uiStepperElement extends A2uiLitElement<any, StepperResolvedProps> {
   static tagName = 'a2ui-stepper';
 
+  protected override createRenderRoot(): HTMLElement | DocumentFragment {
+    return this.attachShadow({ mode: 'open' });
+  }
+
   static override styles = css`
     :host {
       display: block;

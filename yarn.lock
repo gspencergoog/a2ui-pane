@@ -26,7 +26,7 @@ __metadata:
   dependencies:
     "@a2ui-pane/protocol": "workspace:*"
     "@a2ui-pane/theme": "workspace:*"
-    "@a2ui/web_core": "npm:^0.13.0"
+    "@a2ui/web_core": "npm:^0.15.0"
     "@modelcontextprotocol/sdk": "npm:^1.6.0"
     esbuild: "npm:^0.25.0"
     vitest: "npm:^3.0.5"
@@ -63,9 +63,9 @@ __metadata:
   dependencies:
     "@a2ui-pane/protocol": "workspace:*"
     "@a2ui-pane/theme": "workspace:*"
-    "@a2ui/lit": "npm:^0.13.0"
-    "@a2ui/markdown-it": "npm:^0.2.1"
-    "@a2ui/web_core": "npm:^0.13.0"
+    "@a2ui/lit": "npm:^0.15.0"
+    "@a2ui/markdown-it": "npm:^0.2.2"
+    "@a2ui/web_core": "npm:^0.15.0"
     "@lit-labs/signals": "npm:^0.3.0"
     "@lit/context": "npm:^1.1.6"
     happy-dom: "npm:^17.4.0"
@@ -95,40 +95,40 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/lit@npm:^0.13.0":
-  version: 0.13.0
-  resolution: "@a2ui/lit@npm:0.13.0"
+"@a2ui/lit@npm:^0.15.0":
+  version: 0.15.0
+  resolution: "@a2ui/lit@npm:0.15.0"
   dependencies:
-    "@a2ui/web_core": "npm:^0.13.0"
+    "@a2ui/web_core": "npm:^0.15.0"
     "@lit-labs/signals": "npm:^0.3.0"
     "@lit/context": "npm:^1.1.6"
     lit: "npm:^3.3.3"
     signal-utils: "npm:^0.21.1"
     zod: "npm:^3.25.76"
   peerDependencies:
-    "@a2ui/markdown-it": ^0.2.1
+    "@a2ui/markdown-it": ^0.2.2
   peerDependenciesMeta:
     "@a2ui/markdown-it":
       optional: true
-  checksum: 10c0/e94fddf380700dca27df9d60df4d05a20da9e16331db9fc93210a64829fd0b486b73f5384910860160242b06298f3911291b979e658e888ab43bdbbe253b5196
+  checksum: 10c0/ec13986d5734d4bf36035f908aaccfc937e2a87b82f6accdbb101935e999837af23dfde568e4a05f6da03ebd110f99e92df2aa0231bbf16a0766536de0f28fd0
   languageName: node
   linkType: hard
 
-"@a2ui/markdown-it@npm:^0.2.1":
-  version: 0.2.1
-  resolution: "@a2ui/markdown-it@npm:0.2.1"
+"@a2ui/markdown-it@npm:^0.2.2":
+  version: 0.2.2
+  resolution: "@a2ui/markdown-it@npm:0.2.2"
   dependencies:
     dompurify: "npm:3.4.11"
     markdown-it: "npm:^14.2.0"
   peerDependencies:
-    "@a2ui/web_core": ^0.13.0
-  checksum: 10c0/05d7e2e804048a2d20021a44ab2e650b37ead262852997bbad630859b1e753f6edf64cb20285eb9af3e53aa24f3064dc0ffcdcb78410b75a4bf6b2d3ecdce7e8
+    "@a2ui/web_core": ^0.14.0
+  checksum: 10c0/bd971ae89ef5ea61c319d2ec6e8813b1a4345809c595f35e18b209976ccd909c1451e4bb15e9c0e69002f1ba10c40d3c1764847fc5a213cdbc554c1120a85541
   languageName: node
   linkType: hard
 
-"@a2ui/web_core@npm:^0.13.0":
-  version: 0.13.0
-  resolution: "@a2ui/web_core@npm:0.13.0"
+"@a2ui/web_core@npm:^0.15.0":
+  version: 0.15.0
+  resolution: "@a2ui/web_core@npm:0.15.0"
   dependencies:
     "@lit/context": "npm:^1.1.6"
     "@preact/signals-core": "npm:^1.14.2"
@@ -137,7 +137,7 @@ __metadata:
     validate-color: "npm:^2.2.4"
     zod: "npm:^3.25.76"
     zod-to-json-schema: "npm:^3.25.2"
-  checksum: 10c0/b1bf8c56e7509a48c03894c9133b853bdd11e83ddb79ba7f5da0a152c3c4f6991d4f5ff7b6b32baa5a8ef93b6c032ebd1bca4954d744ce0a7a398c745d8f8615
+  checksum: 10c0/9c235ef60bf87003120d1f336dd5d6a9b04db5f3e018f86633c502d7eb5b6bc17b2267a9514f160d84591615210b79dcd3367e7377d0a4601eaec86fc06f589f
   languageName: node
   linkType: hard
 

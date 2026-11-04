@@ -118,14 +118,14 @@ describe('<a2ui-chart> component via v1.0 MessageProcessor', () => {
 
       processor.processMessages([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: `surf-${variant}`,
             sendDataModel: true,
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {
             surfaceId: `surf-${variant}`,
             path: '/',
@@ -141,7 +141,7 @@ describe('<a2ui-chart> component via v1.0 MessageProcessor', () => {
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: `surf-${variant}`,
             components: [
@@ -168,7 +168,7 @@ describe('<a2ui-chart> component via v1.0 MessageProcessor', () => {
 
       const surfaceEl = pane.shadowRoot!.querySelector('a2ui-surface')!;
       await (surfaceEl as any).updateComplete;
-      const chartEl = surfaceEl.shadowRoot!.querySelector('a2ui-chart')!;
+      const chartEl = (surfaceEl.shadowRoot ?? surfaceEl).querySelector('a2ui-chart')!;
       expect(chartEl).not.toBeNull();
       await (chartEl as any).updateComplete;
 
@@ -195,14 +195,14 @@ describe('<a2ui-chart> component via v1.0 MessageProcessor', () => {
 
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'interactiveChart',
           sendDataModel: true,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 'interactiveChart',
           path: '/',
@@ -214,7 +214,7 @@ describe('<a2ui-chart> component via v1.0 MessageProcessor', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'interactiveChart',
           components: [
@@ -244,7 +244,7 @@ describe('<a2ui-chart> component via v1.0 MessageProcessor', () => {
 
     const surfaceEl = pane.shadowRoot!.querySelector('a2ui-surface')!;
     await (surfaceEl as any).updateComplete;
-    const chartEl = surfaceEl.shadowRoot!.querySelector('a2ui-chart')!;
+    const chartEl = (surfaceEl.shadowRoot ?? surfaceEl).querySelector('a2ui-chart')!;
     await (chartEl as any).updateComplete;
 
     let bars = chartEl.shadowRoot!.querySelectorAll('rect.a2ui-chart-bar');
@@ -277,7 +277,7 @@ describe('<a2ui-chart> component via v1.0 MessageProcessor', () => {
     // Reactive update via updateDataModel adds Q3 without recreating component tree
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 'interactiveChart',
           path: '/labels',
@@ -285,7 +285,7 @@ describe('<a2ui-chart> component via v1.0 MessageProcessor', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 'interactiveChart',
           path: '/series',
@@ -303,11 +303,11 @@ describe('<a2ui-chart> component via v1.0 MessageProcessor', () => {
     const processor = createProcessor();
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: { surfaceId: 'hbarLong' },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 'hbarLong',
           path: '/',
@@ -321,7 +321,7 @@ describe('<a2ui-chart> component via v1.0 MessageProcessor', () => {
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'hbarLong',
           components: [
@@ -342,7 +342,7 @@ describe('<a2ui-chart> component via v1.0 MessageProcessor', () => {
     await pane.updateComplete;
     const surfaceEl = pane.shadowRoot!.querySelector('a2ui-surface')!;
     await (surfaceEl as any).updateComplete;
-    const chartEl = surfaceEl.shadowRoot!.querySelector('a2ui-chart')!;
+    const chartEl = (surfaceEl.shadowRoot ?? surfaceEl).querySelector('a2ui-chart')!;
     await (chartEl as any).updateComplete;
 
     const bars = chartEl.shadowRoot!.querySelectorAll('rect.a2ui-chart-bar');

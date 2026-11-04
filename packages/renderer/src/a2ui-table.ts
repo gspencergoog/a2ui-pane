@@ -185,6 +185,10 @@ export function sortTableRows(
 export class A2uiTableElement extends A2uiLitElement<any, TableResolvedProps> {
   static tagName = 'a2ui-table';
 
+  protected override createRenderRoot(): HTMLElement | DocumentFragment {
+    return this.attachShadow({ mode: 'open' });
+  }
+
   static override properties = {
     ...A2uiLitElement.properties,
     sortKey: { state: true },

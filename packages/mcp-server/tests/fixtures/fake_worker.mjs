@@ -11,7 +11,7 @@ import { existsSync, writeFileSync } from 'node:fs';
 
 const mode = process.env.FAKE_WORKER_MODE || 'normal';
 const crashMarker = process.env.FAKE_WORKER_CRASH_MARKER || '';
-let workerVersion = 'v1.0';
+let workerVersion = '1.0';
 
 const rl = createInterface({ input: process.stdin });
 rl.on('line', (line) => {
@@ -26,7 +26,7 @@ rl.on('line', (line) => {
     return;
   }
   if (req.op === 'init') {
-    workerVersion = req.version || 'v1.0';
+    workerVersion = req.version || '1.0';
     if (mode === 'init-exit') {
       process.exit(2);
     }
@@ -72,7 +72,7 @@ rl.on('line', (line) => {
     return;
   }
   if (req.op === 'compile') {
-    const msgVersion = req.version || workerVersion || 'v1.0';
+    const msgVersion = req.version || workerVersion || '1.0';
     if (mode === 'crash-always') process.exit(3);
     if (mode === 'crash-once' && crashMarker && !existsSync(crashMarker)) {
       writeFileSync(crashMarker, 'crashed');
@@ -170,7 +170,7 @@ rl.on('line', (line) => {
         ok: true,
         messages: [
           {
-            version: 'v1.0',
+            version: '1.0',
             createSurface: {
               surfaceId: req.surfaceId || 'main',
               components: [

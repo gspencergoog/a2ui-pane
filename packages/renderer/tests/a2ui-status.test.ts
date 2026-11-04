@@ -106,14 +106,14 @@ describe('status catalog Web Components (<a2ui-badge>, <a2ui-progress-bar>, <a2u
     const processor = createProcessor();
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'badgeSurface',
           sendDataModel: true,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 'badgeSurface',
           path: '/',
@@ -126,7 +126,7 @@ describe('status catalog Web Components (<a2ui-badge>, <a2ui-progress-bar>, <a2u
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'badgeSurface',
           components: [
@@ -171,14 +171,18 @@ describe('status catalog Web Components (<a2ui-badge>, <a2ui-progress-bar>, <a2u
 
     const surfaceEl = pane.shadowRoot!.querySelector('a2ui-surface')!;
     await (surfaceEl as any).updateComplete;
-    for (const col of Array.from(surfaceEl.shadowRoot!.querySelectorAll('a2ui-basic-column'))) {
+    for (const col of Array.from(
+      (surfaceEl.shadowRoot ?? surfaceEl).querySelectorAll('a2ui-basic-column'),
+    )) {
       await (col as any).updateComplete;
     }
-    for (const col of Array.from(surfaceEl.shadowRoot!.querySelectorAll('a2ui-basic-column'))) {
+    for (const col of Array.from(
+      (surfaceEl.shadowRoot ?? surfaceEl).querySelectorAll('a2ui-basic-column'),
+    )) {
       await (col as any).updateComplete;
     }
 
-    const badgeEls = Array.from(surfaceEl.shadowRoot!.querySelectorAll('a2ui-badge'));
+    const badgeEls = Array.from((surfaceEl.shadowRoot ?? surfaceEl).querySelectorAll('a2ui-badge'));
     expect(badgeEls).toHaveLength(3);
     for (const el of badgeEls) {
       await (el as any).updateComplete;
@@ -203,14 +207,14 @@ describe('status catalog Web Components (<a2ui-badge>, <a2ui-progress-bar>, <a2u
     const processor = createProcessor();
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'progressSurface',
           sendDataModel: true,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 'progressSurface',
           path: '/',
@@ -224,7 +228,7 @@ describe('status catalog Web Components (<a2ui-badge>, <a2ui-progress-bar>, <a2u
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'progressSurface',
           components: [
@@ -259,7 +263,9 @@ describe('status catalog Web Components (<a2ui-badge>, <a2ui-progress-bar>, <a2u
     const surfaceEl = pane.shadowRoot!.querySelector('a2ui-surface')!;
     await (surfaceEl as any).updateComplete;
 
-    const bars = Array.from(surfaceEl.shadowRoot!.querySelectorAll('a2ui-progress-bar'));
+    const bars = Array.from(
+      (surfaceEl.shadowRoot ?? surfaceEl).querySelectorAll('a2ui-progress-bar'),
+    );
     expect(bars).toHaveLength(2);
     for (const bar of bars) {
       await (bar as any).updateComplete;
@@ -284,14 +290,14 @@ describe('status catalog Web Components (<a2ui-badge>, <a2ui-progress-bar>, <a2u
     const processor = createProcessor();
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'stackLegendSurface',
           sendDataModel: true,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 'stackLegendSurface',
           path: '/',
@@ -300,13 +306,19 @@ describe('status catalog Web Components (<a2ui-badge>, <a2ui-progress-bar>, <a2u
             items: [
               { state: 'Draft', tone: 'neutral', ciTone: 'danger', reviewTone: 'warning', step: 0 },
               { state: 'Draft', tone: 'neutral', ciTone: 'danger', reviewTone: 'warning', step: 0 },
-              { state: 'Merged', tone: 'success', ciTone: 'success', reviewTone: 'success', step: 4 },
+              {
+                state: 'Merged',
+                tone: 'success',
+                ciTone: 'success',
+                reviewTone: 'success',
+                step: 4,
+              },
             ],
           },
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'stackLegendSurface',
           components: [
@@ -341,8 +353,10 @@ describe('status catalog Web Components (<a2ui-badge>, <a2ui-progress-bar>, <a2u
     const surfaceEl = pane.shadowRoot!.querySelector('a2ui-surface')!;
     await (surfaceEl as any).updateComplete;
 
-    const badgeEl = surfaceEl.shadowRoot!.querySelector('a2ui-badge') as HTMLElement;
-    const barEl = surfaceEl.shadowRoot!.querySelector('a2ui-progress-bar') as HTMLElement;
+    const badgeEl = (surfaceEl.shadowRoot ?? surfaceEl).querySelector('a2ui-badge') as HTMLElement;
+    const barEl = (surfaceEl.shadowRoot ?? surfaceEl).querySelector(
+      'a2ui-progress-bar',
+    ) as HTMLElement;
     await (badgeEl as any).updateComplete;
     await (barEl as any).updateComplete;
 
@@ -364,14 +378,14 @@ describe('status catalog Web Components (<a2ui-badge>, <a2ui-progress-bar>, <a2u
     const processor = createProcessor();
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'collapsibleSurface',
           sendDataModel: true,
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateDataModel: {
           surfaceId: 'collapsibleSurface',
           path: '/',
@@ -381,7 +395,7 @@ describe('status catalog Web Components (<a2ui-badge>, <a2ui-progress-bar>, <a2u
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'collapsibleSurface',
           components: [
@@ -419,7 +433,7 @@ describe('status catalog Web Components (<a2ui-badge>, <a2ui-progress-bar>, <a2u
     const surfaceEl = pane.shadowRoot!.querySelector('a2ui-surface')!;
     await (surfaceEl as any).updateComplete;
 
-    const collapsibleEl = surfaceEl.shadowRoot!.querySelector('a2ui-collapsible')!;
+    const collapsibleEl = (surfaceEl.shadowRoot ?? surfaceEl).querySelector('a2ui-collapsible')!;
     expect(collapsibleEl).not.toBeNull();
     await (collapsibleEl as any).updateComplete;
 
@@ -444,13 +458,13 @@ describe('status catalog Web Components (<a2ui-badge>, <a2ui-progress-bar>, <a2u
     const processor = createProcessor();
     processor.processMessages([
       {
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 'literalCollapsibleSurface',
         },
       },
       {
-        version: 'v1.0',
+        version: '1.0',
         updateComponents: {
           surfaceId: 'literalCollapsibleSurface',
           components: [
@@ -479,7 +493,7 @@ describe('status catalog Web Components (<a2ui-badge>, <a2ui-progress-bar>, <a2u
     const surfaceEl = pane.shadowRoot!.querySelector('a2ui-surface')!;
     await (surfaceEl as any).updateComplete;
 
-    const collapsibleEl = surfaceEl.shadowRoot!.querySelector('a2ui-collapsible')!;
+    const collapsibleEl = (surfaceEl.shadowRoot ?? surfaceEl).querySelector('a2ui-collapsible')!;
     expect(collapsibleEl).not.toBeNull();
     await (collapsibleEl as any).updateComplete;
 
@@ -510,15 +524,15 @@ describe('status catalog Web Components (<a2ui-badge>, <a2ui-progress-bar>, <a2u
         .join('\n');
     }
 
-    async function renderRowSurface(): Promise<ShadowRoot> {
+    async function renderRowSurface(): Promise<ParentNode> {
       const processor = createProcessor();
       processor.processMessages([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: { surfaceId: 'rowSurface', sendDataModel: true },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 'rowSurface',
             components: [
@@ -599,7 +613,7 @@ describe('status catalog Web Components (<a2ui-badge>, <a2ui-progress-bar>, <a2u
       await pane.updateComplete;
       const surfaceEl = pane.shadowRoot!.querySelector('a2ui-surface')!;
       await (surfaceEl as any).updateComplete;
-      const root = surfaceEl.shadowRoot!;
+      const root = surfaceEl.shadowRoot ?? surfaceEl;
       for (let pass = 0; pass < 2; pass++) {
         for (const el of Array.from(
           root.querySelectorAll(
@@ -690,14 +704,14 @@ describe('status catalog Web Components (<a2ui-badge>, <a2ui-progress-bar>, <a2u
       const processor = createProcessor();
       processor.processMessages([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 'emptySlotsSurface',
             sendDataModel: true,
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {
             surfaceId: 'emptySlotsSurface',
             path: '/',
@@ -710,7 +724,7 @@ describe('status catalog Web Components (<a2ui-badge>, <a2ui-progress-bar>, <a2u
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 'emptySlotsSurface',
             components: [
@@ -757,7 +771,7 @@ describe('status catalog Web Components (<a2ui-badge>, <a2ui-progress-bar>, <a2u
 
       const surfaceEl = pane.shadowRoot!.querySelector('a2ui-surface')!;
       await (surfaceEl as any).updateComplete;
-      const root = surfaceEl.shadowRoot!;
+      const root = surfaceEl.shadowRoot ?? surfaceEl;
       for (const el of Array.from(
         root.querySelectorAll('a2ui-basic-column, a2ui-badge, a2ui-basic-text, a2ui-collapsible'),
       )) {
@@ -783,7 +797,7 @@ describe('status catalog Web Components (<a2ui-badge>, <a2ui-progress-bar>, <a2u
       // Update data model with non-empty values and verify hosts unhide.
       processor.processMessages([
         {
-          version: 'v1.0',
+          version: '1.0',
           updateDataModel: {
             surfaceId: 'emptySlotsSurface',
             path: '/',

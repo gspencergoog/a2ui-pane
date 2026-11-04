@@ -1,6 +1,6 @@
 [
   {
-    "version": "v1.0",
+    "version": "1.0",
     "createSurface": {
       "surfaceId": "consequence_cards",
       "sendDataModel": true,
@@ -234,6 +234,10 @@
         }
       ],
       "dataModel": {
+        "notes": "",
+        "moreInfo": false,
+        "defer": false,
+        "submitLabel": "Submit Alignment",
         "question": "**Context**: `OrderRepository` writes only to `legacy_orders`. Which cutover strategy should we use for `orders_v2`?",
         "options": [
           {
@@ -256,11 +260,7 @@
         "trace": "- `src/orders/repository.ts`\n- `src/orders/shadow-reader.ts`\n- `migrations/042_orders_v2.sql`",
         "choice": [
           "dual_write"
-        ],
-        "notes": "",
-        "moreInfo": false,
-        "defer": false,
-        "submitLabel": "Submit Alignment"
+        ]
       }
     }
   }

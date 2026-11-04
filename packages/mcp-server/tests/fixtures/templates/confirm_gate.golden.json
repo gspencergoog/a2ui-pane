@@ -1,6 +1,6 @@
 [
   {
-    "version": "v1.0",
+    "version": "1.0",
     "createSurface": {
       "surfaceId": "confirm_gate",
       "sendDataModel": true,
@@ -135,12 +135,12 @@
         }
       ],
       "dataModel": {
+        "confirmed": false,
+        "cancelLabel": "Cancel",
         "title": "### Delete 3 merged branches?",
         "summary": "The following local branches are merged into `main` and will be deleted:\n\n- `feature/express-worker`\n- `fix/slider-padding`\n- `docs/genui-skill`\n\nRemote tracking refs are left untouched.",
         "confirmLabel": "I understand these branches cannot be recovered from the reflog after 90 days",
-        "confirmed": false,
-        "confirmButtonLabel": "Delete branches",
-        "cancelLabel": "Cancel"
+        "confirmButtonLabel": "Delete branches"
       }
     }
   }

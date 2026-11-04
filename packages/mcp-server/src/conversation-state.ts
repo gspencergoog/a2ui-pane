@@ -44,7 +44,9 @@ export class ConversationState {
     const lines = this.store.readAll(this.conversationId);
     for (const line of lines) {
       try {
-        this.processor.processMessages([line.message as any]);
+        const msg = line.message as Record<string, unknown>;
+        const normalized = msg.version === 'v1.0' ? { ...msg, version: '1.0' } : msg;
+        this.processor.processMessages([normalized as any]);
       } catch (err: any) {
         console.error(
           `[ConversationState] Warning: Failed replaying history for ${this.conversationId}:`,
@@ -85,7 +87,11 @@ export class ConversationState {
     const deletes: A2uiServerMessage[] = [];
     for (const [existingId, existingSurface] of this.processor.getSurfaces().entries()) {
       if (!batchSurfaceIds.has(existingId)) {
-        const ver = existingSurface?.defaultCatalog?.protocolVersion === '1.0' ? 'v1.0' : 'v0.9';
+        const ver =
+          ((existingSurface as any)?.protocolVersion ??
+            existingSurface?.defaultCatalog?.protocolVersion) === '1.0'
+            ? '1.0'
+            : 'v0.9';
         deletes.push({
           version: ver as any,
           deleteSurface: { surfaceId: existingId },
@@ -160,7 +166,9 @@ export class ConversationState {
     }
 
     for (let i = 0; i < messages.length; i++) {
-      const candidate = messages[i] as Record<string, unknown>;
+      const rawCandidate = messages[i] as Record<string, unknown>;
+      const candidate =
+        rawCandidate.version === 'v1.0' ? { ...rawCandidate, version: '1.0' } : rawCandidate;
       const sid = this.getSurfaceId(candidate);
       if (sid) {
         surfaceIds.add(sid);

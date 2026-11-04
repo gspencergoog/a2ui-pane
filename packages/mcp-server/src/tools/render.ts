@@ -498,8 +498,11 @@ export async function handleRenderA2ui(
 
       try {
         const cs = msg.createSurface as Record<string, unknown> | undefined;
-        const inferredVer = cs && Array.isArray(cs.components) && !cs.catalogId ? 'v1.0' : 'v0.9';
-        const versionedMsg = !msg.version ? { version: inferredVer, ...msg } : msg;
+        const inferredVer = cs && Array.isArray(cs.components) && !cs.catalogId ? '1.0' : 'v0.9';
+        const rawVer = !msg.version ? inferredVer : msg.version;
+        const normalizedVer = rawVer === 'v1.0' ? '1.0' : rawVer;
+        const versionedMsg = { ...msg, version: normalizedVer };
+        parsedMessages[i] = versionedMsg;
         freshProcessor.processMessages([versionedMsg as any]);
       } catch (err: any) {
         return {
@@ -579,8 +582,11 @@ export async function handleRenderA2ui(
       const surfaces = state.getSurfaces();
       batch = [
         ...existing.map((sid) => {
+          const s = surfaces.get(sid);
           const ver =
-            surfaces.get(sid)?.defaultCatalog?.protocolVersion === '1.0' ? 'v1.0' : 'v0.9';
+            ((s as any)?.protocolVersion ?? s?.defaultCatalog?.protocolVersion) === '1.0'
+              ? '1.0'
+              : 'v0.9';
           return { version: ver, deleteSurface: { surfaceId: sid } };
         }),
         ...batch,

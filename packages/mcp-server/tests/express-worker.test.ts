@@ -233,6 +233,9 @@ describe.skipIf(!realPython && !agentSdkPath)('ExpressWorker (real Python SDK)',
         'root = Card(Column([Text("## Hi"), ProgressBar(items=$/items), Collapsible("Details", Badge("OK", "success")), Chart("bar", $/series, labels=["Q1", "Q2", "Q3"]), Column(_template($/items, CheckBox($title, $done)))]))',
       ].join('\n');
       const messages = await worker.compile(dsl, 'real');
+      expect((messages[0] as any).version).toBe('1.0');
+      const normalizedMessages = await worker.compile(dsl, 'real', 'v1.0');
+      expect((normalizedMessages[0] as any).version).toBe('1.0');
       const processor = new MessageProcessor(
         [v1BasicCatalog as any, chartsSchemaCatalog as any, statusSchemaCatalog as any],
         () => {},
@@ -247,6 +250,7 @@ describe.skipIf(!realPython && !agentSdkPath)('ExpressWorker (real Python SDK)',
       expect(prompt).toContain('A2UI Express');
       expect(prompt).toContain('Chart');
       expect(prompt).toContain('Badge');
+      expect(prompt).not.toContain('"version": "v1.0"');
     } finally {
       worker.dispose();
     }

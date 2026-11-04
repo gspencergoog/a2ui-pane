@@ -6,8 +6,8 @@ line to stdout. The Node MCP server keeps a single worker alive for its
 lifetime so the import cost of the A2UI agent SDK is paid once.
 
 Request shape:
-    {"id": 1, "op": "init", "catalogPaths": ["...", "..."], "version": "v1.0"}
-    {"id": 2, "op": "compile", "dsl": "...", "surfaceId": "main", "version": "v1.0"}
+    {"id": 1, "op": "init", "catalogPaths": ["...", "..."], "version": "1.0"}
+    {"id": 2, "op": "compile", "dsl": "...", "surfaceId": "main", "version": "1.0"}
     {"id": 3, "op": "instructions"}
     {"id": 4, "op": "decompile", "messages": [...]}
     {"id": 5, "op": "ping"}
@@ -31,6 +31,13 @@ SENTINEL_CLOSE = "</a2ui>"
 _LINE_COL_RE = re.compile(r"line (\d+):(\d+)")
 
 
+def _normalize_version(version: str | None) -> str | None:
+    """Maps legacy 'v1.0' strings to the unified '1.0' wire version."""
+    if version is not None and version.strip().lower() == "v1.0":
+        return "1.0"
+    return version
+
+
 class WorkerState:
     """Holds the compiler and prompt generator built by the `init` request."""
 
@@ -38,7 +45,7 @@ class WorkerState:
         self.catalogs: list[Any] = []
         self.compiler: Any = None
         self.prompt_generator: Any = None
-        self.default_version = "v1.0"
+        self.default_version = "1.0"
 
     def init(self, catalog_paths: str | list[str], version: str | None) -> dict[str, Any]:
         """Loads one or more catalog schemas and initializes the Express compiler and prompt generator.
@@ -71,7 +78,7 @@ class WorkerState:
         if not paths:
             raise ValueError("At least one catalog path is required to initialize the Express worker.")
 
-        self.default_version = version or self.default_version
+        self.default_version = _normalize_version(version) or self.default_version
         loaded_catalogs: list[Any] = []
         for path in paths:
             with open(path, "r", encoding="utf-8") as handle:
@@ -110,7 +117,9 @@ class WorkerState:
 
         self._require_init()
         messages = self.compiler.compile(
-            strip_sentinels(dsl), surface_id=surface_id, version=version
+            strip_sentinels(dsl),
+            surface_id=surface_id,
+            version=_normalize_version(version),
         )
         return to_message_dicts(messages)
 
@@ -145,8 +154,14 @@ class WorkerState:
         from a2ui.parser.messages import to_message_models
 
         self._require_init()
+        normalized = [
+            {**msg, "version": "1.0"}
+            if isinstance(msg, dict) and msg.get("version") == "v1.0"
+            else msg
+            for msg in messages
+        ]
         decompiler = ExpressDecompiler(self.catalogs)
-        return decompiler.decompile(to_message_models(messages))
+        return decompiler.decompile(to_message_models(normalized))
 
     def _require_init(self) -> None:
         if self.compiler is None:
@@ -271,7 +286,7 @@ def main(argv: list[str] | None = None) -> int:
         action="append",
         help="Catalog JSON path (may be passed multiple times; selftest only).",
     )
-    parser.add_argument("--version", default="v1.0", help="Protocol version (selftest only).")
+    parser.add_argument("--version", default="1.0", help="Protocol version (selftest only).")
     args = parser.parse_args(argv)
 
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
