@@ -124,23 +124,6 @@ if [ -n "${PYTHON_BIN}" ]; then
   }
 fi
 
-# Update version / timestamp in sidecar.json to trigger reload
-BUILD_TIME="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-tmp_json="$(mktemp)"
-node -e '
-  const fs = require("fs");
-  const p = process.argv[1];
-  const buildTime = process.argv[2];
-  const out = process.argv[3];
-  const raw = fs.readFileSync(p, "utf8");
-  const updated = raw.replace(
-    /"description":\s*"[^"]*"/,
-    "\"description\": \"Interactive A2UI surfaces sidecar (built " + buildTime + ")\"",
-  );
-  fs.writeFileSync(out, updated);
-' "${REPO_ROOT}/plugin/sidecars/a2ui-pane/sidecar.json" "${BUILD_TIME}" "${tmp_json}"
-mv "${tmp_json}" "${REPO_ROOT}/plugin/sidecars/a2ui-pane/sidecar.json"
-
 # Symlink into host plugin directories
 TARGET_PLUGIN_DIR="${HOME}/.gemini/config/plugins/a2ui-pane"
 mkdir -p "$(dirname "${TARGET_PLUGIN_DIR}")"
@@ -156,6 +139,22 @@ else
   fi
   ln -s "${REPO_ROOT}/plugin" "${TARGET_PLUGIN_DIR}"
   echo "✨ Successfully installed a2ui-pane plugin to ${TARGET_PLUGIN_DIR}"
+fi
+
+# Restart the running sidecar so it loads the new build. The host runs it with
+# restart_policy "always" and respawns it within a few seconds. Match on the
+# process's working directory (the host starts it as `node dist/main.mjs` from
+# the sidecar directory), so sidecars of other plugins are left alone. This
+# replaces stamping a build time into sidecar.json, which dirtied the repo.
+SIDECAR_DIR="$(cd "${REPO_ROOT}/plugin/sidecars/a2ui-pane" && pwd -P)"
+restarted_sidecar=false
+for pid in $(pgrep -f "dist/main.mjs" 2>/dev/null || true); do
+  if [ "$(readlink "/proc/${pid}/cwd" 2>/dev/null)" = "${SIDECAR_DIR}" ]; then
+    kill "${pid}" 2>/dev/null && restarted_sidecar=true
+  fi
+done
+if [ "${restarted_sidecar}" = true ]; then
+  echo "Restarted the a2ui-pane sidecar; the host respawns it in a few seconds."
 fi
 
 # Terminate stale MCP server processes and trigger LanguageServer reload
