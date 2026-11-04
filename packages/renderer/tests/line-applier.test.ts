@@ -425,6 +425,14 @@ describe('LineApplier.reconcile', () => {
     expect(created).not.toHaveBeenCalled();
   });
 
+  it('applies a snapshot numbered below the recorded seq after a store reset', () => {
+    const applier = new LineApplier();
+    applier.apply([snapshotLine(40, 'a')]);
+    applier.reconcile([snapshotLine(2, 'a', { dataModel: { n: 'fresh' } })]);
+    expect(applier.getSurfaceSeq('a')).toBe(2);
+    expect(applier.getProcessor().getSurface('a')?.dataModel.get('/n')).toBe('fresh');
+  });
+
   it('replays a v0.9 snapshot through expandSurfaceSnapshot', () => {
     const applier = new LineApplier();
     applier.reconcile([

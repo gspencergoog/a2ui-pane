@@ -177,7 +177,8 @@ export class LineApplier {
    * Makes the processor match a complete set of live surfaces.
    *
    * Deletes every mounted surface that `lines` does not name, forgets the seqs
-   * of surfaces that are gone, and then applies `lines`.
+   * of surfaces that are gone or that the snapshot numbers lower, and then
+   * applies `lines`.
    *
    * @param lines One line per live surface, as sent by the `snapshot` stream event.
    */
@@ -194,7 +195,21 @@ export class LineApplier {
     for (const sid of Array.from(this.surfaceSeq.keys())) {
       if (!live.has(sid)) this.surfaceSeq.delete(sid);
     }
+    this.forgetSeqsAbove(valid);
     this.apply(valid);
+  }
+
+  /**
+   * Drops recorded seqs above a snapshot's own seq. The snapshot is the store's
+   * current state, so a lower seq means the store was recreated (for example
+   * after a cleanup sweep), and its lines must not be skipped as stale.
+   */
+  private forgetSeqsAbove(lines: StoreLine[]): void {
+    for (const line of lines) {
+      const sid = isRecord(line.message) ? messageSurfaceId(line.message) : undefined;
+      const recorded = sid === undefined ? undefined : this.surfaceSeq.get(sid);
+      if (recorded !== undefined && recorded > line.seq) this.surfaceSeq.delete(sid!);
+    }
   }
 
   reset(): void {

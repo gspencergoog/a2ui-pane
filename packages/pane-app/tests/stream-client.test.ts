@@ -197,9 +197,42 @@ describe('StreamClient', () => {
     const es = MockEventSource.instances[0];
     es.emit('snapshot', { data: 'not-json' });
     es.emit('snapshot', { data: '{"lines":"nope"}' });
-    es.emit('snapshot', { data: '{"lines":[{"seq":"x"}]}' });
     expect(reconcileSpy).not.toHaveBeenCalled();
-    expect(errorSpy).toHaveBeenCalledTimes(3);
+    expect(errorSpy).toHaveBeenCalledTimes(2);
+    errorSpy.mockRestore();
+  });
+
+  it('skips a malformed snapshot line and still reconciles the rest', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const applier = new LineApplier();
+    applier.apply([
+      {
+        seq: 1,
+        ts: '2026-11-04T00:00:00.000Z',
+        callId: 'call_1',
+        message: { version: 'v0.9', createSurface: { surfaceId: 'gone', catalogId: 'basic' } },
+      },
+    ]);
+    const reconcileSpy = vi.spyOn(applier, 'reconcile');
+    const client = new StreamClient({
+      conversationId: 'conv_snap_partial',
+      applier,
+      eventSourceFactory: (url) => new MockEventSource(url) as any,
+    });
+    client.connect();
+    const good: StoreLine = {
+      seq: 2,
+      ts: '2026-11-04T00:00:00.000Z',
+      callId: 'call_2',
+      message: { version: 'v0.9', createSurface: { surfaceId: 'kept', catalogId: 'basic' } },
+    };
+    MockEventSource.instances[0].emit('snapshot', {
+      data: JSON.stringify({ lines: [{ seq: 'x' }, good] }),
+    });
+    expect(reconcileSpy).toHaveBeenCalledWith([good]);
+    expect(applier.getProcessor().getSurface('gone')).toBeUndefined();
+    expect(applier.getProcessor().getSurface('kept')).toBeDefined();
+    expect(errorSpy).toHaveBeenCalledTimes(1);
     errorSpy.mockRestore();
   });
 

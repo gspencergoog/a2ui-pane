@@ -48,14 +48,25 @@ function defaultStorage(): BuildReloadStorage | undefined {
 /**
  * Parses the data of a `snapshot` event: `{lines: StoreLine[]}` with one line per live surface.
  *
- * @throws {Error} When the payload is not an object with a `lines` array or a line is malformed.
+ * Skips and logs malformed lines, so one bad surface file cannot keep the pane
+ * from removing surfaces that were deleted while it was disconnected.
+ *
+ * @throws {Error} When the payload is not JSON or has no `lines` array.
  */
 export function parseSnapshotLines(data: string): StoreLine[] {
   const payload = JSON.parse(data) as { lines?: unknown };
   if (!payload || !Array.isArray(payload.lines)) {
     throw new Error('Snapshot event has no lines array');
   }
-  return payload.lines.map((line) => parseStoreLine(JSON.stringify(line)));
+  const lines: StoreLine[] = [];
+  for (const raw of payload.lines) {
+    try {
+      lines.push(parseStoreLine(JSON.stringify(raw)));
+    } catch (err) {
+      console.error('[StreamClient] Skipping malformed snapshot line:', err);
+    }
+  }
+  return lines;
 }
 
 /**
