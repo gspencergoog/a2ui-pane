@@ -106,9 +106,10 @@ export function handleSendMessage(
     bytesReceived += buf.length;
     if (bytesReceived > MAX_BODY_BYTES) {
       oversized = true;
+      // Destroy the request only once the 413 is flushed, so it is not cut off.
+      res.once('finish', () => req.destroy());
       res.writeHead(413, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Payload Too Large: Maximum size 120KB' }));
-      req.destroy();
       return;
     }
     chunks.push(buf);

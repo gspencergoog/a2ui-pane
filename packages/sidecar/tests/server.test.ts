@@ -258,6 +258,35 @@ describe('SidecarServer', () => {
         pad: 'x'.repeat(5000),
       });
       expect(res.status).toBe(413);
+      expect(JSON.parse(res.body)).toEqual({ error: 'Payload Too Large: Maximum size 4KB' });
+    });
+
+    it('reports deleted false for an unknown conversation without creating its directory', async () => {
+      const res = await postDelete({
+        conversationId: 'conv-unknown',
+        surfaceId: 'main',
+        reason: 'dismissed',
+      });
+      expect(res.status).toBe(200);
+      expect(JSON.parse(res.body)).toEqual({ deleted: false });
+      expect(fs.existsSync(path.join(convDir, 'conv-unknown'))).toBe(false);
+    });
+
+    it('migrates a legacy flat file before deleting from it', async () => {
+      const line = {
+        seq: 1,
+        callId: 'c1',
+        ts: 't',
+        message: { version: '1.0', createSurface: { surfaceId: 'main', catalogId: 'basic' } },
+      };
+      fs.writeFileSync(path.join(convDir, 'conv-legacy.jsonl'), JSON.stringify(line) + '\n');
+      const res = await postDelete({
+        conversationId: 'conv-legacy',
+        surfaceId: 'main',
+        reason: 'submitted',
+      });
+      expect(JSON.parse(res.body)).toEqual({ deleted: true });
+      expect(fs.existsSync(path.join(convDir, 'conv-legacy.jsonl.migrated'))).toBe(true);
     });
 
     it('unlinks the surface file, bumps _seq, and reports deleted', async () => {
@@ -320,6 +349,7 @@ describe('SidecarServer', () => {
     });
 
     it('returns 500 when the store fails unexpectedly', async () => {
+      seed('c', 's');
       const failing = new SurfaceStore(tmpDir);
       vi.spyOn(failing, 'deleteSurfaceAsync').mockRejectedValue(new Error('disk on fire'));
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});

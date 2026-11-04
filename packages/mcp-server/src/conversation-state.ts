@@ -71,7 +71,8 @@ function commitFailureMessage(err: FoldError | StoreLockError): string {
   }
   const sid = err.surfaceId ?? 'unknown';
   return (
-    `Surface ${sid} was removed by the user while this update was in flight; ` +
+    `The store rejected this update to surface ${sid}: ${err.message}. ` +
+    'The surface was most likely removed by the user while this update was in flight; ' +
     're-create it with replace: true if still needed'
   );
 }

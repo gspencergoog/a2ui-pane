@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { cleanupOldFiles } from '../src/cleanup.js';
+import { cleanupOldFiles, TRASH_PREFIX } from '../src/cleanup.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -86,11 +86,58 @@ describe('cleanupOldFiles', () => {
     expect(fs.existsSync(dir)).toBe(true);
   });
 
-  it('skips a stale conversation directory that holds a lock', () => {
-    const dir = makeConversation('conv-locked', { 'main.jsonl': '{}', '.lock': '1 x' }, 40);
+  it('skips a stale conversation directory whose lock or steal guard is held', () => {
+    for (const lockName of ['.lock', '.lock.steal']) {
+      const dir = makeConversation(
+        `conv-locked${lockName}`.replace(/\./g, '-'),
+        {
+          'main.jsonl': '{}',
+        },
+        40,
+      );
+      fs.writeFileSync(path.join(dir, lockName), '1 x');
+      // Keep the directory itself old; only the lock file is fresh.
+      age(dir, 40);
+
+      expect(cleanupOldFiles(tmpDir, 30)).toEqual({ deleted: 0, errors: 0 });
+      expect(fs.existsSync(path.join(dir, 'main.jsonl'))).toBe(true);
+      fs.rmSync(dir, { recursive: true });
+    }
+  });
+
+  it('removes a stale directory whose lock was abandoned by a crashed writer', () => {
+    const dir = makeConversation('conv-abandoned', { 'main.jsonl': '{}', '.lock': '1 x' }, 40);
+
+    expect(cleanupOldFiles(tmpDir, 30)).toEqual({ deleted: 1, errors: 0 });
+    expect(fs.existsSync(dir)).toBe(false);
+  });
+
+  it('renames a directory back when a writer takes it between the check and the rename', () => {
+    const dir = makeConversation('conv-raced', { 'main.jsonl': '{}' }, 40);
+    const realRename = fs.renameSync;
+    let raced = false;
+    const spy = vi.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
+      if (!raced && from === dir) {
+        raced = true;
+        // A writer takes the lock just before the sweep's rename.
+        fs.writeFileSync(path.join(dir, '.lock'), `${process.pid} token`);
+      }
+      return realRename(from, to);
+    });
 
     expect(cleanupOldFiles(tmpDir, 30)).toEqual({ deleted: 0, errors: 0 });
+    spy.mockRestore();
+    expect(raced).toBe(true);
     expect(fs.existsSync(path.join(dir, 'main.jsonl'))).toBe(true);
+    expect(fs.existsSync(path.join(dir, '.lock'))).toBe(true);
+    expect(fs.readdirSync(convDir).filter((n) => n.startsWith(TRASH_PREFIX))).toEqual([]);
+  });
+
+  it('removes a stale trash directory left by an interrupted sweep', () => {
+    const trash = makeConversation(`${TRASH_PREFIX}abc123`, { 'main.jsonl': '{}' }, 40);
+
+    expect(cleanupOldFiles(tmpDir, 30)).toEqual({ deleted: 1, errors: 0 });
+    expect(fs.existsSync(trash)).toBe(false);
   });
 
   it('leaves per-conversation embed directories alone', () => {

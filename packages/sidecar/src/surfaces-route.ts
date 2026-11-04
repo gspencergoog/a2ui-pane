@@ -1,6 +1,12 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
+import fs from 'node:fs';
 import { isValidId } from '@a2ui-pane/protocol';
-import { StoreLockError, SurfaceStore } from '@a2ui-pane/protocol/store-fs';
+import {
+  conversationDir,
+  legacyFile,
+  StoreLockError,
+  SurfaceStore,
+} from '@a2ui-pane/protocol/store-fs';
 
 /** Why the pane removed a surface. */
 export type SurfaceDeleteReason = 'dismissed' | 'submitted';
@@ -50,12 +56,25 @@ function parseDeleteRequest(body: string): SurfaceDeleteRequest | string {
   return { conversationId, surfaceId, reason: reason as SurfaceDeleteReason };
 }
 
+/** Whether the conversation has a store directory or a legacy flat file to migrate. */
+function conversationExists(dataDir: string, conversationId: string): boolean {
+  return (
+    fs.existsSync(conversationDir(dataDir, conversationId)) ||
+    fs.existsSync(legacyFile(dataDir, conversationId))
+  );
+}
+
 async function deleteSurface(
   res: ServerResponse,
   store: SurfaceStore,
   request: SurfaceDeleteRequest,
 ): Promise<void> {
   const callId = `call_pane_${request.reason}_${Date.now()}`;
+  if (!conversationExists(store.dataDir, request.conversationId)) {
+    // Taking the lock would create an empty conversation directory.
+    sendJson(res, 200, { deleted: false });
+    return;
+  }
   try {
     const line = await store.deleteSurfaceAsync(request.conversationId, request.surfaceId, callId);
     sendJson(res, 200, { deleted: line !== null });
@@ -75,7 +94,8 @@ async function deleteSurface(
  *
  * It unlinks the surface's file and bumps `_seq` under the conversation lock,
  * waiting for the lock asynchronously so other SSE streams keep flowing.
- * Responds `200 {deleted}` (false when the surface was already gone), `400`
+ * Responds `200 {deleted}` (false when the surface or the conversation was
+ * already gone, in which case nothing is written), `400`
  * for an invalid body, `413` for a body over 4 KB, and `423` when the lock
  * cannot be taken in time.
  */
@@ -93,8 +113,9 @@ export function handleSurfaceDelete(
     const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     bytesReceived += buf.length;
     if (bytesReceived > MAX_BODY_BYTES) {
+      // Destroy the request only once the 413 is flushed, so it is not cut off.
+      res.once('finish', () => req.destroy());
       sendJson(res, 413, { error: 'Payload Too Large: Maximum size 4KB' });
-      req.destroy();
       return;
     }
     chunks.push(buf);

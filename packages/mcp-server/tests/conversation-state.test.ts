@@ -374,7 +374,9 @@ describe('ConversationState', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.issues[0].messageIndex).toBe(0);
-      expect(result.issues[0].message).toContain('surf-race was removed by the user');
+      expect(result.issues[0].message).toContain('surface surf-race');
+      expect(result.issues[0].message).toContain('removed by the user');
+      expect(result.issues[0].message).toContain('Surface not found');
       expect(result.issues[0].message).toContain('replace: true');
     }
     expect(state.hasSurface('surf-race')).toBe(false);
