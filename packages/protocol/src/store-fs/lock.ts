@@ -97,9 +97,12 @@ function createLock(lockPath: string): string {
   const fd = openSync(lockPath, 'wx', FILE_MODE);
   try {
     writeSync(fd, `${process.pid} ${new Date().toISOString()} ${token}\n`);
-  } finally {
+  } catch (err) {
     closeSync(fd);
+    unlinkQuietly(lockPath);
+    throw err;
   }
+  closeSync(fd);
   return token;
 }
 

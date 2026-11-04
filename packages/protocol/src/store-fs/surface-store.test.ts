@@ -342,6 +342,15 @@ describe('SurfaceStore', () => {
       ]);
     });
 
+    it('renames a legacy file left by a migration interrupted before its rename', () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      expect(migrateLegacyStore(dataDir, CONV)).toBe(true);
+      writeFileSync(legacyFile(dataDir, CONV), readFileSync(migratedFile(dataDir, CONV)));
+      expect(store.readSnapshot(CONV).map((l) => l.seq)).toEqual([6]);
+      expect(existsSync(legacyFile(dataDir, CONV))).toBe(false);
+      expect(existsSync(migratedFile(dataDir, CONV))).toBe(true);
+    });
+
     it('continues seqs after the legacy log when commit triggers migration', () => {
       vi.spyOn(console, 'warn').mockImplementation(() => {});
       const [line] = store.commit(CONV, 'call_new', [create('fresh')]);

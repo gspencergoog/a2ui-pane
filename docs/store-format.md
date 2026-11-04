@@ -124,6 +124,12 @@ The re-check under the guard is what makes stealing safe. Holders never touch th
 
 Do not steal by renaming `.lock` out of the way. A waiter whose staleness check is out of date then moves a fresh lock, and while it puts the lock back another writer can take it, so two writers hold the lock at once.
 
+#### Known limit
+
+The guard closes the race between live waiters, but not every race after a crash. If a waiter dies while holding `.lock.steal`, two waiters can both see the dead guard as stale. One removes it, a third creates a fresh guard, and the second, acting on its earlier check, removes that fresh guard too. Two waiters then hold a guard, and one of them may remove a lock the other has just taken. This needs a crash inside a window of a few system calls, followed by contention within the next 10 seconds. The store accepts that risk rather than adding a second level of guards.
+
+If writing the lock contents fails after the create, the writer unlinks its own `.lock` before reporting the error, so no tokenless lock is left behind.
+
 ### Release
 
 Read `.lock` and `unlink` it only if it still holds your token. A lock can only lose its token if the holder kept it past the 10 second stale limit, which a correct writer never does.
@@ -146,6 +152,8 @@ Only the TypeScript `migrateLegacyStore` folds legacy files. It runs on the firs
 2. Writes one file per surviving surface. Each file's seq is the seq of the last legacy line that touched the surface.
 3. Writes `_seq` as the last legacy seq.
 4. Renames the legacy file to `<convId>.jsonl.migrated`.
+
+If a migration stops after writing `_seq` but before the rename, the next migration attempt finds `_seq` and the legacy file together. It only renames the legacy file to `.migrated`, because the per-surface files already hold its state.
 
 Other writers MUST NOT fold or migrate legacy files. When `<convId>.jsonl` exists and `<convId>/_seq` does not, a non-TypeScript writer waits up to 2 seconds for `_seq` to appear, polling **without** holding the lock so it cannot deadlock with the migrator. If `_seq` does not appear, it gives up and lets a TypeScript writer (for example a `render_a2ui` call) trigger the migration.
 

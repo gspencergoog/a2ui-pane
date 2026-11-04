@@ -57,10 +57,19 @@ function clone<T>(value: T): T {
   return structuredClone(value);
 }
 
-/** Whether a protocol version string (`'1.0'`, `'v1.0'`, `'v0.9'`) is 1.0 or later. */
+const VERSION_PATTERN = /^[vV]?(\d+)[._](\d+)(?:[._](\d+))?(-[^+]*)?(?:\+.*)?$/;
+
+/**
+ * Whether a protocol version string (`'1.0'`, `'v1.0'`, `'v0.9'`) is at least
+ * 1.0.0, like web_core `isAtLeastVersion(version, '1.0')`: a prerelease such
+ * as `'1.0-beta'` is below 1.0.
+ */
 function isAtLeastV1(version: unknown): boolean {
-  const match = typeof version === 'string' ? /^v?(\d+)(?:\.|$)/.exec(version) : null;
-  return match !== null && Number(match[1]) >= 1;
+  const match = typeof version === 'string' ? VERSION_PATTERN.exec(version.trim()) : null;
+  if (!match) return false;
+  const [major, minor, patch] = [match[1], match[2], match[3] ?? '0'].map(Number);
+  if (major !== 1) return major > 1;
+  return minor > 0 || patch > 0 || match[4] === undefined;
 }
 
 function messageKind(msg: A2uiServerMessage): MessageKind | undefined {
@@ -80,12 +89,16 @@ export function messageSurfaceId(msg: A2uiServerMessage): string | undefined {
  * 0.15 (`message-processor.js` `applyComponentUpdate` and
  * `processUpdateDataModelOp`, `data-model.js` `set`):
  *
- * - `createSurface` replaces the snapshot with a deep clone. `components`
- *   defaults to `[]`, and a falsy `dataModel` is dropped.
- * - `updateComponents` replaces entries by id and appends new ids. An entry
- *   that omits `component` keeps the prior type. On a pre-1.0 surface it also
- *   keeps the prior `catalogId` unless it names its own; from v1.0 an entry
- *   that names no `catalogId` moves to the surface default catalog.
+ * - `createSurface` replaces the snapshot with a deep clone, even when the
+ *   surface already exists (web_core throws there; the store treats a bare
+ *   second `createSurface` as a replace). `components` defaults to `[]` and
+ *   gets the same checks as `updateComponents`; a falsy `dataModel` is dropped.
+ * - `updateComponents` replaces entries by id and appends new ids. Every
+ *   entry needs an id and, unless it updates an existing entry on a pre-1.0
+ *   surface, a `component` type (the v1.0 envelope schema requires it). On a
+ *   pre-1.0 surface an entry that omits `component` keeps the prior type and,
+ *   unless it names its own, the prior `catalogId`. From v1.0 an entry that
+ *   names no `catalogId` moves to the surface default catalog.
  * - `updateDataModel` with path `''`, `'/'`, or no path sets the root, and a
  *   null or missing root value becomes `{}`. Empty segments are dropped, so
  *   `/a//b` is `/a/b`. A null or missing `value` removes an object key, writes
@@ -94,6 +107,7 @@ export function messageSurfaceId(msg: A2uiServerMessage): string | undefined {
  *   are created as arrays when the next segment is numeric and objects
  *   otherwise.
  * - `deleteSurface` returns null.
+ * - An update with an empty or missing surfaceId is a no-op, as in web_core.
  *
  * The input snapshot is never mutated.
  *
@@ -111,8 +125,10 @@ export function foldSurfaceMessage(
     case 'deleteSurface':
       return null;
     case 'updateComponents':
+      if (!messageSurfaceId(msg)) return snapshot;
       return foldUpdateComponents(requireSnapshot(snapshot, msg), msg.updateComponents!);
     case 'updateDataModel':
+      if (!messageSurfaceId(msg)) return snapshot;
       return foldUpdateDataModel(requireSnapshot(snapshot, msg), msg.updateDataModel!);
     default:
       throw new FoldError(
@@ -168,13 +184,16 @@ function foldCreateSurface(msg: A2uiServerMessage): SurfaceSnapshot {
   if (!isNonEmptyString(payload.surfaceId)) {
     throw new FoldError('createSurface is missing a surfaceId');
   }
-  if (!Array.isArray(payload.components)) {
-    payload.components = [];
-  }
+  const components = Array.isArray(payload.components) ? payload.components : [];
+  payload.components = [];
   if (!payload.dataModel) {
     delete payload.dataModel;
   }
-  return { version: msg.version, createSurface: payload };
+  const snapshot: SurfaceSnapshot = { version: msg.version, createSurface: payload };
+  // web_core applies createSurface components as an updateComponents batch,
+  // which rejects missing ids, missing types, and duplicate ids.
+  if (components.length === 0) return snapshot;
+  return foldUpdateComponents(snapshot, { surfaceId: payload.surfaceId, components });
 }
 
 function foldUpdateComponents(
@@ -222,11 +241,12 @@ function mergeComponent(
 ): JsonRecord {
   const merged = clone(comp);
   const namesType = isNonEmptyString(comp.component);
-  if (!prior) {
+  if (!prior || (v1 && !namesType)) {
+    // From v1.0 the envelope schema requires `component` on every entry.
     if (!namesType) {
       throw new FoldError(`Cannot create component ${comp.id} without a type.`, surfaceId);
     }
-    return merged;
+    if (!prior) return merged;
   }
   if (!namesType) {
     merged.component = prior.component;
@@ -250,7 +270,10 @@ function foldUpdateDataModel(
     );
   }
   const next = clone(snapshot);
-  const root = next.createSurface.dataModel || {};
+  // A falsy createSurface dataModel is dropped, so `undefined` means `{}`. A
+  // falsy root written by an earlier update is kept, so writes through it
+  // throw like web_core's.
+  const root = next.createSurface.dataModel === undefined ? {} : next.createSurface.dataModel;
   next.createSurface.dataModel = setPointer(root, (path as string) || '/', payload.value);
   return next;
 }

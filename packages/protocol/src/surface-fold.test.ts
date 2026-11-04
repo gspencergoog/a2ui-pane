@@ -81,6 +81,32 @@ describe('foldSurfaceMessage', () => {
     expect(snap!.createSurface.components).toEqual([]);
   });
 
+  it('createSurface rejects components web_core would reject', () => {
+    expect(() => foldSurfaceMessage(null, create({ components: [{ id: 'a' }] }))).toThrow(
+      /without a type/,
+    );
+    expect(() => foldSurfaceMessage(null, create({ components: [{ component: 'Text' }] }))).toThrow(
+      /missing an 'id'/,
+    );
+    expect(() =>
+      foldSurfaceMessage(
+        null,
+        create({
+          components: [
+            { id: 'a', component: 'Text' },
+            { id: 'a', component: 'Text' },
+          ],
+        }),
+      ),
+    ).toThrow(/Duplicate/);
+  });
+
+  it('a bare second createSurface replaces the existing snapshot', () => {
+    const first = foldSurfaceMessage(null, create({ dataModel: { a: 1 } }))!;
+    const second = foldSurfaceMessage(first, create({ dataModel: { b: 2 } }))!;
+    expect(second.createSurface.dataModel).toEqual({ b: 2 });
+  });
+
   it('createSurface drops a falsy dataModel', () => {
     const snap = foldSurfaceMessage(null, create({ dataModel: null }));
     expect('dataModel' in snap!.createSurface).toBe(false);
@@ -139,11 +165,18 @@ describe('foldSurfaceMessage', () => {
       ]);
     });
 
-    it('keeps the prior type when an update omits component', () => {
-      const snap = foldAll([create(), comps([{ id: 'root', text: 'bye' }])]);
+    it('keeps the prior type when a v0.9 update omits component', () => {
+      const snap = foldAll([create({}, 'v0.9'), comps([{ id: 'root', text: 'bye' }], 'v0.9')]);
       expect(snap!.createSurface.components).toEqual([
         { id: 'root', component: 'Text', text: 'bye' },
       ]);
+    });
+
+    it('rejects a v1.0 update that omits component, as the v1.0 envelope schema does', () => {
+      const snap = foldSurfaceMessage(null, create());
+      expect(() => foldSurfaceMessage(snap, comps([{ id: 'root', text: 'bye' }]))).toThrow(
+        /without a type/,
+      );
     });
 
     it('carries the prior catalogId on pre-1.0 surfaces only', () => {
@@ -167,7 +200,7 @@ describe('foldSurfaceMessage', () => {
       });
       const v1 = foldAll([
         create({ components: [{ id: 'root', component: 'Text', catalogId: 'other' }] }),
-        comps([{ id: 'root', text: 'x' }]),
+        comps([{ id: 'root', component: 'Text', text: 'x' }]),
       ]);
       expect((v1!.createSurface.components as unknown[])[0]).toEqual({
         id: 'root',
@@ -278,6 +311,26 @@ describe('foldSurfaceMessage', () => {
     });
   });
 
+  it('ignores updates with an empty surfaceId, like web_core', () => {
+    const snap = foldSurfaceMessage(null, create())!;
+    const empty = { version: '1.0', updateDataModel: { surfaceId: '', path: '/a', value: 1 } };
+    expect(foldSurfaceMessage(snap, empty)).toBe(snap);
+    expect(foldSurfaceMessage(null, empty)).toBeNull();
+    expect(
+      foldSurfaceMessage(snap, {
+        version: '1.0',
+        updateComponents: { surfaceId: '', components: [] },
+      }),
+    ).toBe(snap);
+  });
+
+  it('keeps a falsy root written by an update, so writes through it throw', () => {
+    const zero = foldAll([create(), data('/', 0)]);
+    expect(zero!.createSurface.dataModel).toBe(0);
+    expect(() => foldSurfaceMessage(zero, data('/a', 1))).toThrow(/root is a primitive/);
+    expect(() => foldAll([create(), data('/', false), data('/a', 1)])).toThrow(FoldError);
+  });
+
   it('throws FoldError when an update targets a missing snapshot', () => {
     expect(() => foldSurfaceMessage(null, data('/a', 1))).toThrow(FoldError);
     expect(() => foldSurfaceMessage(null, comps([]))).toThrow(/Surface not found/);
@@ -315,6 +368,19 @@ describe('expandSurfaceSnapshot', () => {
       },
       { version: 'v0.9', updateDataModel: { surfaceId: 's1', path: '/', value: { a: 1 } } },
     ]);
+  });
+
+  it('treats 1.0 prereleases as pre-1.0, like web_core isAtLeastVersion', () => {
+    const beta = foldSurfaceMessage(null, create({}, '1.0-beta'))!;
+    expect(expandSurfaceSnapshot(beta)).toHaveLength(2);
+    for (const version of ['1.0', 'v1.0', 'V1.0', '1.0.1', '1_0', '2.0', '1.1-rc.1']) {
+      const snap = foldSurfaceMessage(null, create({}, version))!;
+      expect(expandSurfaceSnapshot(snap)).toEqual([snap]);
+    }
+    for (const version of ['v0.9', '0.9.1', 'garbage', '']) {
+      const snap = foldSurfaceMessage(null, create({}, version))!;
+      expect(expandSurfaceSnapshot(snap)).toHaveLength(2);
+    }
   });
 
   it('omits empty components and data for v0.9', () => {
@@ -389,6 +455,16 @@ describe('parity with @a2ui/web_core MessageProcessor', () => {
       ],
       false,
     );
+  });
+
+  it('replays v0.9 snapshots through the validated config', () => {
+    expectParity([
+      { version: 'v0.9', createSurface: { surfaceId: 's1', catalogId: V09_CATALOG } },
+      comps([column(['a']), { id: 'a', component: 'Text', text: { path: '/label' } }], 'v0.9'),
+      { version: 'v0.9', updateDataModel: { surfaceId: 's1', path: '/label', value: 'L' } },
+      { version: 'v0.9', updateDataModel: { surfaceId: 's1', path: '/list', value: [1, 2] } },
+      comps([{ id: 'a', component: 'Text', text: 'plain' }], 'v0.9'),
+    ]);
   });
 
   it('matches for data model writes, array updates, and removals', () => {

@@ -85,11 +85,28 @@ function migrateUnderLock(dataDir: string, conversationId: string): boolean {
 }
 
 /**
+ * Renames a legacy file left behind when a migration stopped after writing
+ * `_seq` but before renaming it. The per-surface files already hold its state.
+ */
+function finishInterruptedMigration(dataDir: string, conversationId: string): void {
+  const legacy = legacyFile(dataDir, conversationId);
+  if (!existsSync(legacy) || !existsSync(seqFile(dataDir, conversationId))) return;
+  try {
+    renameSync(legacy, migratedFile(dataDir, conversationId));
+  } catch (err) {
+    // Another process finished the rename first.
+    if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') throw err;
+  }
+}
+
+/**
  * Converts a legacy flat log, `conversations/<convId>.jsonl`, to the
  * per-surface layout: one file per live surface, `_seq` set to the last
  * legacy seq, and the legacy file renamed to `<convId>.jsonl.migrated`.
  * Runs under the conversation lock and does nothing when the conversation
- * already has `_seq` or has no legacy file.
+ * has no legacy file. When the conversation already has `_seq`, a leftover
+ * legacy file (from a migration interrupted before its rename) is only
+ * renamed to `.migrated`.
  *
  * @returns Whether a migration ran.
  * @throws {StoreLockError} If the lock cannot be taken.
@@ -99,6 +116,7 @@ export function migrateLegacyStore(
   conversationId: string,
   opts?: LockOptions,
 ): boolean {
+  finishInterruptedMigration(dataDir, conversationId);
   if (!needsMigration(dataDir, conversationId)) return false;
   return withConversationLock(
     conversationDir(dataDir, conversationId),
