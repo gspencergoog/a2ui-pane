@@ -17,12 +17,15 @@
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "overview_header",
+            "overview_subtitle",
+            "header_divider",
             "glance_list",
             "waves_divider",
+            "waves_heading",
             "wave_diagram",
             "prs_divider",
+            "prs_heading",
             "prs_list",
-            "open_questions_text",
             "overview_footer"
           ]
         },
@@ -59,6 +62,20 @@
           }
         },
         {
+          "id": "overview_subtitle",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@path": "/subtitle"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "header_divider",
+          "component": "Divider",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        },
+        {
           "id": "glance_list",
           "component": "List",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -69,14 +86,12 @@
         },
         {
           "id": "glance_row",
-          "component": "Row",
+          "component": "Column",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
             "glance_label",
             "glance_value"
-          ],
-          "justify": "spaceBetween",
-          "align": "center"
+          ]
         },
         {
           "id": "glance_label",
@@ -86,7 +101,7 @@
             "@call": "formatString",
             "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
             "args": {
-              "value": "**${label}**"
+              "value": "##### ${label}"
             }
           }
         },
@@ -96,14 +111,18 @@
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
             "@path": "value"
-          },
-          "variant": "body",
-          "weight": 1
+          }
         },
         {
           "id": "waves_divider",
           "component": "Divider",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        },
+        {
+          "id": "waves_heading",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": "### Execution waves"
         },
         {
           "id": "wave_diagram",
@@ -119,6 +138,14 @@
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
         },
         {
+          "id": "prs_heading",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@path": "/prsHeading"
+          }
+        },
+        {
           "id": "prs_list",
           "component": "List",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -129,57 +156,65 @@
         },
         {
           "id": "pr_row",
-          "component": "Column",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-          "children": [
-            "pr_head",
-            "pr_meta"
-          ]
-        },
-        {
-          "id": "pr_head",
           "component": "Row",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
-            "pr_id",
-            "pr_title"
+            "pr_body",
+            "pr_wave"
           ],
-          "align": "center"
+          "justify": "spaceBetween",
+          "align": "start"
         },
         {
-          "id": "pr_id",
-          "component": "Text",
+          "id": "pr_body",
+          "component": "Column",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-          "text": {
-            "@call": "formatString",
-            "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-            "args": {
-              "value": "**${id}**"
-            }
-          }
+          "children": [
+            "pr_title",
+            "pr_meta"
+          ],
+          "weight": 1
         },
         {
           "id": "pr_title",
           "component": "Text",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "@path": "title"
-          },
-          "variant": "body",
-          "weight": 1
+            "@call": "formatString",
+            "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+            "args": {
+              "value": "**${id}.** ${title}"
+            }
+          }
         },
         {
           "id": "pr_meta",
           "component": "Text",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "text": {
-            "@call": "formatString",
-            "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-            "args": {
-              "value": "${repo} · wave ${wave}"
-            }
+            "@path": "repo"
           },
           "variant": "caption"
+        },
+        {
+          "id": "pr_wave",
+          "component": "Text",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "text": {
+            "@path": "wave"
+          },
+          "variant": "caption"
+        },
+        {
+          "id": "overview_footer",
+          "component": "Row",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "children": [
+            "open_questions_text",
+            "ack_btn"
+          ],
+          "justify": "spaceBetween",
+          "align": "center"
         },
         {
           "id": "open_questions_text",
@@ -195,20 +230,11 @@
           "variant": "caption"
         },
         {
-          "id": "overview_footer",
-          "component": "Row",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-          "children": [
-            "ack_btn"
-          ],
-          "justify": "end",
-          "align": "center"
-        },
-        {
           "id": "ack_btn",
           "component": "Button",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "child": "ack_btn_child",
+          "variant": "primary",
           "action": {
             "event": {
               "name": "acknowledge_plan_overview",
@@ -228,7 +254,8 @@
         }
       ],
       "dataModel": {
-        "title": "### Improve /plan: readable briefs and post-plan UI",
+        "title": "## Improve /plan: readable briefs and post-plan UI",
+        "subtitle": "3 waves · 4 parallel tracks · 4 changes · 0 open questions",
         "status": "Ready",
         "statusTone": "success",
         "glance": [
@@ -241,43 +268,44 @@
             "value": "3 waves. Wave 2 has 4 parallel tracks. The work lands as 3 commits in ~/code/cheats and 1 commit in ~/code/a2ui-pane."
           },
           {
-            "label": "Decisions needed from you",
-            "value": "none. Your four answers are recorded under Decisions."
+            "label": "Decisions needed",
+            "value": "None. Your four answers are recorded under Decisions."
           },
           {
             "label": "Biggest risk",
-            "value": "the new checks are errors, so older plans fail if they are revalidated. You accepted this (Q1)."
+            "value": "The new checks are errors, so older plans fail if they are revalidated. You accepted this (Q1)."
           },
           {
             "label": "Not doing",
-            "value": "the comprehension eval (C3) or the replay eval (C2), and syncing to the public skills repo."
+            "value": "The comprehension eval (C3) or the replay eval (C2), and syncing to the public skills repo."
           }
         ],
         "waveDiagram": "```mermaid\nflowchart LR\n    W1[\"Wave 1: plan_model.py + overview data contract\"] --> A[\"2A: validator checks\"]\n    W1 --> B[\"2B: plan_surfaces.py\"]\n    W1 --> C[\"2C: plan templates and references\"]\n    W1 --> D[\"2D: a2ui-pane plan_overview template\"]\n    A --> W3[\"Wave 3: SKILL.md, lint, tests, promote, commit\"]\n    B --> W3\n    C --> W3\n    D --> W3\n```",
+        "prsHeading": "### Planned changes",
         "prs": [
           {
             "id": "1",
             "title": "feat(plan): parse plan briefs, questions, PR tables, and tracks",
             "repo": "cheats",
-            "wave": "1"
+            "wave": "Wave 1"
           },
           {
             "id": "2",
             "title": "feat(plan): add brief checks, post-plan surfaces, and template updates",
-            "repo": "cheats",
-            "wave": "2 (2A to 2C)"
+            "repo": "cheats · 2A to 2C",
+            "wave": "Wave 2"
           },
           {
             "id": "3",
             "title": "feat(templates): add plan_overview template",
-            "repo": "a2ui-pane",
-            "wave": "2 (2D)"
+            "repo": "a2ui-pane · 2D",
+            "wave": "Wave 2"
           },
           {
             "id": "4",
             "title": "feat(plan): ask after drafting, combine review gate with open questions, add landing step",
             "repo": "cheats",
-            "wave": "3"
+            "wave": "Wave 3"
           }
         ],
         "openQuestions": 0,

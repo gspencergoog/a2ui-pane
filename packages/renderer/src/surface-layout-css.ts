@@ -63,6 +63,13 @@ export const SURFACE_LAYOUT_CSS = `
     font-weight: 600;
     line-height: 1.35;
   }
+  a2ui-basic-text .a2ui-text :is(h3, h4, h5, h6) {
+    color: var(--a2ui-color-primary, var(--primary, #0b57d0));
+  }
+  a2ui-card > .a2ui-card > a2ui-basic-column > a2ui-basic-row:first-child > a2ui-basic-text:first-child .a2ui-text h3,
+  a2ui-card > .a2ui-card > a2ui-basic-column > a2ui-basic-text:first-child .a2ui-text h3 {
+    color: inherit;
+  }
   a2ui-basic-row > a2ui-card {
     display: flex;
     flex-direction: column;
