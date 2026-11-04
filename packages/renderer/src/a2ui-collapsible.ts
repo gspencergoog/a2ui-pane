@@ -1,5 +1,6 @@
 import { html, css, nothing, unsafeCSS, type PropertyValues } from 'lit';
 import { A2uiLitElement } from '@a2ui/web_core/universal';
+import { createStyledShadowRoot } from './styled-shadow-root.js';
 import { SURFACE_LAYOUT_CSS } from './surface-layout-css.js';
 import { applyHostWeight, syncRowItemMarker } from './a2ui-badge.js';
 
@@ -25,7 +26,7 @@ export class A2uiCollapsibleElement extends A2uiLitElement<any, CollapsibleResol
   static tagName = 'a2ui-collapsible';
 
   protected override createRenderRoot(): HTMLElement | DocumentFragment {
-    return this.attachShadow({ mode: 'open' });
+    return createStyledShadowRoot(this);
   }
 
   static override properties = {

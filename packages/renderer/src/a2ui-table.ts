@@ -1,5 +1,6 @@
 import { html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { A2uiLitElement } from '@a2ui/web_core/universal';
+import { createStyledShadowRoot } from './styled-shadow-root.js';
 import {
   A2uiBadgeElement,
   applyHostWeight,
@@ -186,7 +187,7 @@ export class A2uiTableElement extends A2uiLitElement<any, TableResolvedProps> {
   static tagName = 'a2ui-table';
 
   protected override createRenderRoot(): HTMLElement | DocumentFragment {
-    return this.attachShadow({ mode: 'open' });
+    return createStyledShadowRoot(this);
   }
 
   static override properties = {

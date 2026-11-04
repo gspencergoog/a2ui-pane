@@ -1,5 +1,6 @@
 import { html, css, nothing, type PropertyValues } from 'lit';
 import { A2uiLitElement } from '@a2ui/web_core/universal';
+import { createStyledShadowRoot } from './styled-shadow-root.js';
 import { resolveIconSvgPath } from './icon-paths.js';
 
 /** Allowed semantic tone values for `Badge` and `ProgressBar` segments. */
@@ -67,7 +68,7 @@ export class A2uiBadgeElement extends A2uiLitElement<any, BadgeResolvedProps> {
   static tagName = 'a2ui-badge';
 
   protected override createRenderRoot(): HTMLElement | DocumentFragment {
-    return this.attachShadow({ mode: 'open' });
+    return createStyledShadowRoot(this);
   }
 
   static override styles = css`

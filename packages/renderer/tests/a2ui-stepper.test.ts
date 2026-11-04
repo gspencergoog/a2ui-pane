@@ -237,6 +237,20 @@ describe('<a2ui-stepper>', () => {
     expect(plain.style.flex).toBe('');
   });
 
+  it('adopts its static styles into the shadow root it creates', async () => {
+    // Regression: overriding createRenderRoot() with a bare attachShadow() skipped Lit's
+    // adoptStyles(), so the stepper rendered as an unstyled numbered list.
+    const { root } = await mount('stepperStyles', { current: 1 });
+    const adopted = root.adoptedStyleSheets ?? [];
+    const adoptedText = adopted
+      .flatMap((sheet) => Array.from(sheet.cssRules).map((rule) => rule.cssText))
+      .join('\n');
+    const inlineText = Array.from(root.querySelectorAll('style'))
+      .map((el) => el.textContent ?? '')
+      .join('\n');
+    expect(`${adoptedText}\n${inlineText}`).toContain('.a2ui-stepper');
+  });
+
   it('follows the status-catalog host rules for Row and Column layout', () => {
     const cssText = String((customElements.get('a2ui-stepper') as any).styles.cssText);
     const hostBlock = /:host \{([^}]*)\}/.exec(cssText)?.[1] ?? '';

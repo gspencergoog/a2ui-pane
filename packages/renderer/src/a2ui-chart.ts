@@ -1,5 +1,6 @@
 import { html, svg, css, nothing, type TemplateResult } from 'lit';
 import { A2uiLitElement } from '@a2ui/web_core/universal';
+import { createStyledShadowRoot } from './styled-shadow-root.js';
 import {
   type ChartVariant,
   type ChartSelection,
@@ -54,7 +55,7 @@ export class A2uiChartElement extends A2uiLitElement<any, ChartResolvedProps> {
   static tagName = 'a2ui-chart';
 
   protected override createRenderRoot(): HTMLElement | DocumentFragment {
-    return this.attachShadow({ mode: 'open' });
+    return createStyledShadowRoot(this);
   }
 
   static override properties = {

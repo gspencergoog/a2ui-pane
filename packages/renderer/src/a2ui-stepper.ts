@@ -1,5 +1,6 @@
 import { html, css, nothing, type PropertyValues } from 'lit';
 import { A2uiLitElement } from '@a2ui/web_core/universal';
+import { createStyledShadowRoot } from './styled-shadow-root.js';
 import {
   applyHostWeight,
   normalizeStatusTone,
@@ -76,7 +77,7 @@ export class A2uiStepperElement extends A2uiLitElement<any, StepperResolvedProps
   static tagName = 'a2ui-stepper';
 
   protected override createRenderRoot(): HTMLElement | DocumentFragment {
-    return this.attachShadow({ mode: 'open' });
+    return createStyledShadowRoot(this);
   }
 
   static override styles = css`
