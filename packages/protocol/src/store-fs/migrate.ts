@@ -80,7 +80,7 @@ function migrateUnderLock(dataDir: string, conversationId: string): boolean {
     writeSurfaceLine(dir, line);
   }
   writeSeq(dir, lastSeq);
-  renameSync(legacy, migratedFile(dataDir, conversationId));
+  renameLegacy(dataDir, conversationId);
   return true;
 }
 
@@ -91,10 +91,18 @@ function migrateUnderLock(dataDir: string, conversationId: string): boolean {
 function finishInterruptedMigration(dataDir: string, conversationId: string): void {
   const legacy = legacyFile(dataDir, conversationId);
   if (!existsSync(legacy) || !existsSync(seqFile(dataDir, conversationId))) return;
+  renameLegacy(dataDir, conversationId);
+}
+
+/**
+ * Renames the legacy file to `.migrated`. The recovery above runs without the
+ * lock, so it can win the rename against a migrator that has already written
+ * `_seq`; a missing file therefore means the rename is done.
+ */
+function renameLegacy(dataDir: string, conversationId: string): void {
   try {
-    renameSync(legacy, migratedFile(dataDir, conversationId));
+    renameSync(legacyFile(dataDir, conversationId), migratedFile(dataDir, conversationId));
   } catch (err) {
-    // Another process finished the rename first.
     if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') throw err;
   }
 }
