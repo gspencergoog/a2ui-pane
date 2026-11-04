@@ -50,16 +50,18 @@ flowchart LR
     subgraph Repo["a2ui-pane plugin"]
       MCP["mcp-server: resolve dsl/template, validate (headless MessageProcessor)"]
       W["express_worker.py (persistent Python child)"]
-      Store[("PLUGIN_DATA/conversations/ID.jsonl, one message per line")]
+      Store[("PLUGIN_DATA/conversations/ID/SURFACE.jsonl, one snapshot line per surface")]
       Side["sidecar: Node http, SSE"]
     end
     Agent -->|"render_a2ui (dsl | template | messages)"| MCP
     MCP -->|"compile (JSON lines)"| W
     W -->|"messages or line/column error"| MCP
     MCP -->|"errors or ok"| Agent
-    MCP -->|"append lines"| Store
-    Store -->|"fs.watch + 2 s poll"| Side
-    Side -->|"SSE /api/stream (id = seq)"| App
+    MCP -->|"commit (fold + atomic replace)"| Store
+    Store -->|"recursive fs.watch + _seq poll"| Side
+    Side -->|"SSE /api/stream: snapshot, then line diffs"| App
+    App -->|"POST /api/surfaces/delete (dismiss or submit)"| Side
+    Side -->|"unlink surface file"| Store
     App -->|"sendMessage: a2ui-action text"| Side
     Side -->|"agentapi send-message"| Agent
     MCP -->|"inline: writes embed HTML"| Chat
@@ -72,7 +74,7 @@ flowchart LR
 sequenceDiagram
     participant A as Agent
     participant M as MCP Server
-    participant S as Store (JSONL)
+    participant S as Store (per-surface files)
     participant C as Sidecar (HTTP/SSE)
     participant P as Pane App (Lit)
     participant U as User
@@ -83,18 +85,20 @@ sequenceDiagram
     alt Compile or validation failed
       M-->>A: isError: true with Express line/column or message index diagnostics
     else Validation Succeeded
-      M->>S: Append N lines to <conversationId>.jsonl
+      M->>S: Fold into <conversationId>/<surfaceId>.jsonl under the lock
       M-->>A: Ok (surfaces updated, AuxPane hint)
-      S-->>C: fs.watch / poll triggers file read
-      C-->>P: SSE event: line (seq, message)
-      P->>P: processor.processMessages([line.message])
+      S-->>C: fs.watch / _seq poll triggers a diff
+      C-->>P: SSE event: line (seq, createSurface snapshot)
+      P->>P: LineApplier updates the surface in place or re-creates it
       P-->>U: DOM updates smoothly
     end
 
-    U->>P: Clicks Button (submit action)
+    U->>P: Clicks a one-shot Button (submit action)
     P->>C: POST /_sidecar/send-message (formatted <a2ui-action>)
     C->>A: agentapi send-message <conversationId> <prompt>
-    A->>M: render_a2ui(updateDataModel on same surfaceId)
+    P->>C: POST /api/surfaces/delete (reason: submitted)
+    C->>S: Unlink <surfaceId>.jsonl, bump _seq
+    A->>M: render_a2ui(replace: true) if the surface is needed again
 ```
 
 ---
@@ -105,7 +109,7 @@ The repository is organized as Yarn workspaces under `packages/*`:
 
 | Package               | Purpose                                                                                                             | Dependencies                                              |
 | :-------------------- | :------------------------------------------------------------------------------------------------------------------ | :-------------------------------------------------------- |
-| `packages/protocol`   | TypeScript types for store lines, SSE stream events, and action formatting.                                         | None                                                      |
+| `packages/protocol`   | Store line types, the surface fold, SSE stream events, action formatting, and the node-only `store-fs` store.       | None                                                      |
 | `packages/theme`      | CSS stylesheet and utilities mapping host tokens (`--background`, `--card`, `--primary`, `--border`) to `--a2ui-*`. | None                                                      |
 | `packages/renderer`   | Lit multi-surface container (`<a2ui-pane-view>`) wrapping `@a2ui/lit` and `@a2ui/web_core`.                         | `protocol`, `theme`, `@a2ui/lit`, `@a2ui/web_core`        |
 | `packages/pane-app`   | Standalone Vite SPA loaded in the AuxPane iframe; consumes SSE stream.                                              | `renderer`, `protocol`                                    |
@@ -119,26 +123,41 @@ The repository is organized as Yarn workspaces under `packages/*`:
 
 ## 4. Key Subsystems
 
-### 4.1 Message Store (`${PLUGIN_DATA}/conversations/<conversationId>.jsonl`)
+### 4.1 Message Store (`${PLUGIN_DATA}/conversations/<conversationId>/`)
 
-- Structure: One A2UI v0.9 server-to-client message per newline-terminated JSON line.
+The on-disk contract, including the lock protocol that the Python `/monitor` writers also follow, is in [store-format.md](store-format.md). In short:
+
+- Layout: one directory per conversation. Each live surface has one file, `<surfaceId>.jsonl`, holding exactly one `StoreLine` whose message is a `createSurface` with the surface's full current `components` and `dataModel`. A `_seq` file holds the conversation's high-water seq.
 - Envelope:
   ```json
-  {"seq": 1, "callId": "c_123", "ts": "2026-09-30T20:00:00Z", "message": { ... }}
+  {"seq": 42, "callId": "c_123", "ts": "2026-11-04T20:00:00Z", "message": {"version": "1.0", "createSurface": { ... }}}
   ```
-- Atomicity: Written using `fs.appendFile` with `O_APPEND`.
-- Retention: Files unaccessed for over 30 days are purged on sidecar startup.
-- Multiple writers: Each Jetski conversation runs its own MCP server process, and a swarm worker can render into another conversation's store, so several processes append to one file. `seq` must stay monotonic across all of them because the pane de-duplicates replayed records by `seq`. Before every append, `StoreWriter` reads the last 64 KiB of the file, takes the `seq` of the last complete line (skipping a truncated trailing line), and continues from the larger of that value and its own last write. The in-process value is only a floor, so a process never reuses a `seq` even if the file shrinks underneath it.
+- Writes: `SurfaceStore.commit` (in `@a2ui-pane/protocol/store-fs`) takes the conversation's O_EXCL `.lock`, folds the incoming messages into the affected snapshots with `foldSurfaceMessage` (which mirrors `@a2ui/web_core` 0.15), writes each file through a temporary file and `rename`, unlinks deleted surfaces, and writes `_seq` last. Each changed surface gets a new seq. A delete also consumes one.
+- Reads never take the lock, because `rename` and `unlink` are atomic. A reload replays one line per live surface instead of every update ever made.
+- Multiple writers: each Jetski conversation runs its own MCP server process, swarm workers can render into another conversation, the sidecar deletes surfaces, and `/monitor` replaces `monitor.jsonl`. They all serialize on the lock. The MCP server compares `_seq` with the generation it last saw and rebuilds its headless processor when another process has written.
+- v0.9 surfaces: the v0.9 `createSurface` schema rejects `components` and `dataModel`, so readers replay a snapshot through `expandSurfaceSnapshot`, which splits a pre-1.0 snapshot into `createSurface`, `updateComponents`, and a root `updateDataModel`.
+- Migration: a legacy flat log, `<conversationId>.jsonl`, is folded into per-surface files on first access and renamed to `<conversationId>.jsonl.migrated`.
+- Retention: on sidecar startup, conversation directories whose files are all older than 30 days are removed (directories holding a live lock are skipped), along with old legacy and `.migrated` files.
 
 ### 4.2 Sidecar & SSE Transport
 
 - Runs a dedicated Node HTTP server on `127.0.0.1:$ANTIGRAVITY_SIDECAR_WEB_PORT`.
 - SSE route `GET /api/stream?conversationId=...&token=...`:
   - `Content-Type: text/event-stream`, `Cache-Control: no-cache, no-transform`, `X-Accel-Buffering: no`.
-  - Replays existing stored lines, then streams newly written lines.
-  - Event `id` matches `seq`, enabling automatic reconnection without line loss via standard `Last-Event-ID`.
-  - Dispatches `reset` event if the underlying store file is truncated or rotated.
+  - On connect it subscribes to change notifications, then sends one `snapshot` event: every live surface's line, sorted by seq. It ignores `Last-Event-ID`, because a snapshot is a few KB and a reconnect simply starts over.
+  - On each change it diffs the directory against the seqs the client already has and sends `line` events: a `createSurface` line for each new or changed surface, and a synthetic `deleteSurface` line for each surface whose file is gone.
+  - Changes are detected with a recursive `fs.watch` on `conversations/`, plus a poll of each conversation's `_seq`.
+  - The legacy `reset` event is still understood by the pane for one release, but the sidecar no longer sends it.
+- `POST /api/surfaces/delete` (token-checked) with `{conversationId, surfaceId, reason}` unlinks one surface file under the async lock. It returns `200 {deleted}`, or `423` when the lock is busy.
 - Serves `/preload.js` (SDK script or fallback shim), static pane SPA assets, and `POST /_sidecar/send-message`.
+
+### 4.2.1 Surface Lifecycle in the Pane
+
+- The pane's `LineApplier` tracks the seq it applied per surface. A `snapshot` event reconciles the view: surfaces missing from the snapshot are removed, and the rest are applied.
+- A `createSurface` line for a mounted surface updates it in place (components, then the data model) when the component set only grows and the surface settings are unchanged, so Lit keeps the element and its scroll position. Otherwise the surface is deleted and re-created.
+- Pressing ✕ hides the surface at once, posts `/api/surfaces/delete` with reason `dismissed`, and sends the `dismiss_surface` action to the agent.
+- A one-shot action (any button that is not `_oneShot: false`, borderless, or a modal trigger) deletes its surface with reason `submitted`, but only after the action message was delivered. A failed send keeps the surface and shows a toast.
+- Because the file is gone, a dismissed or submitted surface stays gone after a pane reload or a host restart. An agent that needs it again re-renders it with `replace: true`.
 
 ### 4.3 Action Round-Trip
 
