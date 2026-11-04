@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { handleStream } from '../src/sse-route.js';
 import { StoreReader } from '../src/store-reader.js';
 import { ChangeNotifier } from '../src/change-notifier.js';
-import { serializeStoreLine, StoreLine } from '@a2ui-pane/protocol';
+import type { A2uiServerMessage, StoreLine } from '@a2ui-pane/protocol';
+import { SurfaceStore } from '@a2ui-pane/protocol/store-fs';
 import EventEmitter from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -36,16 +37,40 @@ function createMockSseResponse() {
   };
 }
 
+interface ParsedEvent {
+  event: string;
+  id?: string;
+  data: any;
+}
+
+function parseEvents(chunks: string[]): ParsedEvent[] {
+  return chunks
+    .filter((c) => c.startsWith('event:'))
+    .map((chunk) => {
+      const fields = Object.fromEntries(
+        chunk
+          .trim()
+          .split('\n')
+          .map((l) => [l.slice(0, l.indexOf(':')), l.slice(l.indexOf(':') + 2)]),
+      );
+      return { event: fields.event, id: fields.id, data: JSON.parse(fields.data) };
+    });
+}
+
+const create = (surfaceId: string): A2uiServerMessage => ({
+  version: '1.0',
+  createSurface: { surfaceId, catalogId: 'basic' },
+});
+
 describe('handleStream', () => {
   let tmpDir: string;
-  let convDir: string;
+  let store: SurfaceStore;
   let storeReader: StoreReader;
   let notifier: ChangeNotifier;
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sse-route-test-'));
-    convDir = path.join(tmpDir, 'conversations');
-    fs.mkdirSync(convDir, { recursive: true });
+    store = new SurfaceStore(tmpDir);
     storeReader = new StoreReader(tmpDir);
     notifier = new ChangeNotifier(tmpDir, 50);
   });
@@ -55,163 +80,159 @@ describe('handleStream', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('streams existing lines, handles Last-Event-ID, and emits keepalive', () => {
-    vi.useFakeTimers();
-    const convId = 'conv_sse';
-    const filePath = path.join(convDir, `${convId}.jsonl`);
-
-    const line1: StoreLine = {
-      seq: 1,
-      ts: new Date().toISOString(),
-      callId: 'c1',
-      message: { version: 'v0.9', createSurface: { surfaceId: 's1', catalogId: 'basic' } },
-    };
-    const line2: StoreLine = {
-      seq: 2,
-      ts: new Date().toISOString(),
-      callId: 'c1',
-      message: { version: 'v0.9', updateDataModel: { surfaceId: 's1', path: '/x', value: 1 } },
-    };
-
-    fs.writeFileSync(filePath, serializeStoreLine(line1) + '\n' + serializeStoreLine(line2) + '\n');
-
+  const connect = (convId: string, headers: Record<string, string> = {}) => {
     const req: any = new EventEmitter();
-    req.headers = { 'last-event-id': '1' };
+    req.headers = headers;
+    const mock = createMockSseResponse();
+    handleStream(req, mock.res, convId, storeReader, notifier, { keepaliveIntervalMs: 1000 });
+    return { req, ...mock };
+  };
 
-    const { res, getOutput } = createMockSseResponse();
+  it('sends one snapshot on connect, ignores Last-Event-ID, and emits keepalive', () => {
+    vi.useFakeTimers();
+    store.commit('conv_sse', 'c1', [create('s1'), create('s2')]);
 
-    handleStream(req, res, convId, storeReader, notifier, {
-      keepaliveIntervalMs: 1000,
-    });
+    const { req, getOutput } = connect('conv_sse', { 'last-event-id': '99' });
 
-    const out1 = getOutput();
-    expect(out1.statusCode).toBe(200);
-    expect(out1.headers['Content-Type']).toBe('text/event-stream');
-    // Seq 1 was skipped because of last-event-id: 1; seq 2 is sent
-    expect(out1.body).toContain('id: 2');
-    expect(out1.body).not.toContain('id: 1\n');
+    const out = getOutput();
+    expect(out.statusCode).toBe(200);
+    expect(out.headers['Content-Type']).toBe('text/event-stream');
+    const events = parseEvents(out.chunks);
+    expect(events).toHaveLength(1);
+    expect(events[0].event).toBe('snapshot');
+    expect(events[0].data.lines.map((l: StoreLine) => l.seq)).toEqual([1, 2]);
 
-    // Trigger keepalive timer
     vi.advanceTimersByTime(1000);
     expect(getOutput().body).toContain(': keepalive');
 
-    // Clean up
     req.emit('close');
     vi.useRealTimers();
   });
 
-  it('emits live updates when store file is appended and handles reset on file truncation', () => {
-    const convId = 'conv_live';
-    const filePath = path.join(convDir, `${convId}.jsonl`);
+  it('sends an empty snapshot for a conversation with no surfaces', () => {
+    const { req, getOutput } = connect('conv_empty');
+    expect(parseEvents(getOutput().chunks)).toEqual([
+      { event: 'snapshot', id: undefined, data: { lines: [] } },
+    ]);
+    req.emit('close');
+  });
 
-    const line1: StoreLine = {
-      seq: 1,
-      ts: new Date().toISOString(),
-      callId: 'c1',
-      message: { version: 'v0.9' },
-    };
-    fs.writeFileSync(filePath, serializeStoreLine(line1) + '\n');
+  it('streams the live diff after a replace and a delete tombstone', () => {
+    store.commit('conv_live', 'c1', [create('a'), create('b')]);
+    const { req, getOutput } = connect('conv_live');
 
-    const req: any = new EventEmitter();
-    req.headers = {};
-    const { res, getOutput } = createMockSseResponse();
+    store.commit('conv_live', 'c2', [
+      { version: '1.0', updateDataModel: { surfaceId: 'a', path: '/x', value: 1 } },
+    ]);
+    (notifier as any).notify('conv_live');
 
-    handleStream(req, res, convId, storeReader, notifier, {
-      keepaliveIntervalMs: 5000,
+    let events = parseEvents(getOutput().chunks);
+    expect(events).toHaveLength(2);
+    expect(events[1]).toMatchObject({ event: 'line', id: '3' });
+    expect(events[1].data.message.createSurface.dataModel).toEqual({ x: 1 });
+
+    // A tick with no change sends nothing.
+    (notifier as any).notify('conv_live');
+    expect(parseEvents(getOutput().chunks)).toHaveLength(2);
+
+    store.deleteSurface('conv_live', 'b', 'call_pane_dismissed_1');
+    (notifier as any).notify('conv_live');
+    events = parseEvents(getOutput().chunks);
+    expect(events).toHaveLength(3);
+    expect(events[2]).toMatchObject({ event: 'line', id: '4' });
+    expect(events[2].data.message).toEqual({ version: '1.0', deleteSurface: { surfaceId: 'b' } });
+
+    req.emit('close');
+  });
+
+  it('subscribes before taking the snapshot', () => {
+    const order: string[] = [];
+    const subscribe = vi.spyOn(notifier, 'subscribe').mockImplementation(() => {
+      order.push('subscribe');
+      return () => {};
+    });
+    const snapshot = vi.spyOn(storeReader, 'snapshot').mockImplementation(() => {
+      order.push('snapshot');
+      return [];
     });
 
-    expect(getOutput().body).toContain('id: 1');
+    const { req } = connect('conv_order');
+    expect(order).toEqual(['subscribe', 'snapshot']);
+    req.emit('close');
+    subscribe.mockRestore();
+    snapshot.mockRestore();
+  });
 
-    // Append line 2 and notify
-    const line2: StoreLine = {
-      seq: 2,
-      ts: new Date().toISOString(),
-      callId: 'c2',
-      message: { version: 'v0.9' },
-    };
-    fs.appendFileSync(filePath, serializeStoreLine(line2) + '\n');
-    (notifier as any).notify(convId);
+  it('does not resend a write that landed between subscribe and snapshot', () => {
+    const realSubscribe = notifier.subscribe.bind(notifier);
+    vi.spyOn(notifier, 'subscribe').mockImplementation((convId, cb) => {
+      const unsubscribe = realSubscribe(convId, cb);
+      store.commit(convId, 'c-race', [create('raced')]);
+      return unsubscribe;
+    });
 
-    expect(getOutput().body).toContain('id: 2');
+    const { req, getOutput } = connect('conv_race');
+    (notifier as any).notify('conv_race');
 
-    // Now simulate reset by truncating file
-    const resetLine: StoreLine = {
-      seq: 1,
-      ts: new Date().toISOString(),
-      callId: 'c_reset',
-      message: { version: 'v0.9' },
-    };
-    fs.writeFileSync(filePath, serializeStoreLine(resetLine) + '\n');
-    (notifier as any).notify(convId);
-
-    expect(getOutput().body).toContain('event: reset');
-
+    const events = parseEvents(getOutput().chunks);
+    expect(events).toHaveLength(1);
+    expect(events[0].data.lines[0].message.createSurface.surfaceId).toBe('raced');
     req.emit('close');
   });
 
-  it('handles initial reset when file shrank before connection', () => {
-    const convId = 'conv_initial_reset';
-    const filePath = path.join(convDir, `${convId}.jsonl`);
+  it('falls back to the first diff when the snapshot read fails', () => {
+    store.commit('conv_fail', 'c1', [create('a')]);
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const snapshot = vi.spyOn(storeReader, 'snapshot').mockImplementationOnce(() => {
+      throw new Error('EACCES');
+    });
 
-    const line1: StoreLine = {
-      seq: 1,
-      ts: new Date().toISOString(),
-      callId: 'c1',
-      message: { version: 'v0.9' },
-    };
-    fs.writeFileSync(filePath, serializeStoreLine(line1) + '\n');
+    const { req, getOutput } = connect('conv_fail');
+    expect(parseEvents(getOutput().chunks)).toEqual([]);
+    expect(errSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Error reading snapshot'),
+      expect.anything(),
+    );
 
-    // Force reader to remember a large offset
-    storeReader.read(convId, 0);
-    // Truncate file
-    fs.writeFileSync(filePath, '');
+    (notifier as any).notify('conv_fail');
+    const events = parseEvents(getOutput().chunks);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ event: 'line', id: '1' });
 
-    const req: any = new EventEmitter();
-    req.headers = {};
-    const { res, getOutput } = createMockSseResponse();
-
-    handleStream(req, res, convId, storeReader, notifier);
-
-    expect(getOutput().body).toContain('event: reset');
     req.emit('close');
+    snapshot.mockRestore();
+    errSpy.mockRestore();
   });
 
-  it('safely ignores invalid or negative Last-Event-ID header', () => {
-    const convId = 'conv_invalid_id';
-    const filePath = path.join(convDir, `${convId}.jsonl`);
-    fs.writeFileSync(filePath, '');
-
-    const req: any = new EventEmitter();
-    req.headers = { 'last-event-id': 'not-a-number' };
-    const { res } = createMockSseResponse();
-
-    expect(() => handleStream(req, res, convId, storeReader, notifier)).not.toThrow();
-    req.emit('close');
-  });
-
-  it('safely handles write error in keepalive timer and notifier error', () => {
+  it('safely handles write errors in the keepalive timer and the notifier tick', () => {
     vi.useFakeTimers();
-    const convId = 'conv_write_err';
-    const filePath = path.join(convDir, `${convId}.jsonl`);
-    fs.writeFileSync(filePath, '');
-
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const req: any = new EventEmitter();
     req.headers = {};
     const { res } = createMockSseResponse();
-
-    // Throwing res.write
     res.write = vi.fn().mockImplementation(() => {
       throw new Error('Socket write failure');
     });
 
-    handleStream(req, res, convId, storeReader, notifier, {
-      keepaliveIntervalMs: 50,
-    });
-
-    // Advance timer to trigger keepalive write error
+    handleStream(req, res, 'conv_write_err', storeReader, notifier, { keepaliveIntervalMs: 50 });
     expect(() => vi.advanceTimersByTime(100)).not.toThrow();
 
+    store.commit('conv_write_err', 'c1', [create('a')]);
+    expect(() => (notifier as any).notify('conv_write_err')).not.toThrow();
+    expect(errSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Error processing update'),
+      expect.anything(),
+    );
+
     req.emit('close');
+    errSpy.mockRestore();
     vi.useRealTimers();
+  });
+
+  it('unsubscribes on close', () => {
+    const { req } = connect('conv_close');
+    expect((notifier as any).listeners.has('conv_close')).toBe(true);
+    req.emit('close');
+    expect((notifier as any).listeners.has('conv_close')).toBe(false);
   });
 });

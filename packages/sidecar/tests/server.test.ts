@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createSidecarServer, SidecarDeps } from '../src/server.js';
 import { StoreReader } from '../src/store-reader.js';
 import { ChangeNotifier } from '../src/change-notifier.js';
-import { serializeStoreLine, StoreLine } from '@a2ui-pane/protocol';
+import { SurfaceStore } from '@a2ui-pane/protocol/store-fs';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -176,17 +176,11 @@ describe('SidecarServer', () => {
       expect(resNew.body).toContain('Invalid or missing conversationId: _new');
     });
 
-    it('connects to SSE stream and streams existing lines and keepalives', async () => {
+    it('connects to SSE stream and sends the snapshot of existing surfaces', async () => {
       const convId = 'default-conv-id';
-      const convFile = path.join(convDir, `${convId}.jsonl`);
-
-      const line1: StoreLine = {
-        seq: 1,
-        ts: new Date().toISOString(),
-        callId: 'c1',
-        message: { version: 'v0.9', createSurface: { surfaceId: 's1', catalogId: 'basic' } },
-      };
-      fs.writeFileSync(convFile, serializeStoreLine(line1) + '\n');
+      new SurfaceStore(tmpDir).commit(convId, 'c1', [
+        { version: 'v0.9', createSurface: { surfaceId: 's1', catalogId: 'basic' } },
+      ]);
 
       return new Promise<void>((resolve, reject) => {
         const req = http.request(
@@ -199,7 +193,7 @@ describe('SidecarServer', () => {
             let buffer = '';
             res.on('data', (chunk) => {
               buffer += chunk.toString('utf-8');
-              if (buffer.includes('event: line') && buffer.includes('id: 1')) {
+              if (buffer.includes('event: snapshot') && buffer.includes('"surfaceId":"s1"')) {
                 req.destroy();
                 resolve();
               }
@@ -213,6 +207,148 @@ describe('SidecarServer', () => {
         });
         req.end();
       });
+    });
+  });
+
+  describe('POST /api/surfaces/delete', () => {
+    const surfaceFile = (convId: string, surfaceId: string) =>
+      path.join(convDir, convId, `${surfaceId}.jsonl`);
+
+    const seed = (convId: string, surfaceId: string) =>
+      new SurfaceStore(tmpDir).commit(convId, 'c1', [
+        { version: '1.0', createSurface: { surfaceId, catalogId: 'basic' } },
+      ]);
+
+    const postDelete = (body: unknown, token: string | null = 'test-secret-token') =>
+      request('/api/surfaces/delete', {
+        method: 'POST',
+        headers: token ? { 'X-Sidecar-Token': token } : {},
+        body: typeof body === 'string' ? body : JSON.stringify(body),
+      });
+
+    it('returns 401 without a valid token and leaves the file', async () => {
+      seed('conv-del', 'main');
+      const body = { conversationId: 'conv-del', surfaceId: 'main', reason: 'dismissed' };
+      expect((await postDelete(body, null)).status).toBe(401);
+      expect((await postDelete(body, 'wrong')).status).toBe(401);
+      expect(fs.existsSync(surfaceFile('conv-del', 'main'))).toBe(true);
+    });
+
+    it('returns 400 for bad ids, a bad reason, or malformed JSON', async () => {
+      const cases: unknown[] = [
+        { conversationId: '../x', surfaceId: 'main', reason: 'dismissed' },
+        { conversationId: '_new', surfaceId: 'main', reason: 'dismissed' },
+        { conversationId: 'conv-del', surfaceId: '../main', reason: 'dismissed' },
+        { conversationId: 'conv-del', surfaceId: 'main', reason: 'other' },
+        { conversationId: 'conv-del', surfaceId: 'main' },
+        '{not json',
+        'null',
+      ];
+      for (const body of cases) {
+        const res = await postDelete(body);
+        expect(res.status, JSON.stringify(body)).toBe(400);
+      }
+    });
+
+    it('returns 413 for a body over 4 KB', async () => {
+      const res = await postDelete({
+        conversationId: 'conv-del',
+        surfaceId: 'main',
+        reason: 'dismissed',
+        pad: 'x'.repeat(5000),
+      });
+      expect(res.status).toBe(413);
+    });
+
+    it('unlinks the surface file, bumps _seq, and reports deleted', async () => {
+      seed('conv-del', 'main');
+      const res = await postDelete({
+        conversationId: 'conv-del',
+        surfaceId: 'main',
+        reason: 'submitted',
+      });
+      expect(res.status).toBe(200);
+      expect(JSON.parse(res.body)).toEqual({ deleted: true });
+      expect(fs.existsSync(surfaceFile('conv-del', 'main'))).toBe(false);
+      expect(new SurfaceStore(tmpDir).generation('conv-del')).toBe(2);
+
+      const again = await postDelete({
+        conversationId: 'conv-del',
+        surfaceId: 'main',
+        reason: 'dismissed',
+      });
+      expect(again.status).toBe(200);
+      expect(JSON.parse(again.body)).toEqual({ deleted: false });
+    });
+
+    it('returns 423 when the conversation lock cannot be taken', async () => {
+      seed('conv-locked', 'main');
+      fs.writeFileSync(path.join(convDir, 'conv-locked', '.lock'), `${process.pid} held`);
+      const lockedServer = createSidecarServer(env, {
+        storeReader,
+        notifier,
+        staticDir,
+        surfaceStore: new SurfaceStore(tmpDir, { lockTimeoutMs: 30 }),
+      });
+      await new Promise<void>((resolve) => lockedServer.listen(0, '127.0.0.1', resolve));
+      const lockedPort = (lockedServer.address() as any).port;
+      try {
+        const res = await new Promise<{ status: number; body: string }>((resolve, reject) => {
+          const req = http.request(
+            `http://127.0.0.1:${lockedPort}/api/surfaces/delete?token=test-secret-token`,
+            { method: 'POST', headers: { 'Content-Type': 'application/json' } },
+            (r) => {
+              let data = '';
+              r.on('data', (c) => (data += c));
+              r.on('end', () => resolve({ status: r.statusCode || 0, body: data }));
+            },
+          );
+          req.on('error', reject);
+          req.end(
+            JSON.stringify({
+              conversationId: 'conv-locked',
+              surfaceId: 'main',
+              reason: 'dismissed',
+            }),
+          );
+        });
+        expect(res.status).toBe(423);
+        expect(fs.existsSync(surfaceFile('conv-locked', 'main'))).toBe(true);
+      } finally {
+        await new Promise<void>((resolve) => lockedServer.close(() => resolve()));
+      }
+    });
+
+    it('returns 500 when the store fails unexpectedly', async () => {
+      const failing = new SurfaceStore(tmpDir);
+      vi.spyOn(failing, 'deleteSurfaceAsync').mockRejectedValue(new Error('disk on fire'));
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const failingServer = createSidecarServer(env, {
+        storeReader,
+        notifier,
+        staticDir,
+        surfaceStore: failing,
+      });
+      await new Promise<void>((resolve) => failingServer.listen(0, '127.0.0.1', resolve));
+      const failingPort = (failingServer.address() as any).port;
+      try {
+        const status = await new Promise<number>((resolve, reject) => {
+          const req = http.request(
+            `http://127.0.0.1:${failingPort}/api/surfaces/delete?token=test-secret-token`,
+            { method: 'POST', headers: { 'Content-Type': 'application/json' } },
+            (r) => {
+              r.resume();
+              r.on('end', () => resolve(r.statusCode || 0));
+            },
+          );
+          req.on('error', reject);
+          req.end(JSON.stringify({ conversationId: 'c', surfaceId: 's', reason: 'dismissed' }));
+        });
+        expect(status).toBe(500);
+      } finally {
+        errSpy.mockRestore();
+        await new Promise<void>((resolve) => failingServer.close(() => resolve()));
+      }
     });
   });
 

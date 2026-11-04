@@ -96,11 +96,17 @@ describe('sidecar index and main', () => {
   it('runs server startup, reports cleanup, and handles shutdown signal', () => {
     const originalEnv = { ...process.env };
     const tmpDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sidecar-main-run-'));
-    const oldFile = path.join(tmpDataDir, 'conversations', 'old.jsonl');
-    fs.mkdirSync(path.join(tmpDataDir, 'conversations'), { recursive: true });
-    fs.writeFileSync(oldFile, 'old line');
+    // A stale conversation directory and a stale migrated legacy file.
+    const oldConvDir = path.join(tmpDataDir, 'conversations', 'old');
+    const oldSurface = path.join(oldConvDir, 'main.jsonl');
+    const oldMigrated = path.join(tmpDataDir, 'conversations', 'old.jsonl.migrated');
+    fs.mkdirSync(oldConvDir, { recursive: true });
+    fs.writeFileSync(oldSurface, 'old line');
+    fs.writeFileSync(oldMigrated, 'old line');
     const pastTime = (Date.now() - 40 * 24 * 60 * 60 * 1000) / 1000;
-    fs.utimesSync(oldFile, pastTime, pastTime);
+    for (const target of [oldSurface, oldMigrated, oldConvDir]) {
+      fs.utimesSync(target, pastTime, pastTime);
+    }
 
     process.env.ANTIGRAVITY_SIDECAR_WEB_PORT = '0';
     process.env.A2UI_PANE_DATA = tmpDataDir;
@@ -131,8 +137,10 @@ describe('sidecar index and main', () => {
 
     expect(listenSpy).toHaveBeenCalled();
     expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[a2ui-pane-sidecar] Cleaned up 1 stale files.'),
+      expect.stringContaining('[a2ui-pane-sidecar] Cleaned up 2 stale files.'),
     );
+    expect(fs.existsSync(oldConvDir)).toBe(false);
+    expect(fs.existsSync(oldMigrated)).toBe(false);
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[a2ui-pane-sidecar] Listening'));
     const endpointFile = path.join(tmpDataDir, 'sidecar-endpoint.json');
     expect(fs.existsSync(endpointFile)).toBe(true);

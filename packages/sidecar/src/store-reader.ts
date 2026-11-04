@@ -1,154 +1,95 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { StringDecoder } from 'node:string_decoder';
-import { parseStoreLine, StoreLine, isValidId } from '@a2ui-pane/protocol';
+import { messageSurfaceId, type StoreLine } from '@a2ui-pane/protocol';
+import { SurfaceStore } from '@a2ui-pane/protocol/store-fs';
 
-/** Incremental batch of parsed `StoreLine` entries and whether the store was reset. */
-export interface ReadResult {
-  lines: StoreLine[];
-  reset: boolean;
+/** What a stream subscriber last sent for one surface. */
+export interface KnownSurface {
+  seq: number;
+  /** Protocol version of the surface, used for its tombstone when the file disappears. */
+  version: string;
 }
 
-interface ConversationFileState {
-  byteOffset: number;
-  partialBuffer: string;
-  decoder: StringDecoder;
-  inode?: number;
+/** Surfaces a subscriber has sent, keyed by surfaceId. */
+export type KnownSurfaces = Map<string, KnownSurface>;
+
+/** Lines to send since the last diff, and the subscriber's updated view. */
+export interface DiffResult {
   lines: StoreLine[];
-  epoch: number;
-  subscriberEpochs: Map<string | symbol, number>;
+  known: KnownSurfaces;
 }
 
-const DEFAULT_SUBSCRIBER = '__default__';
+/** callId of the synthetic tombstones `diff` emits for vanished surface files. */
+export const STORE_TOMBSTONE_CALL_ID = 'store';
 
 /**
- * Reads and tails JSONL message store files for conversations.
- * Buffers partial writes, decodes multi-byte UTF-8 safely across chunk boundaries,
- * tracks byte offsets for incremental reading, and tracks reset epochs per subscriber
- * so concurrent SSE clients all detect file truncation or inode replacement.
+ * How long a read waits for the lock when it must migrate a legacy flat file.
+ * A busy lock only defers the migration to a later read, and the sidecar's
+ * event loop must not block for the default 2 s.
+ */
+const READ_LOCK_TIMEOUT_MS = 50;
+
+/** Builds the `known` map for a set of snapshot lines. */
+export function knownFromLines(lines: StoreLine[]): KnownSurfaces {
+  const known: KnownSurfaces = new Map();
+  for (const line of lines) {
+    const surfaceId = messageSurfaceId(line.message);
+    if (surfaceId) known.set(surfaceId, { seq: line.seq, version: line.message.version });
+  }
+  return known;
+}
+
+/**
+ * Reads the per-surface conversation store for SSE streaming. Each surface is
+ * one compacted snapshot file, so a stream starts from `snapshot` and then
+ * follows changes with `diff` against what it has already sent.
  */
 export class StoreReader {
-  private readonly states = new Map<string, ConversationFileState>();
+  private readonly store: SurfaceStore;
 
-  constructor(private readonly dataDir: string) {}
-
-  private getFilePath(conversationId: string): string {
-    if (!isValidId(conversationId)) {
-      throw new Error(`Invalid conversationId: ${conversationId}`);
-    }
-    return path.join(this.dataDir, 'conversations', `${conversationId}.jsonl`);
+  constructor(dataDir: string) {
+    this.store = new SurfaceStore(dataDir, { lockTimeoutMs: READ_LOCK_TIMEOUT_MS });
   }
 
-  read(
-    conversationId: string,
-    afterSeq = 0,
-    subscriberId: string | symbol = DEFAULT_SUBSCRIBER,
-  ): ReadResult {
-    const filePath = this.getFilePath(conversationId);
-    let state = this.states.get(conversationId);
-    if (!state) {
-      state = {
-        byteOffset: 0,
-        partialBuffer: '',
-        decoder: new StringDecoder('utf-8'),
-        lines: [],
-        epoch: 0,
-        subscriberEpochs: new Map(),
-      };
-      this.states.set(conversationId, state);
-    }
-
-    if (!state.subscriberEpochs.has(subscriberId)) {
-      state.subscriberEpochs.set(subscriberId, state.epoch);
-    }
-
-    if (!fs.existsSync(filePath)) {
-      return { lines: [], reset: false };
-    }
-
-    let stat: fs.Stats;
-    try {
-      stat = fs.statSync(filePath);
-    } catch {
-      return { lines: [], reset: false };
-    }
-
-    // Detect file truncation or inode replacement (e.g. atomic overwrite)
-    if (stat.size < state.byteOffset || (state.inode !== undefined && stat.ino !== state.inode)) {
-      state.epoch += 1;
-      state.byteOffset = 0;
-      state.partialBuffer = '';
-      state.decoder = new StringDecoder('utf-8');
-      state.lines = [];
-    }
-    state.inode = stat.ino;
-
-    const prevEpoch = state.subscriberEpochs.get(subscriberId) ?? state.epoch;
-    const reset = prevEpoch !== state.epoch;
-    state.subscriberEpochs.set(subscriberId, state.epoch);
-
-    if (stat.size > state.byteOffset) {
-      const bytesToRead = stat.size - state.byteOffset;
-      const buffer = Buffer.alloc(bytesToRead);
-      let fd: number | null = null;
-      try {
-        fd = fs.openSync(filePath, 'r');
-        const bytesRead = fs.readSync(fd, buffer, 0, bytesToRead, state.byteOffset);
-        const chunk = state.decoder.write(buffer.subarray(0, bytesRead));
-        const combined = state.partialBuffer + chunk;
-
-        const lastNewline = combined.lastIndexOf('\n');
-        if (lastNewline !== -1) {
-          const completeBlock = combined.slice(0, lastNewline);
-          state.partialBuffer = combined.slice(lastNewline + 1);
-
-          state.byteOffset += bytesRead;
-
-          const rawLines = completeBlock.split('\n');
-          for (const raw of rawLines) {
-            const trimmed = raw.trim();
-            if (!trimmed) continue;
-            try {
-              const line = parseStoreLine(trimmed);
-              state.lines.push(line);
-            } catch (err: any) {
-              console.warn(
-                `[StoreReader] Skipping corrupt line in ${conversationId}:`,
-                err?.message || err,
-              );
-            }
-          }
-        } else {
-          // No complete line yet: keep chunk in partial buffer and advance byteOffset
-          state.partialBuffer = combined;
-          state.byteOffset += bytesRead;
-        }
-      } catch (err) {
-        console.error(`[StoreReader] Error reading ${filePath}:`, err);
-      } finally {
-        if (fd !== null) {
-          try {
-            fs.closeSync(fd);
-          } catch {
-            // Safe close
-          }
-        }
-      }
-    }
-
-    const effectiveAfterSeq = reset ? 0 : afterSeq;
-    const filtered = state.lines.filter((l) => l.seq > effectiveAfterSeq);
-    return {
-      lines: filtered,
-      reset,
-    };
+  /** Current live surfaces, one line each, sorted by seq. Migrates a legacy flat file first. */
+  snapshot(conversationId: string): StoreLine[] {
+    return this.store.readSnapshot(conversationId);
   }
 
-  removeSubscriber(conversationId: string, subscriberId: string | symbol): void {
-    this.states.get(conversationId)?.subscriberEpochs.delete(subscriberId);
+  /** The conversation's `_seq` high-water mark, or 0. */
+  generation(conversationId: string): number {
+    return this.store.generation(conversationId);
   }
 
-  clear(conversationId: string): void {
-    this.states.delete(conversationId);
+  /**
+   * Returns the lines a subscriber has not seen: each surface that is new or
+   * has a higher seq than `known`, and a synthetic `deleteSurface` tombstone
+   * for each known surface whose file is gone.
+   *
+   * `_seq` is read before the directory listing. A surface deleted and then
+   * re-created in between keeps its file, so it gets no tombstone, and its
+   * new line has a seq above any tombstone seq, so the client never skips it.
+   */
+  diff(conversationId: string, known: KnownSurfaces): DiffResult {
+    const generation = this.generation(conversationId);
+    const current = this.snapshot(conversationId);
+    const next = knownFromLines(current);
+    const lines = current.filter((line) => isNewer(line, known));
+    const ts = new Date().toISOString();
+    for (const [surfaceId, prev] of known) {
+      if (next.has(surfaceId)) continue;
+      lines.push({
+        seq: Math.max(generation, prev.seq),
+        callId: STORE_TOMBSTONE_CALL_ID,
+        ts,
+        message: { version: prev.version, deleteSurface: { surfaceId } },
+      });
+    }
+    lines.sort((a, b) => a.seq - b.seq);
+    return { lines, known: next };
   }
+}
+
+function isNewer(line: StoreLine, known: KnownSurfaces): boolean {
+  const surfaceId = messageSurfaceId(line.message);
+  const prev = surfaceId === undefined ? undefined : known.get(surfaceId);
+  return prev === undefined || line.seq > prev.seq;
 }

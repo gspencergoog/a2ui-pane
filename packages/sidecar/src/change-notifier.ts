@@ -1,20 +1,47 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { isValidId } from '@a2ui-pane/protocol';
+import { SurfaceStore } from '@a2ui-pane/protocol/store-fs';
 
-/** Listener callback invoked when a watched conversation store file changes on disk. */
+/** Listener callback invoked when a watched conversation store changes on disk. */
 export type ChangeCallback = () => void;
 
 /**
- * Notifies subscribers when conversation store files change on disk.
- * Uses fs.watch on the conversations/ directory with polling backup and debouncing.
+ * Matches a path relative to `conversations/` and captures the conversation id:
+ * `<convId>/<file>`, the `<convId>` directory itself, or the legacy flat files
+ * `<convId>.jsonl` and `<convId>.jsonl.migrated`.
+ */
+const WATCHED_PATH = /^([A-Za-z0-9_-]+)(?:[/\\](.+)|\.jsonl(?:\.migrated)?)?$/;
+
+/**
+ * Maps a watcher file name to the conversation it belongs to. Returns
+ * undefined for unrelated names and for dot files inside a conversation
+ * directory (the lock and temporary files), which change on every commit
+ * without changing what readers see.
+ */
+export function conversationIdForPath(filename: string): string | undefined {
+  const match = WATCHED_PATH.exec(filename);
+  if (!match) return undefined;
+  const inner = match[2];
+  if (inner !== undefined && path.basename(inner).startsWith('.')) return undefined;
+  return match[1];
+}
+
+/**
+ * Notifies subscribers when a conversation's store changes on disk.
+ *
+ * It watches `conversations/` recursively, so a write to
+ * `<convId>/<surfaceId>.jsonl` or `<convId>/_seq` reaches the conversation's
+ * listeners. A polling fallback compares each subscribed conversation's
+ * `_seq` generation, which every commit and delete bumps.
  */
 export class ChangeNotifier {
   private readonly listeners = new Map<string, Set<ChangeCallback>>();
   private readonly pollTimers = new Map<string, NodeJS.Timeout>();
-  private readonly lastSizes = new Map<string, number>();
+  private readonly lastGenerations = new Map<string, number>();
   private dirWatcher: fs.FSWatcher | null = null;
   private readonly conversationsDir: string;
+  private readonly store: SurfaceStore;
   private isClosed = false;
 
   constructor(
@@ -22,6 +49,7 @@ export class ChangeNotifier {
     private readonly pollIntervalMs = 1000,
   ) {
     this.conversationsDir = path.join(this.dataDir, 'conversations');
+    this.store = new SurfaceStore(this.dataDir);
     this.initWatcher();
   }
 
@@ -35,23 +63,25 @@ export class ChangeNotifier {
     }
 
     try {
-      this.dirWatcher = fs.watch(this.conversationsDir, (_eventType, filename) => {
-        if (!filename) {
-          // If filename is not provided by OS, notify all subscribed conversations
-          for (const convId of this.listeners.keys()) {
-            this.notify(convId);
-          }
-          return;
-        }
-
-        const match = filename.match(/^([A-Za-z0-9_-]+)\.jsonl$/);
-        if (match && match[1]) {
-          this.notify(match[1]);
-        }
-      });
+      // Recursive watching is supported on Linux from Node 20.
+      this.dirWatcher = fs.watch(this.conversationsDir, { recursive: true }, (_event, filename) =>
+        this.onWatchEvent(filename),
+      );
     } catch {
       // If fs.watch fails (e.g. platform unsupported), polling serves as full backup
     }
+  }
+
+  private onWatchEvent(filename: string | Buffer | null): void {
+    if (!filename) {
+      // If filename is not provided by OS, notify all subscribed conversations
+      for (const convId of this.listeners.keys()) {
+        this.notify(convId);
+      }
+      return;
+    }
+    const convId = conversationIdForPath(filename.toString());
+    if (convId) this.notify(convId);
   }
 
   private notify(conversationId: string): void {
@@ -90,27 +120,31 @@ export class ChangeNotifier {
     };
   }
 
+  /** Reads the conversation's generation, or undefined when `_seq` is unreadable. */
+  private readGeneration(conversationId: string): number | undefined {
+    try {
+      return this.store.generation(conversationId);
+    } catch {
+      return undefined;
+    }
+  }
+
   private startPolling(conversationId: string): void {
     if (this.isClosed || this.pollTimers.has(conversationId)) return;
 
-    const filePath = path.join(this.conversationsDir, `${conversationId}.jsonl`);
-    const checkFile = () => {
+    // Baseline now: the subscriber reads its snapshot right after subscribing.
+    this.lastGenerations.set(conversationId, this.readGeneration(conversationId) ?? 0);
+    const check = () => {
       if (this.isClosed) return;
-      try {
-        if (fs.existsSync(filePath)) {
-          const stat = fs.statSync(filePath);
-          const prevSize = this.lastSizes.get(conversationId);
-          if (prevSize === undefined || stat.size !== prevSize) {
-            this.lastSizes.set(conversationId, stat.size);
-            this.notify(conversationId);
-          }
-        }
-      } catch {
-        // Safe check
+      const generation = this.readGeneration(conversationId);
+      if (generation === undefined || generation === this.lastGenerations.get(conversationId)) {
+        return;
       }
+      this.lastGenerations.set(conversationId, generation);
+      this.notify(conversationId);
     };
 
-    const timer = setInterval(checkFile, this.pollIntervalMs);
+    const timer = setInterval(check, this.pollIntervalMs);
     this.pollTimers.set(conversationId, timer);
   }
 
@@ -119,7 +153,7 @@ export class ChangeNotifier {
     if (timer) {
       clearInterval(timer);
       this.pollTimers.delete(conversationId);
-      this.lastSizes.delete(conversationId);
+      this.lastGenerations.delete(conversationId);
     }
   }
 
@@ -161,6 +195,6 @@ export class ChangeNotifier {
     }
     this.pollTimers.clear();
     this.listeners.clear();
-    this.lastSizes.clear();
+    this.lastGenerations.clear();
   }
 }

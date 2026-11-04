@@ -1,6 +1,6 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { formatSseEvent, formatSseKeepalive, KEEPALIVE_INTERVAL_MS } from '@a2ui-pane/protocol';
-import { StoreReader } from './store-reader.js';
+import { knownFromLines, type KnownSurfaces, StoreReader } from './store-reader.js';
 import { ChangeNotifier } from './change-notifier.js';
 
 /** Configuration options for the `/api/stream` SSE handler. */
@@ -10,8 +10,11 @@ export interface SseStreamOptions {
 
 /**
  * Handles incoming SSE GET /api/stream requests.
- * Replays history starting from Last-Event-ID, streams newly appended lines in real-time,
- * emits reset events on file rotation/truncation, and maintains connection with keepalives.
+ *
+ * On connect it sends one `snapshot` event with every live surface and ignores
+ * `Last-Event-ID`: a snapshot is a few KB, so a reconnect simply starts over.
+ * After that, each change notification sends `line` events for surfaces that
+ * changed and `deleteSurface` tombstones for surfaces whose file is gone.
  */
 export function handleStream(
   req: IncomingMessage,
@@ -31,46 +34,32 @@ export function handleStream(
   });
   res.flushHeaders?.();
 
-  // Extract starting sequence from Last-Event-ID header or ?after= query parameter
-  const rawLastId = req.headers['last-event-id'];
-  let afterSeq = 0;
-  if (typeof rawLastId === 'string') {
-    const parsed = parseInt(rawLastId, 10);
-    if (!isNaN(parsed) && parsed >= 0) {
-      afterSeq = parsed;
-    }
-  }
+  let known: KnownSurfaces = new Map();
 
-  let currentSeq = afterSeq;
-  const subscriberId = Symbol('sse-subscriber');
-
-  // 1. Initial replay of existing committed lines
-  const initial = storeReader.read(conversationId, afterSeq, subscriberId);
-  if (initial.reset) {
-    res.write(formatSseEvent({ type: 'reset' }));
-    currentSeq = 0;
-  }
-  for (const line of initial.lines) {
-    res.write(formatSseEvent({ type: 'line', line }, line.seq));
-    currentSeq = Math.max(currentSeq, line.seq);
-  }
-
-  // 2. Subscribe to file modification notifications
+  // 1. Subscribe before taking the snapshot, so a write that lands in between
+  // produces a tick whose diff sends it. A write the snapshot already holds
+  // diffs to nothing.
   const unsubscribe = notifier.subscribe(conversationId, () => {
     try {
-      const update = storeReader.read(conversationId, currentSeq, subscriberId);
-      if (update.reset) {
-        res.write(formatSseEvent({ type: 'reset' }));
-        currentSeq = 0;
-      }
+      const update = storeReader.diff(conversationId, known);
+      known = update.known;
       for (const line of update.lines) {
         res.write(formatSseEvent({ type: 'line', line }, line.seq));
-        currentSeq = Math.max(currentSeq, line.seq);
       }
     } catch (err) {
       console.error(`[sse-route] Error processing update for ${conversationId}:`, err);
     }
   });
+
+  // 2. Send the complete current set of surfaces.
+  try {
+    const lines = storeReader.snapshot(conversationId);
+    known = knownFromLines(lines);
+    res.write(formatSseEvent({ type: 'snapshot', lines }));
+  } catch (err) {
+    // The next tick's diff sends every surface, because `known` is still empty.
+    console.error(`[sse-route] Error reading snapshot for ${conversationId}:`, err);
+  }
 
   // 3. Keepalive timer
   let keepaliveTimer: NodeJS.Timeout | null = setInterval(() => {
@@ -87,7 +76,6 @@ export function handleStream(
       clearInterval(keepaliveTimer);
       keepaliveTimer = null;
     }
-    storeReader.removeSubscriber(conversationId, subscriberId);
     unsubscribe();
   });
 }
