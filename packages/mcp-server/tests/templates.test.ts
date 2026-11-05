@@ -159,6 +159,28 @@ describe.skipIf(!pythonBin && !agentSdkPath)('bundled genui templates (compiled 
     expect(() => validate(messages)).not.toThrow();
   });
 
+  it('compiles consequence_cards and comparison_matrix with combined multi-select choices', async () => {
+    const forkCallerDsl = [
+      '$/options = [{title: "**Option A**", impact: "Impact A", tradeoff: "Tradeoff A"}, {title: "**Option B**", impact: "Impact B", tradeoff: "Tradeoff B"}]',
+      '$/choice = ["a", "b"]',
+    ].join('\n');
+    const forkMessages = await worker.compile(
+      registry.inflate('consequence_cards', 'combined_fork', { callerDsl: forkCallerDsl }),
+      'combined_fork',
+    );
+    expect(() => validate(forkMessages)).not.toThrow();
+
+    const matrixCallerDsl = [
+      '$/rows = [{criterion: "Latency", o1: {text: "Fast", tone: "success"}, o2: {text: "Medium", tone: "info"}, o3: {text: "Slow", tone: "warning"}}]',
+      '$/choice = ["o1", "o2"]',
+    ].join('\n');
+    const matrixMessages = await worker.compile(
+      registry.inflate('comparison_matrix', 'combined_matrix', { callerDsl: matrixCallerDsl }),
+      'combined_matrix',
+    );
+    expect(() => validate(matrixMessages)).not.toThrow();
+  });
+
   it('compiles a data-only block to leaf-path updates that mergeRootDataUpdates preserves', async () => {
     const messages = await worker.compile('$/title = "### New"\n$/note = "x"', 'live');
     expect(messages).toEqual([

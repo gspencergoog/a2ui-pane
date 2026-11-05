@@ -1,6 +1,6 @@
 // @genui id=consequence_cards surface=either
-// @summary Architectural fork: side-by-side consequence cards (title, optional semantic badge, Markdown impact bullets, and tradeoff caption) above an optional blast-radius collapsible, a single-choice chip row, notes, and explain/defer flags.
-// @data /question /options[] {title,badge,tone,impact,tradeoff} /traceTitle /traceSummary /trace /choice /notes /moreInfo /defer /submitLabel
+// @summary Architectural fork: stacked full-width consequence cards (title, optional semantic badge, Markdown impact bullets, and tradeoff caption) above an optional blast-radius collapsible, a multi-select chip row (so options can combine freely or defer), notes, and a submit button.
+// @data /question /options[] {title,badge,tone,impact,tradeoff} /traceTitle /traceSummary /trace /choice /notes /submitLabel
 // @action submit_alignment
 // @customize choice_picker submit_btn
 
@@ -11,15 +11,13 @@ $/traceSummary = ""
 $/trace = ""
 $/choice = []
 $/notes = ""
-$/moreInfo = false
-$/defer = false
 $/submitLabel = "Submit Alignment"
 
 root = Card(fork_col)
 fork_col = Column([fork_question, option_cards, fork_trace, choice_picker, fork_notes, fork_footer])
 fork_question = Text($/question)
-option_cards = Row(_template($/options, option_card), _, "stretch")
-option_card = Card(option_col, 1)
+option_cards = Column(_template($/options, option_card), _, "stretch")
+option_card = Card(option_col)
 option_col = Column([option_head, option_impact, option_tradeoff])
 option_head = Row([option_title, option_badge], "spaceBetween", "center")
 option_title = Text($title, "body", 1)
@@ -28,10 +26,7 @@ option_impact = Text($impact)
 option_tradeoff = Text($tradeoff, "caption")
 fork_trace = Collapsible($/traceTitle, fork_trace_body, $/traceSummary)
 fork_trace_body = Text($/trace, "caption")
-choice_picker = ChoicePicker("Select an option", "mutuallyExclusive", [{label: "Option A", value: "a"}, {label: "Option B", value: "b"}], $/choice, "chips")
-fork_notes = TextField("Caveats, or propose a hybrid", $/notes)
-fork_footer = Row([fork_flags, submit_btn], "spaceBetween", "center")
-fork_flags = Row([more_info_check, defer_check], _, "center")
-more_info_check = CheckBox("Explain further", $/moreInfo)
-defer_check = CheckBox("Park for later", $/defer)
-submit_btn = Button(Text($/submitLabel), "primary", Event("submit_alignment", {choice: $/choice, notes: $/notes, moreInfo: $/moreInfo, defer: $/defer}))
+choice_picker = ChoicePicker("Select one or more options (combine freely)", "multipleSelection", [{label: "(Recommended) Option A", value: "a"}, {label: "Option B", value: "b"}, {label: "Defer", value: "defer"}], $/choice, "chips")
+fork_notes = TextField("Caveats, follow-up questions, or how your selected options combine", $/notes)
+fork_footer = Row([submit_btn], "end", "center")
+submit_btn = Button(Text($/submitLabel), "primary", Event("submit_alignment", {choice: $/choice, notes: $/notes}))

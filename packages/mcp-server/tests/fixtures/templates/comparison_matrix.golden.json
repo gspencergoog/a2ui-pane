@@ -62,7 +62,7 @@
             },
             {
               "key": "o3",
-              "label": "3: Hybrid (Recommended)",
+              "label": "(Recommended) 3: Hybrid",
               "kind": "badge"
             }
           ],
@@ -74,9 +74,13 @@
           "id": "choice_picker",
           "component": "ChoicePicker",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-          "label": "Pick a sequencing option",
-          "variant": "mutuallyExclusive",
+          "label": "Pick one or more sequencing options (combine freely)",
+          "variant": "multipleSelection",
           "options": [
+            {
+              "label": "(Recommended) 3: Hybrid",
+              "value": "o3"
+            },
             {
               "label": "1: Templates only",
               "value": "o1"
@@ -84,10 +88,6 @@
             {
               "label": "2: Table first",
               "value": "o2"
-            },
-            {
-              "label": "3: Hybrid (Recommended)",
-              "value": "o3"
             }
           ],
           "value": {
@@ -99,7 +99,7 @@
           "id": "matrix_notes",
           "component": "TextField",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-          "label": "Notes, caveats, or a hybrid",
+          "label": "Notes, caveats, or how your selected options combine",
           "value": {
             "@path": "/notes"
           }

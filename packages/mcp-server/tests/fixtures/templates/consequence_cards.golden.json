@@ -34,7 +34,7 @@
         },
         {
           "id": "option_cards",
-          "component": "Row",
+          "component": "Column",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": {
             "path": "/options",
@@ -46,8 +46,7 @@
           "id": "option_card",
           "component": "Card",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-          "child": "option_col",
-          "weight": 1
+          "child": "option_col"
         },
         {
           "id": "option_col",
@@ -133,16 +132,20 @@
           "id": "choice_picker",
           "component": "ChoicePicker",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-          "label": "Select cutover strategy",
-          "variant": "mutuallyExclusive",
+          "label": "Select one or more cutover strategies (combine freely)",
+          "variant": "multipleSelection",
           "options": [
             {
-              "label": "A: Dual-Write (Recommended)",
+              "label": "(Recommended) A: Dual-Write",
               "value": "dual_write"
             },
             {
               "label": "B: In-Place Cutover",
               "value": "cutover"
+            },
+            {
+              "label": "Defer",
+              "value": "defer"
             }
           ],
           "value": {
@@ -154,7 +157,7 @@
           "id": "fork_notes",
           "component": "TextField",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-          "label": "Caveats, or propose a hybrid",
+          "label": "Caveats, follow-up questions, or how your selected options combine",
           "value": {
             "@path": "/notes"
           }
@@ -164,39 +167,10 @@
           "component": "Row",
           "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
           "children": [
-            "fork_flags",
             "submit_btn"
           ],
-          "justify": "spaceBetween",
+          "justify": "end",
           "align": "center"
-        },
-        {
-          "id": "fork_flags",
-          "component": "Row",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-          "children": [
-            "more_info_check",
-            "defer_check"
-          ],
-          "align": "center"
-        },
-        {
-          "id": "more_info_check",
-          "component": "CheckBox",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-          "label": "Explain further",
-          "value": {
-            "@path": "/moreInfo"
-          }
-        },
-        {
-          "id": "defer_check",
-          "component": "CheckBox",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-          "label": "Park for later",
-          "value": {
-            "@path": "/defer"
-          }
         },
         {
           "id": "submit_btn",
@@ -213,12 +187,6 @@
                 },
                 "notes": {
                   "@path": "/notes"
-                },
-                "moreInfo": {
-                  "@path": "/moreInfo"
-                },
-                "defer": {
-                  "@path": "/defer"
                 }
               }
             }
@@ -235,8 +203,6 @@
       ],
       "dataModel": {
         "notes": "",
-        "moreInfo": false,
-        "defer": false,
         "submitLabel": "Submit Alignment",
         "question": "**Context**: `OrderRepository` writes only to `legacy_orders`. Which cutover strategy should we use for `orders_v2`?",
         "options": [

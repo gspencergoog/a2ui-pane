@@ -4,4 +4,4 @@ $/traceTitle = "Affected files & blast radius"
 $/traceSummary = "3 files"
 $/trace = "- `src/orders/repository.ts`\n- `src/orders/shadow-reader.ts`\n- `migrations/042_orders_v2.sql`"
 $/choice = ["dual_write"]
-choice_picker = ChoicePicker("Select cutover strategy", "mutuallyExclusive", [{label: "A: Dual-Write (Recommended)", value: "dual_write"}, {label: "B: In-Place Cutover", value: "cutover"}], $/choice, "chips")
+choice_picker = ChoicePicker("Select one or more cutover strategies (combine freely)", "multipleSelection", [{label: "(Recommended) A: Dual-Write", value: "dual_write"}, {label: "B: In-Place Cutover", value: "cutover"}, {label: "Defer", value: "defer"}], $/choice, "chips")
