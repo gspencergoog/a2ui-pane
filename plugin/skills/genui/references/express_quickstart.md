@@ -31,7 +31,8 @@ Gotchas that still bite:
 
 - `Event` names must be literal strings. Bound `context` values are fine.
 - `ChoicePicker` options, `Tabs` titles, `Slider.max`, variants, and `weight` are static: literals only, never `$` bindings.
-- `ChoicePicker` values are lists (`["a"]`) even for `mutuallyExclusive`.
+- `ChoicePicker` values are lists (`["a"]` or `["a", "b"]`) for both `"mutuallyExclusive"` and `"multipleSelection"`. Prefer `"multipleSelection"` when options can combine into a hybrid, or split orthogonal design dimensions into separate `ChoicePicker` controls.
+- In v1.0, `Slider` has 7 positional slots: `Slider(label?, min?, max, value, steps?, weight?, checks?)`. Slot 5 is `steps` (number of discrete divisions; `steps=1` snaps only to `min` and `max`), not `weight`. Pass `Slider("Timeout (s)", 5, 300, $/timeout, _, 1)` (or `weight=1`) for a continuous weighted slider, or `steps=6` when discrete divisions are intended.
 - `Button` takes a component child (`Text(...)` or `Icon(...)`), never a bare string.
 - `and` needs at least two values; use `?and([$/flag, true], msg)` to gate on one boolean.
 - Inside `_template` bodies use `$field`; `$/field` would read the surface root.

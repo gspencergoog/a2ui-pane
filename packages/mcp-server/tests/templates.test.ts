@@ -181,6 +181,24 @@ describe.skipIf(!pythonBin && !agentSdkPath)('bundled genui templates (compiled 
     expect(() => validate(matrixMessages)).not.toThrow();
   });
 
+  it('compiles and validates every standalone surface recipe in references/templates.md', async () => {
+    const templatesDoc = readFileSync(
+      resolve(REPO_ROOT, 'plugin', 'skills', 'genui', 'references', 'templates.md'),
+      'utf8',
+    );
+    const blocks = Array.from(
+      templatesDoc.matchAll(/```text\n(surface\([\s\S]*?)```/g),
+      (m) => m[1],
+    );
+    expect(blocks.length).toBeGreaterThanOrEqual(5);
+    for (let i = 0; i < blocks.length; i++) {
+      const idMatch = blocks[i].match(/^surface\("([^"]+)"/);
+      const surfaceId = idMatch ? idMatch[1] : `recipe_${i}`;
+      const messages = await worker.compile(blocks[i], surfaceId);
+      expect(() => validate(messages), `recipe #${i + 1} (${surfaceId})`).not.toThrow();
+    }
+  });
+
   it('compiles a data-only block to leaf-path updates that mergeRootDataUpdates preserves', async () => {
     const messages = await worker.compile('$/title = "### New"\n$/note = "x"', 'live');
     expect(messages).toEqual([
