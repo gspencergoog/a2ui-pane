@@ -88,6 +88,17 @@ export {
   type StepperResolvedProps,
 } from './a2ui-stepper.js';
 export {
+  A2uiChoiceCardsElement,
+  CHOICE_CARDS_VARIANTS,
+  CHOICE_CARDS_DIRECTIONS,
+  normalizeChoiceCardOptions,
+  nextChoiceValue,
+  type ChoiceCardsVariant,
+  type ChoiceCardsDirection,
+  type ChoiceCardOption,
+  type ChoiceCardsResolvedProps,
+} from './a2ui-choice-cards.js';
+export {
   STATUS_CATALOG_ID,
   DynamicStatusToneSchema,
   ProgressSegmentSchema,
@@ -98,16 +109,20 @@ export {
   DynamicTableRowListSchema,
   StepperStepSchema,
   DynamicStepperStepListSchema,
+  ChoiceCardOptionSchema,
+  DynamicChoiceCardListSchema,
   BadgeApi,
   ProgressBarApi,
   CollapsibleApi,
   TableApi,
   StepperApi,
+  ChoiceCardsApi,
   A2uiBadge,
   A2uiProgressBar,
   A2uiCollapsible,
   A2uiTable,
   A2uiStepper,
+  A2uiChoiceCards,
   statusCatalog,
   statusSchemaCatalog,
 } from './status-catalog.js';

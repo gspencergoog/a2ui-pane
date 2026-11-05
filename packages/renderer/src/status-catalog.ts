@@ -8,6 +8,7 @@ import {
   DynamicStringSchema,
   DynamicNumberSchema,
   DynamicBooleanSchema,
+  DynamicStringListSchema,
   ActionSchema,
   AccessibilityAttributesSchema,
   registerUniversalElement,
@@ -18,6 +19,11 @@ import { A2uiProgressBarElement } from './a2ui-progress-bar.js';
 import { A2uiCollapsibleElement } from './a2ui-collapsible.js';
 import { A2uiTableElement, TABLE_COLUMN_KINDS } from './a2ui-table.js';
 import { A2uiStepperElement, STEPPER_ORIENTATIONS } from './a2ui-stepper.js';
+import {
+  A2uiChoiceCardsElement,
+  CHOICE_CARDS_DIRECTIONS,
+  CHOICE_CARDS_VARIANTS,
+} from './a2ui-choice-cards.js';
 
 /** Canonical catalog URI for the A2UI v1.0 Status Component Catalog. */
 export const STATUS_CATALOG_ID = 'https://a2ui.org/specification/v1_0/catalogs/status/catalog.json';
@@ -252,6 +258,62 @@ export const StepperApi = {
     .strict(),
 } satisfies ComponentApi;
 
+/** Zod schema for a single option in `ChoiceCards.options`. */
+export const ChoiceCardOptionSchema = z
+  .object({
+    value: z.string().describe('Stable value written to the selection when this option is chosen.'),
+    label: DynamicStringSchema.describe(
+      'REF:common_types.json#/$defs/DynamicString|Bold option name shown at the top of the card.',
+    ),
+    description: DynamicStringSchema.describe(
+      'REF:common_types.json#/$defs/DynamicString|Optional Markdown text under the label, such as the consequence of choosing this option.',
+    ).optional(),
+    badge: DynamicStringSchema.describe(
+      "REF:common_types.json#/$defs/DynamicString|Optional badge text shown on the card, such as 'Recommended'.",
+    ).optional(),
+    tone: DynamicStatusToneSchema.optional(),
+    quiet: z
+      .boolean()
+      .describe(
+        'When true, renders the option as a small text toggle after the cards instead of a card.',
+      )
+      .optional(),
+  })
+  .strict();
+
+/** Zod schema for a static array or dynamic binding to `ChoiceCardOption` entries. */
+export const DynamicChoiceCardListSchema = z
+  .union([z.array(ChoiceCardOptionSchema), DataBindingSchema, FunctionCallSchema])
+  .describe(
+    'REF:#/$defs/DynamicChoiceCardList|Array of {value, label, description, badge, tone, quiet} options, usually $/q1/options.',
+  );
+
+/** ComponentApi definition for `ChoiceCards` in the A2UI v1.0 Status Catalog. */
+export const ChoiceCardsApi = {
+  name: 'ChoiceCards',
+  schema: z
+    .object({
+      options: DynamicChoiceCardListSchema,
+      value: DynamicStringListSchema.describe(
+        'REF:common_types.json#/$defs/DynamicStringList|Selected option values (two-way DataBinding to a string array).',
+      ),
+      variant: z
+        .enum(CHOICE_CARDS_VARIANTS)
+        .describe("Selection behavior (defaults to 'mutuallyExclusive').")
+        .optional(),
+      direction: z
+        .enum(CHOICE_CARDS_DIRECTIONS)
+        .describe("Layout direction of the cards (defaults to 'vertical').")
+        .optional(),
+      weight: z
+        .number()
+        .describe('The relative weight of this component within a Row or Column.')
+        .optional(),
+      accessibility: AccessibilityAttributesSchema.optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
 /** Web Component implementation pairing `A2uiBadgeElement` (`<a2ui-badge>`) with `BadgeApi`. */
 export const A2uiBadge: WebComponentImplementation<typeof BadgeApi.schema> = {
   ...BadgeApi,
@@ -287,17 +349,28 @@ export const A2uiStepper: WebComponentImplementation<typeof StepperApi.schema> =
   element: A2uiStepperElement,
 };
 
+/** Web Component implementation pairing `A2uiChoiceCardsElement` (`<a2ui-choice-cards>`) with `ChoiceCardsApi`. */
+export const A2uiChoiceCards: WebComponentImplementation<typeof ChoiceCardsApi.schema> = {
+  ...ChoiceCardsApi,
+  tagName: A2uiChoiceCardsElement.tagName,
+  element: A2uiChoiceCardsElement,
+};
+
 registerUniversalElement(A2uiBadge);
 registerUniversalElement(A2uiProgressBar);
 registerUniversalElement(A2uiCollapsible);
 registerUniversalElement(A2uiTable);
 registerUniversalElement(A2uiStepper);
+registerUniversalElement(A2uiChoiceCards);
 
-/** Client-side A2UI v1.0 Status Catalog containing `Badge`, `ProgressBar`, `Collapsible`, `Table`, and `Stepper`. */
+/**
+ * Client-side A2UI v1.0 Status Catalog containing `Badge`, `ProgressBar`, `Collapsible`, `Table`,
+ * `Stepper`, and `ChoiceCards`.
+ */
 export const statusCatalog = new Catalog(
   STATUS_CATALOG_ID,
   '1.0',
-  [A2uiBadge, A2uiProgressBar, A2uiCollapsible, A2uiTable, A2uiStepper],
+  [A2uiBadge, A2uiProgressBar, A2uiCollapsible, A2uiTable, A2uiStepper, A2uiChoiceCards],
   [],
 );
 
@@ -305,6 +378,6 @@ export const statusCatalog = new Catalog(
 export const statusSchemaCatalog = new Catalog(
   STATUS_CATALOG_ID,
   '1.0',
-  [BadgeApi, ProgressBarApi, CollapsibleApi, TableApi, StepperApi],
+  [BadgeApi, ProgressBarApi, CollapsibleApi, TableApi, StepperApi, ChoiceCardsApi],
   [],
 );
