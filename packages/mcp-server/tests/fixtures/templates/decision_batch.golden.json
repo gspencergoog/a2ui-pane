@@ -63,7 +63,7 @@
           "children": [
             "decision_item_prompt",
             "decision_item_hint",
-            "choice_picker"
+            "choice_cards"
           ]
         },
         {
@@ -84,28 +84,16 @@
           "variant": "caption"
         },
         {
-          "id": "choice_picker",
-          "component": "ChoicePicker",
-          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
-          "variant": "mutuallyExclusive",
-          "options": [
-            {
-              "label": "Yes",
-              "value": "yes"
-            },
-            {
-              "label": "No",
-              "value": "no"
-            },
-            {
-              "label": "Defer",
-              "value": "defer"
-            }
-          ],
+          "id": "choice_cards",
+          "component": "ChoiceCards",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
+          "options": {
+            "@path": "options"
+          },
           "value": {
             "@path": "choice"
           },
-          "displayStyle": "chips"
+          "direction": "horizontal"
         },
         {
           "id": "decision_note",
@@ -167,20 +155,69 @@
           {
             "prompt": "**Reply to the review thread on PR 1234 with the draft below?**",
             "hint": "Draft: \"Good catch. Switched `append` to take the lock before the length check; see 3eab437.\"",
+            "options": [
+              {
+                "value": "yes",
+                "label": "Yes"
+              },
+              {
+                "value": "no",
+                "label": "No"
+              },
+              {
+                "value": "defer",
+                "label": "Defer",
+                "quiet": true
+              }
+            ],
             "choice": [
               "yes"
             ]
           },
           {
             "prompt": "**Name the new helper `mergeRootDataUpdates`?**",
-            "hint": "Matches the `merge*` helpers in render.ts.",
+            "hint": "Called from `handleRenderA2ui` before folding root updates.",
+            "options": [
+              {
+                "value": "mergeRootDataUpdates",
+                "label": "mergeRootDataUpdates",
+                "description": "Matches the `merge*` helpers in render.ts.",
+                "badge": "Recommended",
+                "tone": "success"
+              },
+              {
+                "value": "unpackRootUpdates",
+                "label": "unpackRootUpdates",
+                "description": "Pairs with `unpackUpdates` in the same file."
+              },
+              {
+                "value": "defer",
+                "label": "Defer",
+                "quiet": true
+              }
+            ],
             "choice": [
-              "yes"
+              "mergeRootDataUpdates"
             ]
           },
           {
             "prompt": "**Delete the merged branch `fix/store-writer-race` locally and on origin?**",
             "hint": "Its commits are on main as 3eab437; nothing else points at it.",
+            "options": [
+              {
+                "value": "yes",
+                "label": "Yes"
+              },
+              {
+                "value": "no",
+                "label": "No"
+              },
+              {
+                "value": "defer",
+                "label": "Defer",
+                "quiet": true
+              }
+            ],
             "choice": [
               "defer"
             ]

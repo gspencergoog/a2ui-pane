@@ -31,7 +31,7 @@ User templates in `${PLUGIN_DATA}/templates/*.a2ui` are discovered too (the regi
 | `confirm_gate`       | inline         | One consequential action: Markdown summary, acknowledgement checkbox that unlocks the primary button, cancel button                                                                                                                                                        | `/title` `/summary` `/confirmLabel` `/confirmed` `/confirmButtonLabel` `/cancelLabel`                                                                                                                 | `confirm_gate` (cancel sends `cancel_confirm_gate`) | `confirm_btn` `cancel_btn`                                                                                                                                                              |
 | `progress_board`     | pane           | Live status rows (semantic badge, bold label, detail, segmented progress bar) with an acknowledge button                                                                                                                                                                   | `/title` `/subtitle` `/items[] {status, tone, label, detail}` `/ackLabel`                                                                                                                             | `acknowledge_progress`                              | `ack_btn`                                                                                                                                                                               |
 | `metrics_dashboard`  | pane           | KPI summary cards above an interactive `Chart` component (`bar`, `line`, `pie`, `donut`, `scatter`) and note field                                                                                                                                                         | `/title` `/subtitle` `/kpis[] {label, value, delta}` `/chartTitle` `/xAxisLabel` `/yAxisLabel` `/labels[]` `/series[] {name, values}` `/selected` `/note` `/submitLabel`                              | `inspect_metric`                                    | `main_chart` (override variant to `line`, `donut`, etc.) `submit_btn`                                                                                                                   |
-| `decision_batch`     | inline or pane | Yes/No/Defer decisions: one compact card per item with prompt, optional hint, and pre-filled chips, plus one shared notes field at the bottom                                                                                                                              | `/title` `/intro` `/items[] {prompt, hint, choice}` `/note` `/submitLabel`                                                                                                                            | `submit_decision_batch`                             | `choice_picker` `submit_btn`                                                                                                                                                            |
+| `decision_batch`     | inline or pane | Batch of short decisions: one card per item with prompt, optional hint, and horizontal `ChoiceCards` driven by per-item `options`, plus one shared notes field at the bottom                                                                                               | `/title` `/intro` `/items[] {prompt, hint, options, choice}` `/note` `/submitLabel`                                                                                                                   | `submit_decision_batch`                             | `choice_cards` `submit_btn`                                                                                                                                                             |
 | `scorecard`          | pane           | Rubric scores: overall progress bar, rows with label, collapsible rationale, score bar, and tone badge, plus notes                                                                                                                                                         | `/title` `/intro` `/overall {score, max}` `/rows[] {label, score, max, tone, rationale}` `/note` `/submitLabel`                                                                                       | `submit_scorecard`                                  | `overall_bar` `submit_btn`                                                                                                                                                              |
 | `stack_board`        | pane           | PR or CL stack: title and optional status badge, Markdown subtitle, auto-legend progress bar, rows with state, CI, and review badges, a title link, Markdown detail bullets, and a 5-step lifecycle Stepper                                                                | `/title` `/subtitle` `/status` `/statusTone` `/statusPulse` `/steps[] {label, detail}` `/items[] {id, title, url, wave, base, state, tone, ci, ciTone, review, reviewTone, detail, step}` `/ackLabel` | `acknowledge_stack_board`                           | `ack_btn`                                                                                                                                                                               |
 | `comparison_matrix`  | pane           | Criteria by options tradeoff: `Table` with one row per criterion and a badge cell per option, multi-select option chips (pick one or combine), and notes; prefer over `consequence_cards` for 3 or more options or 4 or more criteria; keep cell text to two to four words | `/title` `/question` `/rows[] {criterion, o1, o2, o3}` (cells are `{text, tone}`) `/choice` `/notes` `/submitLabel`                                                                                   | `submit_comparison`                                 | `matrix_table` and `choice_picker` (redefine both together: column labels are the option titles, chip values are `o1`..`o3`; keep `width: "14ch"` on the criterion column) `submit_btn` |
@@ -45,11 +45,11 @@ Notes:
 - Table columns, ChoicePicker options, and Tabs titles are static in A2UI Express. They cannot bind to dynamic data and appear under Customize instead. For comparison_matrix and status_matrix, redefine Table columns and ChoicePicker options together so columns and chips match.
 - Event names are literal in v0.9; to change one, redefine the button.
 - For a single compact chart without KPI cards or a note field, prefer an inline surface (`mode: "inline"`, `root = Card(Chart(..., height=190))`) so it renders directly in chat under the 500px cap; reach for `metrics_dashboard` (`mode: "pane"`) when combining KPI cards, a larger chart, and interactive selection/notes.
-- `decision_batch` replaces chat replies of the form "Three things to confirm: 1. ... 2. ... 3. ..." when every item is a genuine `Yes / No / Defer` question. Pre-fill each item's `choice` with the recommended answer. Capture any caveats in the single shared `/note` field. Use `mode: "inline"` for up to 3 items and `mode: "pane"` for 4 or more. Never encode named alternatives as `"Yes = Option A; No = Option B"` inside `hint`.
+- `decision_batch` replaces chat replies of the form "Three things to confirm: 1. ... 2. ... 3. ...". Each item carries its own `options` list (`[{value, label, description?, badge?, tone?, quiet?}]`) rendered via horizontal `ChoiceCards`. For simple confirmations, pass `[{value: "yes", label: "Yes"}, {value: "no", label: "No"}, {value: "defer", label: "Defer", quiet: true}]`; for named alternatives, put the real option labels, optional descriptions, and a `"Recommended"` badge in `options`. Pre-fill each item's `choice` with the recommended answer, and capture caveats in the single shared `/note` field. Use `mode: "inline"` for up to 3 items and `mode: "pane"` for 4 or more. Never encode named alternatives as `"Yes = Option A; No = Option B"` inside `hint`.
 
 ## Composable Express Question Blocks (Multi-Question `/grill-me` Worksheets)
 
-Because `ChoicePicker.options` is static in the A2UI v1.0 Basic Catalog, a `_template` list gives every card the exact same chip labels. When a `/grill-me` turn needs custom per-question choices or mixed complexity, pass `dsl` without `template`. Snap together these three question-block tiers above a shared footer:
+For uniform batches of short decisions, pass per-item `options` to `decision_batch`. When a `/grill-me` or `/plan` turn mixes question tiers, header badges, collapsible traces, or a footer checkbox, pass `dsl` without `template`. Snap together these three question-block tiers above a shared footer:
 
 ```text
 surface("design-alignment", sendDataModel=true)
@@ -57,7 +57,11 @@ surface("design-alignment", sendDataModel=true)
 // Data model (pre-populate recommended choices)
 $/q1 = {choice: ["out"]}
 $/q2 = {
-  consequences: "**Consequences of this decision:**\n- Normalizes `$/foo` and `/foo` in `ExpressCompiler`.\n- Keeps existing `.a2ui` templates valid.",
+  options: [
+    {value: "normalize", label: "A · Normalize $/ and /", description: "Normalizes `$/foo` and `/foo` in `ExpressCompiler` and keeps existing `.a2ui` templates valid.", badge: "Recommended", tone: "success"},
+    {value: "strict", label: "B · Strict RFC 6901 only", description: "Rejects `$/` prefixes and requires callers to update existing templates."},
+    {value: "defer", label: "Defer", quiet: true}
+  ],
   trace: "- `packages/mcp-server/python/express_worker.py`\n- `packages/renderer/src/processor.ts`",
   choice: ["normalize"]
 }
@@ -68,6 +72,7 @@ $/q3 = {
   ],
   choice: ["dual_write"]
 }
+$/review = true
 $/notes = ""
 
 // Tier 1: Simple Choice (prompt + optional 1-line hint + named chips; no per-item text fields)
@@ -75,12 +80,11 @@ q1_head = Row([Text("**1. Include legacy v0.8 fallback in this PR?**", "body", 1
 q1_picker = ChoicePicker(_, "mutuallyExclusive", [{label: "(Recommended) Out of scope", value: "out"}, {label: "Add 1 smoke test", value: "smoke"}, {label: "Defer", value: "defer"}], $/q1/choice, "chips")
 q1_block = Column([q1_head, q1_picker])
 
-// Tier 2: Consequence-Aware Decision (impact badge + inline bulleted consequences + collapsible file trace + named chips)
-q2_head = Row([Text("**2. Path binding syntax in data assignments**", "body", 1), Badge("Breaking · 2 packages", "warning")], "spaceBetween", "center")
-q2_consequences = Text($/q2/consequences)
+// Tier 2: Consequence-Aware Decision (header row with Q<n> badge + ChoiceCards with per-option descriptions, Recommended badge, and quiet Defer + collapsible file trace)
+q2_head = Row([Text("**Q2: Path binding syntax in data assignments**", "body", 1), Badge("Q2", "warning")], "spaceBetween", "center")
+q2_cards = ChoiceCards($/q2/options, $/q2/choice)
 q2_trace = Collapsible("Affected files & blast radius", Text($/q2/trace, "caption"), "2 files")
-q2_picker = ChoicePicker(_, "mutuallyExclusive", [{label: "(Recommended) Normalize $/ and /", value: "normalize"}, {label: "Strict RFC 6901 only", value: "strict"}, {label: "Defer", value: "defer"}], $/q2/choice, "chips")
-q2_block = Column([q2_head, q2_consequences, q2_trace, q2_picker])
+q2_block = Column([q2_head, q2_cards, q2_trace])
 
 // Tier 3: Complex Architectural Fork (stacked full-width option cards or Criteria Table + multi-select chips)
 q3_head = Row([Text("**3. Cutover strategy for `orders_v2`**", "body", 1), Badge("Architecture", "active")], "spaceBetween", "center")
@@ -89,12 +93,13 @@ q3_card = Card(Column([Row([Text($title, "body", 1), Badge($badge, $tone)], "spa
 q3_picker = ChoicePicker(_, "multipleSelection", [{label: "(Recommended) A: Dual-Write", value: "dual_write"}, {label: "B: In-Place Cutover", value: "cutover"}, {label: "Defer", value: "defer"}], $/q3/choice, "chips")
 q3_block = Column([q3_head, q3_cards, q3_picker])
 
-// Shared Footer (single overall note field + one primary submit button)
+// Shared Footer (single overall note field + optional process checkbox + one primary submit button)
 shared_note = TextField("Overall notes or overrides", $/notes)
-submit_btn = Button(Text("Submit Decisions"), "primary", Event("submit_alignment", {q1: $/q1/choice, q2: $/q2/choice, q3: $/q3/choice, notes: $/notes}))
-footer = Row([submit_btn], "end", "center")
+review_check = CheckBox("Run an independent review of this plan (recommended)", $/review)
+submit_btn = Button(Text("Submit Decisions"), "primary", Event("submit_alignment", {q1: $/q1/choice, q2: $/q2/choice, q3: $/q3/choice, review: $/review, notes: $/notes}))
+footer = Row([review_check, submit_btn], "spaceBetween", "center")
 
-root = Card(Column([Text("### Alignment Questions"), q1_block, Divider(), q2_block, Divider(), q3_block, Divider(), shared_note, footer]))
+root = Card(Column([Text("### Alignment Questions"), Text("Recommended answers are preselected.", "caption"), q1_block, Divider(), q2_block, Divider(), q3_block, Divider(), shared_note, footer]))
 ```
 
 ## Improvising Custom A2UI Express Surfaces

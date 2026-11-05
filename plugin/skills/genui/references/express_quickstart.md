@@ -58,6 +58,14 @@ $/steps = [{label: "Plan"}, {label: "Review"}, {label: "CI"}, {label: "Merge"}]
 step_bar = Stepper($/steps, $/current_step, "active")
 ```
 
+ChoiceCards: Status catalog component for single- or multi-select choices where each option has a description, recommendation badge, or quiet toggle. Unlike `ChoicePicker`, `options` can bind to the data model.
+
+```text
+$/q1/options = [{value: "a", label: "A · Current", description: "Matches `version-badge`.", badge: "Recommended", tone: "success"}, {value: "b", label: "B · Latest"}, {value: "defer", label: "Defer", quiet: true}]
+$/q1/choice = ["a"]
+q1_cards = ChoiceCards($/q1/options, $/q1/choice)
+```
+
 Compact inline chart (`mode: "inline"`, fits well under the 500px inline height cap):
 
 ```text

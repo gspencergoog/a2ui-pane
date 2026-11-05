@@ -7,8 +7,8 @@ description: 'Route multi-question alignment, tradeoff comparisons, confirmation
 
 Read and use the `genui` skill (`render_a2ui`) instead of plain prose or a modal question tool whenever you:
 
-- Ask the user 2 or more questions at once, list 2 or more numbered questions to confirm (`decision_batch`), or verify a batch of inferred assumptions (`assumption_ledger`).
-- Compare architectural options with blast-radius consequences (`consequence_cards`), compare 3 or more options on 3 or more criteria (`comparison_matrix`), or tune API or schema parameters (`contract_workbench`).
+- Ask the user 2 or more questions at once, collect a batch of short decisions with per-item `options` (`decision_batch`), or verify a batch of inferred assumptions (`assumption_ledger`).
+- Compare architectural options with blast-radius consequences (`consequence_cards` or `ChoiceCards`), compare 3 or more options on 3 or more criteria (`comparison_matrix`), or tune API or schema parameters (`contract_workbench`).
 - Improvise a custom A2UI Express surface (`dsl` without `template`, calling `a2ui_instructions` first) whenever a decision splits across orthogonal design axes, previews candidate layouts in `Tabs`, tunes thresholds with `Slider` and `CheckBox`, or steps through >4 deep forks with `Stepper`.
 - Gate a consequential action such as a PR action or branch deletion (`confirm_gate`).
 - Present 3 or more items to triage, sequence into waves, walk through state transitions, or track live across phases (`triage_matrix`, `wave_sequencer`, `state_walkthrough`, `progress_board`).
