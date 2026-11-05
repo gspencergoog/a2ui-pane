@@ -185,11 +185,49 @@ export const StepperApi = {
     .strict(),
 } satisfies ComponentApi;
 
+/** Allowed `variant` values for `ChoiceCards`. */
+export const CHOICE_CARDS_VARIANTS = ['mutuallyExclusive', 'multipleSelection'] as const;
+
+/** Allowed `direction` values for `ChoiceCards`. */
+export const CHOICE_CARDS_DIRECTIONS = ['vertical', 'horizontal'] as const;
+
+const ChoiceCardOptionSchema = z
+  .object({
+    value: z.string(),
+    label: DynamicStringSchema,
+    description: DynamicStringSchema.optional(),
+    badge: DynamicStringSchema.optional(),
+    tone: DynamicStatusToneSchema.optional(),
+    quiet: z.boolean().optional(),
+  })
+  .strict();
+
+const DynamicChoiceCardListSchema = z
+  .union([z.array(ChoiceCardOptionSchema), DataBindingSchema, FunctionCallSchema])
+  .describe(
+    'REF:#/$defs/DynamicChoiceCardList|Array of {value, label, description, badge, tone, quiet} options, usually $/q1/options.',
+  );
+
+/** Headless ComponentApi definition for `ChoiceCards` in the A2UI v1.0 Status Catalog. */
+export const ChoiceCardsApi = {
+  name: 'ChoiceCards',
+  schema: z
+    .object({
+      options: DynamicChoiceCardListSchema,
+      value: DynamicStringListSchema,
+      variant: z.enum(CHOICE_CARDS_VARIANTS).optional(),
+      direction: z.enum(CHOICE_CARDS_DIRECTIONS).optional(),
+      weight: z.number().optional(),
+      accessibility: AccessibilityAttributesSchema.optional(),
+    })
+    .strict(),
+} satisfies ComponentApi;
+
 /** Headless A2UI v1.0 Status Catalog for server-side validation and fallback prompt generation. */
 export const statusSchemaCatalog = new Catalog(
   STATUS_CATALOG_ID,
   '1.0',
-  [BadgeApi, ProgressBarApi, CollapsibleApi, TableApi, StepperApi],
+  [BadgeApi, ProgressBarApi, CollapsibleApi, TableApi, StepperApi, ChoiceCardsApi],
   [],
 );
 

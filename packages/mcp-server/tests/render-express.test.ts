@@ -767,5 +767,101 @@ describe.skipIf(!realPython && !agentSdkPath)(
         worker.dispose();
       }
     }, 90_000);
+
+    it('compiles ChoiceCards with bound options and the full positional form', async () => {
+      const worker = new ExpressWorker({
+        pythonBin: realPython,
+        agentSdkPath,
+        uvBin: process.env.A2UI_PANE_UV,
+        workerScript: REAL_WORKER,
+        catalogPaths: [CATALOG, CHARTS_CATALOG, STATUS_CATALOG],
+        startupTimeoutMs: 60_000,
+        log: () => {},
+      });
+      try {
+        const dsl = [
+          'surface("decide", sendDataModel=true)',
+          '$/q1/options = [{value: "a", label: "A · Current", description: "Matches `version-badge`.", badge: "Recommended", tone: "success"}, {value: "b", label: "B · Latest"}, {value: "defer", label: "Defer", quiet: true}]',
+          '$/q1/choice = ["a"]',
+          '$/c = []',
+          'cards = ChoiceCards($/q1/options, $/q1/choice)',
+          'flat = ChoiceCards([{value: "y", label: "Yes"}, {value: "n", label: "No", quiet: true}], $/c, "multipleSelection", "horizontal")',
+          'root = Column([cards, flat])',
+        ].join('\n');
+        const messages = await worker.compile(dsl, 'decide');
+        const components = (messages[0] as any).createSurface.components as Array<
+          Record<string, unknown>
+        >;
+        expect(components.find((c) => c.id === 'cards')).toMatchObject({
+          component: 'ChoiceCards',
+          catalogId: 'https://a2ui.org/specification/v1_0/catalogs/status/catalog.json',
+          options: { '@path': '/q1/options' },
+          value: { '@path': '/q1/choice' },
+        });
+        expect(components.find((c) => c.id === 'flat')).toMatchObject({
+          component: 'ChoiceCards',
+          options: [
+            { value: 'y', label: 'Yes' },
+            { value: 'n', label: 'No', quiet: true },
+          ],
+          value: { '@path': '/c' },
+          variant: 'multipleSelection',
+          direction: 'horizontal',
+        });
+
+        const tempDir = mkdtempSync(join(tmpdir(), 'a2ui-choice-cards-test-'));
+        try {
+          const server = createServer(tempDir, {});
+          const result = await handleRenderA2ui(
+            { conversationId: 'conv-choice-cards', messages, mode: 'pane' },
+            server.getState,
+            server.catalogs,
+            tempDir,
+          );
+          expect(result.isError).toBeUndefined();
+          expect(server.getState('conv-choice-cards').hasSurface('decide')).toBe(true);
+        } finally {
+          rmSync(tempDir, { recursive: true, force: true });
+        }
+      } finally {
+        worker.dispose();
+      }
+    }, 90_000);
+
+    it('rejects ChoiceCards options with unknown keys', async () => {
+      const worker = new ExpressWorker({
+        pythonBin: realPython,
+        agentSdkPath,
+        uvBin: process.env.A2UI_PANE_UV,
+        workerScript: REAL_WORKER,
+        catalogPaths: [CATALOG, CHARTS_CATALOG, STATUS_CATALOG],
+        startupTimeoutMs: 60_000,
+        log: () => {},
+      });
+      try {
+        const dsl = [
+          'surface("bad", sendDataModel=true)',
+          '$/c = []',
+          'root = ChoiceCards([{value: "y", label: "Yes", color: "red"}], $/c)',
+        ].join('\n');
+        const messages = await worker.compile(dsl, 'bad');
+        const tempDir = mkdtempSync(join(tmpdir(), 'a2ui-choice-cards-bad-'));
+        try {
+          const server = createServer(tempDir, {});
+          const result = await handleRenderA2ui(
+            { conversationId: 'conv-choice-cards-bad', messages, mode: 'pane' },
+            server.getState,
+            server.catalogs,
+            tempDir,
+          );
+          expect(result.isError).toBe(true);
+          expect(server.getState('conv-choice-cards-bad').hasSurface('bad')).toBe(false);
+        } finally {
+          rmSync(tempDir, { recursive: true, force: true });
+        }
+      } finally {
+        worker.dispose();
+      }
+    }, 90_000);
   },
 );

@@ -3,7 +3,7 @@
   "$id": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
   "protocolVersion": "1.0",
   "title": "A2UI Status Component Catalog",
-  "description": "Semantic status badges, segmented progress bars, collapsible sections, typed-cell tables, and lifecycle steppers for A2UI v1.0 surfaces.",
+  "description": "Semantic status badges, segmented progress bars, collapsible sections, typed-cell tables, lifecycle steppers, and selectable choice cards for A2UI v1.0 surfaces.",
   "catalogId": "https://a2ui.org/specification/v1_0/catalogs/status/catalog.json",
   "components": {
     "Badge": {
@@ -205,6 +205,42 @@
       },
       "required": ["component", "steps", "current"],
       "additionalProperties": false
+    },
+    "ChoiceCards": {
+      "type": "object",
+      "description": "Renders a single- or multi-select choice as one card per option. Each card shows a bold label, an optional Markdown description, and an optional tone badge, and the whole card is the click target. Options with `quiet: true` render as small text toggles after the cards (for example Defer). Use it instead of ChoicePicker chips when each option needs a description or consequence.",
+      "properties": {
+        "component": {
+          "const": "ChoiceCards"
+        },
+        "options": {
+          "$ref": "#/$defs/DynamicChoiceCardList",
+          "description": "Options to choose from, as an array of {value, label, description?, badge?, tone?, quiet?} or a data binding such as $/q1/options."
+        },
+        "value": {
+          "$ref": "common_types.json#/$defs/DynamicStringList",
+          "description": "Selected option values. Bind it to a string array in the data model; clicking a card writes the new selection back."
+        },
+        "variant": {
+          "type": "string",
+          "enum": ["mutuallyExclusive", "multipleSelection"],
+          "description": "Selection behavior (defaults to 'mutuallyExclusive')."
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["vertical", "horizontal"],
+          "description": "Layout direction of the cards (defaults to 'vertical'). Use 'horizontal' for short options such as Yes and No."
+        },
+        "weight": {
+          "type": "number",
+          "description": "The relative weight of this component within a Row or Column."
+        },
+        "accessibility": {
+          "$ref": "common_types.json#/$defs/AccessibilityAttributes"
+        }
+      },
+      "required": ["component", "options", "value"],
+      "additionalProperties": false
     }
   },
   "$defs": {
@@ -328,13 +364,55 @@
         { "$ref": "common_types.json#/$defs/FunctionCall" }
       ]
     },
+    "ChoiceCardOption": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string",
+          "description": "Stable value written to the selection when this option is chosen."
+        },
+        "label": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Bold option name shown at the top of the card."
+        },
+        "description": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Optional Markdown text under the label, such as the consequence of choosing this option."
+        },
+        "badge": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Optional badge text shown on the card, such as 'Recommended'."
+        },
+        "tone": {
+          "$ref": "#/$defs/DynamicStatusTone",
+          "description": "Badge tone (defaults to 'neutral')."
+        },
+        "quiet": {
+          "type": "boolean",
+          "description": "When true, renders the option as a small text toggle after the cards instead of a card."
+        }
+      },
+      "required": ["value", "label"],
+      "additionalProperties": false
+    },
+    "DynamicChoiceCardList": {
+      "oneOf": [
+        {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ChoiceCardOption" }
+        },
+        { "$ref": "common_types.json#/$defs/DataBinding" },
+        { "$ref": "common_types.json#/$defs/FunctionCall" }
+      ]
+    },
     "anyComponent": {
       "oneOf": [
         { "$ref": "#/components/Badge" },
         { "$ref": "#/components/ProgressBar" },
         { "$ref": "#/components/Collapsible" },
         { "$ref": "#/components/Table" },
-        { "$ref": "#/components/Stepper" }
+        { "$ref": "#/components/Stepper" },
+        { "$ref": "#/components/ChoiceCards" }
       ],
       "discriminator": {
         "propertyName": "component"
