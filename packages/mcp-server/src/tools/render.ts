@@ -13,6 +13,12 @@ import {
   ExpressWorkerUnavailableError,
 } from '../express-worker.js';
 import type { TemplateRegistry } from '../template-registry.js';
+import {
+  checkChoicePresets,
+  formatPresetErrors,
+  formatWrappedNote,
+  type LiveSurface,
+} from '../choice-presets.js';
 
 /**
  * Reads `sidecar-endpoint.json` from `dataDir` and returns the authenticated `/_sidecar/send-message` URL if available.
@@ -159,6 +165,27 @@ type ToolResult = { isError?: true; content: Array<{ type: 'text'; text: string 
 
 function errorResult(text: string): ToolResult {
   return { isError: true, content: [{ type: 'text' as const, text }] };
+}
+
+/** Adapts a live `SurfaceModel` into the component list and data that preset checks read. */
+function liveSurfaceView(surface: any): LiveSurface | undefined {
+  if (!surface) return undefined;
+  const components: Array<Record<string, unknown>> = [];
+  const all: Map<string, any> | undefined = surface.componentsModel?.getAll?.();
+  for (const [id, model] of all ?? []) {
+    components.push({ ...(model?.properties ?? {}), id, component: model?.type });
+  }
+  let data: unknown;
+  try {
+    data = surface.dataModel?.get?.('/');
+  } catch {
+    data = undefined;
+  }
+  return { components, data };
+}
+
+function withNote(text: string, note: string | undefined): string {
+  return note ? `${text}\n${note}` : text;
 }
 
 function parseRawMessages(messages: unknown[] | string): unknown[] | ToolResult {
@@ -419,7 +446,7 @@ export async function handleRenderA2ui(
   if (!('messages' in resolved) || !Array.isArray(resolved.messages)) {
     return resolved as ToolResult;
   }
-  const parsedMessages = resolved.messages;
+  let parsedMessages = resolved.messages;
 
   const hostConvId = process.env.ANTIGRAVITY_CONVERSATION_ID;
   const conversationId = args.conversationId || hostConvId || '';
@@ -463,6 +490,12 @@ export async function handleRenderA2ui(
 
   // 1. INLINE MODE: Standalone self-contained card
   if (args.mode === 'inline') {
+    const presets = checkChoicePresets(parsedMessages);
+    const presetError = formatPresetErrors(presets);
+    if (presetError) return errorResult(presetError);
+    parsedMessages = presets.messages;
+    const wrappedNote = formatWrappedNote(presets);
+
     const catalogList = catalogs ? catalogs.list() : [];
     const freshProcessor = new MessageProcessor(catalogList, () => {}, {
       validationConfig: {
@@ -560,7 +593,10 @@ export async function handleRenderA2ui(
       content: [
         {
           type: 'text' as const,
-          text: `Rendered inline A2UI card with ${parsedMessages.length} message(s) to ${surfacesText}.\n<agent-embed src="file://${embedPath}"></agent-embed>`,
+          text: withNote(
+            `Rendered inline A2UI card with ${parsedMessages.length} message(s) to ${surfacesText}.\n<agent-embed src="file://${embedPath}"></agent-embed>`,
+            wrappedNote,
+          ),
         },
       ],
     };
@@ -593,6 +629,13 @@ export async function handleRenderA2ui(
       ];
     }
   }
+
+  const liveSurfaces = state.getSurfaces();
+  const presets = checkChoicePresets(batch, (sid) => liveSurfaceView(liveSurfaces.get(sid)));
+  const presetError = formatPresetErrors(presets);
+  if (presetError) return errorResult(presetError);
+  batch = presets.messages;
+  const wrappedNote = formatWrappedNote(presets);
 
   const result = await state.apply(batch, callId, {
     clearStaleSurfaces: !args.stack,
@@ -628,7 +671,10 @@ export async function handleRenderA2ui(
     content: [
       {
         type: 'text' as const,
-        text: `Rendered ${parsedMessages.length} message(s) to ${surfacesText} in the A2UI pane${authoredNote}.\n${visibilityNote}`,
+        text: withNote(
+          `Rendered ${parsedMessages.length} message(s) to ${surfacesText} in the A2UI pane${authoredNote}.\n${visibilityNote}`,
+          wrappedNote,
+        ),
       },
     ],
   };

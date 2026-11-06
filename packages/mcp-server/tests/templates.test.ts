@@ -7,6 +7,7 @@ import { chartsSchemaCatalog, statusSchemaCatalog } from '@a2ui-pane/renderer';
 import { ExpressWorker } from '../src/express-worker.js';
 import { TemplateRegistry } from '../src/template-registry.js';
 import { mergeRootDataUpdates } from '../src/tools/render.js';
+import { checkChoicePresets, formatPresetErrors } from '../src/choice-presets.js';
 
 const REPO_ROOT = resolve(__dirname, '..', '..', '..');
 const TEMPLATES_DIR = resolve(REPO_ROOT, 'plugin', 'skills', 'genui', 'templates');
@@ -222,6 +223,50 @@ describe.skipIf(!pythonBin && !agentSdkPath)('bundled genui templates (compiled 
       detail: { kind: 'ExpressUnknownPropertyError', help: expect.stringContaining('Text') },
     });
   });
+
+  it('passes the choice preset check for every template fixture', async () => {
+    for (const id of EXPECTED_TEMPLATES) {
+      const callerDsl = readFileSync(resolve(FIXTURES_DIR, `${id}.data.a2ui`), 'utf-8');
+      const messages = await worker.compile(registry.inflate(id, id, { callerDsl }), id);
+      const report = checkChoicePresets(messages);
+      expect(formatPresetErrors(report), id).toBeUndefined();
+      expect(report.wrapped, id).toEqual([]);
+    }
+  }, 60_000);
+
+  it('catches scalar decision_batch choices and unknown triage_matrix buckets after compiling', async () => {
+    const decision = await worker.compile(
+      registry.inflate('decision_batch', 'd', {
+        callerDsl:
+          '$/items = [{prompt: "Budget", hint: "", options: [{value: "120", label: "120"}, {value: "80", label: "80"}], choice: "120"}]',
+      }),
+      'd',
+    );
+    const decisionReport = checkChoicePresets(decision);
+    expect(decisionReport.wrapped).toMatchObject([{ path: '/items/0/choice', value: '120' }]);
+    expect(formatPresetErrors(decisionReport)).toBeUndefined();
+
+    const triage = await worker.compile(
+      registry.inflate('triage_matrix', 't', {
+        callerDsl:
+          '$/items = [{icon: "error", title: "F1", summary: "s", trace: "", bucket: ["Apply"], note: ""}]',
+      }),
+      't',
+    );
+    expect(formatPresetErrors(checkChoicePresets(triage))).toContain(
+      '"Apply" is not one of [p0, p1, out]',
+    );
+
+    const customized = await worker.compile(
+      registry.inflate('triage_matrix', 't', {
+        callerDsl:
+          '$/items = [{icon: "error", title: "F1", summary: "s", trace: "", bucket: ["apply"], note: ""}]\n' +
+          'bucket_picker = ChoicePicker(_, "mutuallyExclusive", [{label: "Apply", value: "apply"}, {label: "Reject", value: "reject"}], $bucket, "chips")',
+      }),
+      't',
+    );
+    expect(formatPresetErrors(checkChoicePresets(customized))).toBeUndefined();
+  }, 60_000);
 
   it('has no stray fixture files', () => {
     const names = readdirSync(FIXTURES_DIR).filter((n) => !n.startsWith('.'));

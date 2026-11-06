@@ -41,7 +41,8 @@ User templates in `${PLUGIN_DATA}/templates/*.a2ui` are discovered too (the regi
 Notes:
 
 - `icon` values must be basic-catalog icon names (`warning`, `info`, `error`, `check`, `search`, `settings`, ...).
-- `bucket`, `choice`, `wave`, `verification`, and `policy` are string arrays even for single selection.
+- `bucket`, `choice`, `wave`, `verification`, and `policy` are string arrays even for single selection: write `choice: ["120"]`, not `choice: "120"`. `render_a2ui` wraps a bare string in a list and says so in its result, but write lists to begin with.
+- Every preset value must be one of the picker's option `value`s, or the choice renders as unselected. `render_a2ui` rejects the render when a preset names a missing value. To use your own bucket names in `triage_matrix` (for example Apply, Discuss, Reject), redefine `bucket_picker` with matching options in the same call; `bucket: ["Apply"]` with the stock `p0`/`p1`/`out` chips fails.
 - Table columns, ChoicePicker options, and Tabs titles are static in A2UI Express. They cannot bind to dynamic data and appear under Customize instead. For comparison_matrix and status_matrix, redefine Table columns and ChoicePicker options together so columns and chips match.
 - Event names are literal in v0.9; to change one, redefine the button.
 - For a single compact chart without KPI cards or a note field, prefer an inline surface (`mode: "inline"`, `root = Card(Chart(..., height=190))`) so it renders directly in chat under the 500px cap; reach for `metrics_dashboard` (`mode: "pane"`) when combining KPI cards, a larger chart, and interactive selection/notes.
@@ -202,6 +203,13 @@ $/title = "### Review findings for PR 1234"
 $/intro = "Pick a bucket for each finding; open Trace for the evidence."
 $/items = [{icon: "warning", title: "Race in StoreWriter.append", summary: "Two writers interleave lines.", trace: "`store-writer.ts:84`", bucket: ["p0"], note: ""}]
 bucket_picker = ChoicePicker(_, "mutuallyExclusive", [{label: "Fix now", value: "p0"}, {label: "Follow-up", value: "p1"}, {label: "Won't fix", value: "out"}], $bucket, "chips")
+```
+
+Custom buckets need a matching `bucket_picker`, because its options are static:
+
+```text
+$/items = [{icon: "error", title: "F1: Tests use unittest", summary: "...", trace: "", bucket: ["apply"], note: ""}]
+bucket_picker = ChoicePicker(_, "mutuallyExclusive", [{label: "Apply", value: "apply"}, {label: "Discuss", value: "discuss"}, {label: "Reject", value: "reject"}], $bucket, "chips")
 ```
 
 Then update a single item later without re-rendering:
