@@ -264,6 +264,39 @@ describe('markdown-renderer', () => {
       expect(htmlGlobal).toContain('GlobalMermaid');
     });
 
+    it('renders compound subgraph flowcharts with <br/>, chained edges, and mermaidLayout options through renderRichMarkdown', async () => {
+      const md = [
+        '### Execution waves',
+        '',
+        '```mermaid',
+        'flowchart TD',
+        '  W1["Wave 1 · Foundation<br/>Schema and Parser"]',
+        '  subgraph W2["Wave 2 · Impl (Verifier · PR 1)"]',
+        '    W2A["2A · Renderer Wiring & Zoom"]',
+        '    W2B["2B · Surface Synthesis"]',
+        '    W2C["2C · Skill Templates"]',
+        '  end',
+        '  W3["Wave 3 · Packaging & Corpus Verification"]',
+        '  W1 --> W2 --> W3',
+        '```',
+      ].join('\n');
+
+      const html = await renderRichMarkdown(md, {
+        mermaidLayout: {
+          maxSubgraphCols: 3,
+          minReadableScale: 0.78,
+        },
+      });
+      expect(html).toContain('<g class="a2ui-mermaid-subgraph" data-subgraph-id="W2">');
+      expect(html).toContain('Wave 2 · Impl');
+      expect(html).toContain('Verifier · PR 1');
+      expect(html).toContain('<tspan');
+      expect(html).toContain('Schema and Parser');
+      expect(html).toContain('data-natural-width="');
+      expect(html).toContain('min-width:');
+      expect(html).not.toContain('max-height:300px');
+    });
+
     it('renders Markdown links as anchors', async () => {
       const httpsHtml = await renderRichMarkdown(
         '[PR 3339](https://github.com/a2ui-project/a2ui/pull/3339)',

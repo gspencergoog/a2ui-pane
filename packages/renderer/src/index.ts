@@ -30,6 +30,18 @@ export {
   type RichMarkdownOptions,
 } from './markdown-renderer.js';
 export {
+  escapeSvgText,
+  wrapNodeLabel,
+  parseFlowchartLines,
+  parseStateDiagramLines,
+  renderFlowchartGraphSvg,
+  type FlowNode,
+  type FlowEdge,
+  type FlowSubgraph,
+  type ParsedFlowchart,
+  type MermaidLayoutOptions,
+} from './mermaid-flowchart.js';
+export {
   ICON_SVG_PATHS,
   resolveIconSvgPath,
   installIconSvgRenderer,

@@ -683,5 +683,55 @@ describe('A2uiPaneView', () => {
       const evt = click(anchor);
       expect(evt.defaultPrevented).toBe(false);
     });
+
+    it('toggles data-zoomed and svg.style.minWidth on .a2ui-mermaid[data-natural-width] while ignoring non-zoomable diagrams and keeping link routing intact', async () => {
+      const root = await renderLinkSurface();
+      const linkEvents: CustomEvent<A2uiLinkClickDetail>[] = [];
+      element.addEventListener('a2ui-link-click', (e) => {
+        linkEvents.push(e as CustomEvent<A2uiLinkClickDetail>);
+      });
+
+      const hostContainer = root.querySelector('a2ui-basic-text .a2ui-text') as HTMLElement;
+      expect(hostContainer).not.toBeNull();
+
+      const zoomable = document.createElement('div');
+      zoomable.className = 'a2ui-mermaid';
+      zoomable.setAttribute('data-natural-width', '520');
+      zoomable.innerHTML =
+        '<svg class="a2ui-mermaid-svg" viewBox="0 0 520 300" style="max-width:520px;min-width:406px;height:auto"><g class="a2ui-mermaid-node"><rect x="10" y="10" width="120" height="34" /></g></svg>';
+      hostContainer.appendChild(zoomable);
+
+      const nonZoomable = document.createElement('div');
+      nonZoomable.className = 'a2ui-mermaid';
+      nonZoomable.innerHTML =
+        '<svg class="a2ui-mermaid-svg" viewBox="0 0 280 120" style="max-width:280px;height:auto"><rect x="10" y="10" width="100" height="34" /></svg>';
+      hostContainer.appendChild(nonZoomable);
+
+      const zoomSvg = zoomable.querySelector('svg')!;
+      const innerRect = zoomable.querySelector('rect')!;
+      const nonZoomSvg = nonZoomable.querySelector('svg')!;
+
+      // First click inside zoomable mermaid container zooms in to 520px
+      click(innerRect);
+      expect(zoomable.hasAttribute('data-zoomed')).toBe(true);
+      expect(zoomSvg.style.minWidth).toBe('520px');
+      expect(linkEvents).toHaveLength(0);
+
+      // Second click zooms back out to the 0.78x readability floor (Math.round(520 * 0.78) = 406px)
+      click(innerRect);
+      expect(zoomable.hasAttribute('data-zoomed')).toBe(false);
+      expect(zoomSvg.style.minWidth).toBe('406px');
+
+      // Clicking a diagram without data-natural-width does nothing
+      click(nonZoomSvg);
+      expect(nonZoomable.hasAttribute('data-zoomed')).toBe(false);
+      expect(nonZoomSvg.style.minWidth).toBe('');
+
+      // Normal link clicks still fire a2ui-link-click
+      const anchor = root.querySelector('a[href^="https://github.com"]')!;
+      const linkEvt = click(anchor);
+      expect(linkEvt.defaultPrevented).toBe(true);
+      expect(linkEvents).toHaveLength(1);
+    });
   });
 });

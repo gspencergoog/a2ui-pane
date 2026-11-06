@@ -198,6 +198,15 @@ export const SURFACE_LAYOUT_CSS = `
     overflow-y: hidden;
     text-align: center;
   }
+  .a2ui-mermaid[data-natural-width] {
+    cursor: zoom-in;
+  }
+  .a2ui-mermaid[data-zoomed] {
+    cursor: zoom-out;
+  }
+  .a2ui-mermaid[data-zoomed] svg {
+    max-width: none !important;
+  }
   .a2ui-mermaid-svg {
     display: block;
     margin: 0 auto;
