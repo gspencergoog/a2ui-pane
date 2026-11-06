@@ -75,6 +75,35 @@ function resolveLinkClick(path: EventTarget[]): A2uiLinkClickDetail | undefined 
   };
 }
 
+function findZoomableMermaidContainer(path: EventTarget[]): HTMLElement | undefined {
+  for (const node of path) {
+    if (
+      node instanceof HTMLElement &&
+      node.classList.contains('a2ui-mermaid') &&
+      node.hasAttribute('data-natural-width')
+    ) {
+      return node;
+    }
+  }
+  return undefined;
+}
+
+function toggleMermaidZoom(path: EventTarget[]): void {
+  const el = findZoomableMermaidContainer(path);
+  if (!el) return;
+  const naturalWidth = Number(el.getAttribute('data-natural-width'));
+  if (!Number.isFinite(naturalWidth) || naturalWidth <= 0) return;
+  const svg = el.querySelector<SVGElement>('svg');
+  if (!svg) return;
+  if (el.hasAttribute('data-zoomed')) {
+    el.removeAttribute('data-zoomed');
+    svg.style.minWidth = `${Math.round(naturalWidth * 0.78)}px`;
+  } else {
+    el.setAttribute('data-zoomed', '');
+    svg.style.minWidth = `${naturalWidth}px`;
+  }
+}
+
 /**
  * Lit custom element rendering multiple A2UI surfaces in creation order.
  * Provides the required markdown context to descendant text components
@@ -148,6 +177,18 @@ export class A2uiPaneView extends LitElement {
         overflow-x: auto;
         overflow-y: hidden;
         text-align: center;
+      }
+
+      .a2ui-mermaid[data-natural-width] {
+        cursor: zoom-in;
+      }
+
+      .a2ui-mermaid[data-zoomed] {
+        cursor: zoom-out;
+      }
+
+      .a2ui-mermaid[data-zoomed] svg {
+        max-width: none !important;
       }
 
       .a2ui-mermaid-svg {
@@ -427,16 +468,20 @@ export class A2uiPaneView extends LitElement {
    */
   private readonly onAnchorClick = (event: MouseEvent): void => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
-    const detail = resolveLinkClick(event.composedPath());
-    if (!detail) return;
-    event.preventDefault();
-    this.dispatchEvent(
-      new CustomEvent<A2uiLinkClickDetail>('a2ui-link-click', {
-        detail,
-        bubbles: true,
-        composed: true,
-      }),
-    );
+    const path = event.composedPath();
+    const detail = resolveLinkClick(path);
+    if (detail) {
+      event.preventDefault();
+      this.dispatchEvent(
+        new CustomEvent<A2uiLinkClickDetail>('a2ui-link-click', {
+          detail,
+          bubbles: true,
+          composed: true,
+        }),
+      );
+      return;
+    }
+    toggleMermaidZoom(path);
   };
 
   private cleanupSubscriptions(): void {

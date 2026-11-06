@@ -6,11 +6,18 @@ import {
   polarToCartesian,
   resolveSeriesColor,
 } from './chart-math.js';
+import {
+  type MermaidLayoutOptions,
+  parseFlowchartLines,
+  parseStateDiagramLines,
+  renderFlowchartGraphSvg,
+} from './mermaid-flowchart.js';
 
 /** Configuration options for the rich Markdown, MathML, and Mermaid renderer. */
 export interface RichMarkdownOptions {
   tagClassMap?: Record<string, string[]>;
   mermaidRenderer?: (code: string) => Promise<string> | string;
+  readonly mermaidLayout?: MermaidLayoutOptions;
 }
 
 const GREEK_AND_SYMBOLS: Readonly<Record<string, string>> = {
@@ -270,25 +277,58 @@ function renderMatrixEnvironment(envName: string, body: string): string {
   return table;
 }
 
-function parseCommand(src: string, cmdStart: number): { html: string; nextIndex: number } {
-  const afterSlash = cmdStart + 1;
-  if (afterSlash >= src.length) {
-    return { html: '', nextIndex: afterSlash };
-  }
-  const firstChar = src[afterSlash];
-  if (!/[a-zA-Z]/.test(firstChar)) {
-    if (firstChar === '{' || firstChar === '}') {
-      return { html: `<mo>${escapeHtml(firstChar)}</mo>`, nextIndex: afterSlash + 1 };
-    }
-    return { html: '<mspace width="0.2em"></mspace>', nextIndex: afterSlash + 1 };
-  }
+const FONT_VARIANT_MAP: Readonly<Record<string, string>> = {
+  mathtt: 'monospace',
+  mathsf: 'sans-serif',
+  mathit: 'italic',
+};
 
-  let end = afterSlash;
-  while (end < src.length && /[a-zA-Z]/.test(src[end])) {
-    end++;
-  }
-  const cmd = src.slice(afterSlash, end);
+function convertMappedChars(text: string, table: Readonly<Record<string, string>>): string {
+  return Array.from(text.trim())
+    .map((ch) => table[ch] ?? ch)
+    .join('');
+}
 
+function parseStyledLatexCommand(
+  cmd: string,
+  src: string,
+  end: number,
+): { html: string; nextIndex: number } | undefined {
+  if (cmd === 'text' || cmd === 'mathrm' || cmd === 'operatorname') {
+    const arg = readBracedGroup(src, end);
+    return { html: `<mtext>${escapeHtml(arg.content)}</mtext>`, nextIndex: arg.nextIndex };
+  }
+  if (cmd === 'mathbf' || cmd === 'boldsymbol') {
+    const arg = readBracedGroup(src, end);
+    return {
+      html: `<mstyle mathvariant="bold"><mrow>${parseLatexTokens(arg.content)}</mrow></mstyle>`,
+      nextIndex: arg.nextIndex,
+    };
+  }
+  if (cmd === 'mathcal' || cmd === 'mathbb') {
+    const arg = readBracedGroup(src, end);
+    const table = cmd === 'mathcal' ? MATHCAL_MAP : MATHBB_MAP;
+    return {
+      html: `<mi>${escapeHtml(convertMappedChars(arg.content, table))}</mi>`,
+      nextIndex: arg.nextIndex,
+    };
+  }
+  const variant = FONT_VARIANT_MAP[cmd];
+  if (variant) {
+    const arg = readBracedGroup(src, end);
+    return {
+      html: `<mstyle mathvariant="${variant}"><mrow>${parseLatexTokens(arg.content)}</mrow></mstyle>`,
+      nextIndex: arg.nextIndex,
+    };
+  }
+  return undefined;
+}
+
+function parseNamedLatexCommand(
+  cmd: string,
+  src: string,
+  end: number,
+): { html: string; nextIndex: number } {
   if (cmd === 'left' || cmd === 'right') {
     return { html: '', nextIndex: end };
   }
@@ -307,70 +347,50 @@ function parseCommand(src: string, cmdStart: number): { html: string; nextIndex:
       nextIndex: arg.nextIndex,
     };
   }
-  if (cmd === 'text' || cmd === 'mathrm' || cmd === 'operatorname') {
-    const arg = readBracedGroup(src, end);
-    return { html: `<mtext>${escapeHtml(arg.content)}</mtext>`, nextIndex: arg.nextIndex };
-  }
-  if (cmd === 'mathbf' || cmd === 'boldsymbol') {
-    const arg = readBracedGroup(src, end);
-    return {
-      html: `<mstyle mathvariant="bold"><mrow>${parseLatexTokens(arg.content)}</mrow></mstyle>`,
-      nextIndex: arg.nextIndex,
-    };
-  }
-  if (cmd === 'mathcal') {
-    const arg = readBracedGroup(src, end);
-    const converted = Array.from(arg.content.trim())
-      .map((ch) => MATHCAL_MAP[ch] ?? ch)
-      .join('');
-    return {
-      html: `<mi>${escapeHtml(converted)}</mi>`,
-      nextIndex: arg.nextIndex,
-    };
-  }
-  if (cmd === 'mathbb') {
-    const arg = readBracedGroup(src, end);
-    const converted = Array.from(arg.content.trim())
-      .map((ch) => MATHBB_MAP[ch] ?? ch)
-      .join('');
-    return {
-      html: `<mi>${escapeHtml(converted)}</mi>`,
-      nextIndex: arg.nextIndex,
-    };
-  }
-  if (cmd === 'mathtt' || cmd === 'mathsf' || cmd === 'mathit') {
-    const arg = readBracedGroup(src, end);
-    const variant = cmd === 'mathtt' ? 'monospace' : cmd === 'mathsf' ? 'sans-serif' : 'italic';
-    return {
-      html: `<mstyle mathvariant="${variant}"><mrow>${parseLatexTokens(arg.content)}</mrow></mstyle>`,
-      nextIndex: arg.nextIndex,
-    };
+  const styled = parseStyledLatexCommand(cmd, src, end);
+  if (styled) {
+    return styled;
   }
   if (UPRIGHT_FUNCTIONS.has(cmd)) {
-    return {
-      html: `<mi mathvariant="normal">${escapeHtml(cmd)}</mi>`,
-      nextIndex: end,
-    };
+    return { html: `<mi mathvariant="normal">${escapeHtml(cmd)}</mi>`, nextIndex: end };
   }
   if (cmd === 'begin') {
     const env = readBracedGroup(src, end);
     const endMarker = `\\end{${env.content}}`;
     const closeIdx = src.indexOf(endMarker, env.nextIndex);
     if (closeIdx !== -1) {
-      const body = src.slice(env.nextIndex, closeIdx);
       return {
-        html: renderMatrixEnvironment(env.content, body),
+        html: renderMatrixEnvironment(env.content, src.slice(env.nextIndex, closeIdx)),
         nextIndex: closeIdx + endMarker.length,
       };
     }
   }
-
   const mapped = GREEK_AND_SYMBOLS[cmd];
   if (mapped) {
     const tag = /^[α-ωΑ-Ω∂∇∞∅]$/.test(mapped) ? 'mi' : 'mo';
     return { html: `<${tag}>${escapeHtml(mapped)}</${tag}>`, nextIndex: end };
   }
   return { html: `<mi>${escapeHtml(cmd)}</mi>`, nextIndex: end };
+}
+
+function parseCommand(src: string, cmdStart: number): { html: string; nextIndex: number } {
+  const afterSlash = cmdStart + 1;
+  if (afterSlash >= src.length) {
+    return { html: '', nextIndex: afterSlash };
+  }
+  const firstChar = src[afterSlash];
+  if (!/[a-zA-Z]/.test(firstChar)) {
+    if (firstChar === '{' || firstChar === '}') {
+      return { html: `<mo>${escapeHtml(firstChar)}</mo>`, nextIndex: afterSlash + 1 };
+    }
+    return { html: '<mspace width="0.2em"></mspace>', nextIndex: afterSlash + 1 };
+  }
+
+  let end = afterSlash;
+  while (end < src.length && /[a-zA-Z]/.test(src[end])) {
+    end++;
+  }
+  return parseNamedLatexCommand(src.slice(afterSlash, end), src, end);
 }
 
 function parseAtom(src: string, index: number): { html: string; nextIndex: number } {
@@ -405,6 +425,43 @@ function parseAtom(src: string, index: number): { html: string; nextIndex: numbe
   return { html: `<mtext>${escapeHtml(ch)}</mtext>`, nextIndex: i + 1 };
 }
 
+function consumeScripts(
+  src: string,
+  startIndex: number,
+): { subHtml?: string; supHtml?: string; nextIndex: number } {
+  let i = startIndex;
+  let subHtml: string | undefined;
+  let supHtml: string | undefined;
+  for (let pass = 0; pass < 2; pass++) {
+    while (i < src.length && /\s/.test(src[i])) {
+      i++;
+    }
+    if (src[i] === '_' && subHtml === undefined) {
+      const subAtom = parseAtom(src, i + 1);
+      subHtml = subAtom.html || '<mrow></mrow>';
+      i = subAtom.nextIndex;
+    } else if (src[i] === '^' && supHtml === undefined) {
+      const supAtom = parseAtom(src, i + 1);
+      supHtml = supAtom.html || '<mrow></mrow>';
+      i = supAtom.nextIndex;
+    }
+  }
+  return { subHtml, supHtml, nextIndex: i };
+}
+
+function wrapScriptedAtom(baseHtml: string, subHtml?: string, supHtml?: string): string {
+  if (subHtml !== undefined && supHtml !== undefined) {
+    return `<msubsup>${baseHtml}${subHtml}${supHtml}</msubsup>`;
+  }
+  if (subHtml !== undefined) {
+    return `<msub>${baseHtml}${subHtml}</msub>`;
+  }
+  if (supHtml !== undefined) {
+    return `<msup>${baseHtml}${supHtml}</msup>`;
+  }
+  return baseHtml;
+}
+
 function parseLatexTokens(src: string): string {
   const parts: string[] = [];
   let i = 0;
@@ -413,33 +470,9 @@ function parseLatexTokens(src: string): string {
     if (!atom.html && atom.nextIndex >= src.length) {
       break;
     }
-    i = atom.nextIndex;
-    let baseHtml = atom.html;
-    let subHtml: string | undefined;
-    let supHtml: string | undefined;
-
-    for (let pass = 0; pass < 2; pass++) {
-      while (i < src.length && /\s/.test(src[i])) {
-        i++;
-      }
-      if (src[i] === '_' && subHtml === undefined) {
-        const subAtom = parseAtom(src, i + 1);
-        subHtml = subAtom.html || '<mrow></mrow>';
-        i = subAtom.nextIndex;
-      } else if (src[i] === '^' && supHtml === undefined) {
-        const supAtom = parseAtom(src, i + 1);
-        supHtml = supAtom.html || '<mrow></mrow>';
-        i = supAtom.nextIndex;
-      }
-    }
-
-    if (subHtml !== undefined && supHtml !== undefined) {
-      baseHtml = `<msubsup>${baseHtml}${subHtml}${supHtml}</msubsup>`;
-    } else if (subHtml !== undefined) {
-      baseHtml = `<msub>${baseHtml}${subHtml}</msub>`;
-    } else if (supHtml !== undefined) {
-      baseHtml = `<msup>${baseHtml}${supHtml}</msup>`;
-    }
+    const scripts = consumeScripts(src, atom.nextIndex);
+    i = scripts.nextIndex;
+    const baseHtml = wrapScriptedAtom(atom.html, scripts.subHtml, scripts.supHtml);
     if (baseHtml) {
       parts.push(baseHtml);
     }
@@ -455,514 +488,6 @@ export function renderLatexToMathMl(tex: string, displayMode = false): string {
   const inner = parseLatexTokens(tex.trim());
   const mathEl = `<math xmlns="http://www.w3.org/1998/Math/MathML"${displayAttr}><mrow>${inner}</mrow></math>`;
   return displayMode ? `<div class="a2ui-math-block">${mathEl}</div>` : mathEl;
-}
-
-interface FlowNode {
-  id: string;
-  label: string;
-  shape: 'rect' | 'round' | 'diamond' | 'start' | 'end';
-  order: number;
-}
-
-interface FlowEdge {
-  from: string;
-  to: string;
-  label?: string;
-  dashed: boolean;
-}
-
-function parseNodeToken(
-  raw: string,
-  nodes: Map<string, FlowNode>,
-  defaultShape: FlowNode['shape'] = 'rect',
-): string {
-  const trimmed = raw.trim();
-  const match =
-    /^([A-Za-z0-9_.-]+)\s*(?:\[\s*"?([^"\]]*)"?\s*\]|\(\s*"?([^")]*)"?\s*\)|\{\s*"?([^"}]*)?"?\s*\})?$/.exec(
-      trimmed,
-    );
-  if (!match) {
-    const fallbackId = trimmed.replace(/\s+/g, '_') || 'node';
-    if (!nodes.has(fallbackId)) {
-      nodes.set(fallbackId, {
-        id: fallbackId,
-        label: trimmed,
-        shape: defaultShape,
-        order: nodes.size,
-      });
-    }
-    return fallbackId;
-  }
-  const id = match[1];
-  const rectLabel = match[2];
-  const roundLabel = match[3];
-  const diamondLabel = match[4];
-  const existingOrder = nodes.get(id)?.order ?? nodes.size;
-  if (rectLabel !== undefined) {
-    nodes.set(id, { id, label: rectLabel.trim(), shape: 'rect', order: existingOrder });
-  } else if (roundLabel !== undefined) {
-    nodes.set(id, { id, label: roundLabel.trim(), shape: 'round', order: existingOrder });
-  } else if (diamondLabel !== undefined) {
-    nodes.set(id, { id, label: diamondLabel.trim(), shape: 'diamond', order: existingOrder });
-  } else if (!nodes.has(id)) {
-    nodes.set(id, { id, label: id, shape: defaultShape, order: existingOrder });
-  }
-  return id;
-}
-
-function parseFlowchartLines(lines: string[]): {
-  nodes: Map<string, FlowNode>;
-  edges: FlowEdge[];
-} {
-  const nodes = new Map<string, FlowNode>();
-  const edges: FlowEdge[] = [];
-  const edgePattern =
-    /^(.+?)\s*(?:--\s*([^>-][^>]*?)\s*-->|(-\.->|==>|--+>\s*))(?:\|([^|]*)\|\s*)?(.+)$/;
-
-  for (const rawLine of lines) {
-    const line = rawLine.trim().replace(/;$/, '');
-    if (!line || line.startsWith('%%') || /^(?:subgraph|end|style|classDef|class)\b/i.test(line)) {
-      continue;
-    }
-    const edgeMatch = edgePattern.exec(line);
-    if (edgeMatch) {
-      const fromId = parseNodeToken(edgeMatch[1], nodes);
-      const inlineLabel = edgeMatch[2]?.trim();
-      const arrowToken = edgeMatch[3] ?? '-->';
-      const pipeLabel = edgeMatch[4]?.trim();
-      const toId = parseNodeToken(edgeMatch[5], nodes);
-      edges.push({
-        from: fromId,
-        to: toId,
-        label: pipeLabel || inlineLabel,
-        dashed: arrowToken.includes('.'),
-      });
-    } else {
-      parseNodeToken(line, nodes);
-    }
-  }
-  return { nodes, edges };
-}
-
-function parseStateDiagramLines(lines: string[]): {
-  nodes: Map<string, FlowNode>;
-  edges: FlowEdge[];
-  direction: string;
-} {
-  const nodes = new Map<string, FlowNode>();
-  const edges: FlowEdge[] = [];
-  let direction = 'TD';
-
-  const stateAliasPattern = /^state\s+"([^"]+)"\s+as\s+([A-Za-z0-9_.-]+)$/i;
-  const transitionPattern =
-    /^(\[\*\]|[A-Za-z0-9_.-]+)\s*(-->|--\.->)\s*(\[\*\]|[A-Za-z0-9_.-]+)(?:\s*:\s*(.+))?$/;
-  const stateDescPattern = /^([A-Za-z0-9_.-]+)\s*:\s*(.+)$/;
-
-  const ensureStateNode = (token: string, isSource: boolean): string => {
-    if (token === '[*]') {
-      const id = isSource ? '__start__' : '__end__';
-      const shape = isSource ? 'start' : 'end';
-      if (!nodes.has(id)) {
-        nodes.set(id, { id, label: '', shape, order: nodes.size });
-      }
-      return id;
-    }
-    if (!nodes.has(token)) {
-      nodes.set(token, { id: token, label: token, shape: 'round', order: nodes.size });
-    }
-    return token;
-  };
-
-  for (const rawLine of lines) {
-    const line = rawLine.trim().replace(/;$/, '');
-    if (!line || line.startsWith('%%') || /^(?:note\b|end\s+note\b|\}|\{)/i.test(line)) {
-      continue;
-    }
-    const dirMatch = /^direction\s+(TD|TB|LR|RL|BT)\b/i.exec(line);
-    if (dirMatch) {
-      direction = dirMatch[1].toUpperCase();
-      continue;
-    }
-    const aliasMatch = stateAliasPattern.exec(line);
-    if (aliasMatch) {
-      const label = aliasMatch[1].trim();
-      const id = aliasMatch[2].trim();
-      const existingOrder = nodes.get(id)?.order ?? nodes.size;
-      nodes.set(id, { id, label, shape: 'round', order: existingOrder });
-      continue;
-    }
-    const transMatch = transitionPattern.exec(line);
-    if (transMatch) {
-      const fromId = ensureStateNode(transMatch[1].trim(), true);
-      const arrow = transMatch[2];
-      const toId = ensureStateNode(transMatch[3].trim(), false);
-      const label = transMatch[4]?.trim();
-      edges.push({
-        from: fromId,
-        to: toId,
-        label,
-        dashed: arrow.includes('.'),
-      });
-      continue;
-    }
-    const descMatch = stateDescPattern.exec(line);
-    if (descMatch) {
-      const id = descMatch[1].trim();
-      const desc = descMatch[2].trim();
-      const existing = nodes.get(id);
-      nodes.set(id, {
-        id,
-        label: existing && existing.label !== id ? existing.label : `${id}: ${desc}`,
-        shape: 'round',
-        order: existing?.order ?? nodes.size,
-      });
-    }
-  }
-
-  return { nodes, edges, direction };
-}
-
-function computeNodeRanks(
-  nodes: Map<string, FlowNode>,
-  edges: FlowEdge[],
-): Map<string, { rank: number; row: number; groupSize: number }> {
-  const ranks = new Map<string, number>();
-  for (const id of nodes.keys()) {
-    ranks.set(id, 0);
-  }
-  for (let iter = 0; iter < nodes.size; iter++) {
-    for (const edge of edges) {
-      const fromNode = nodes.get(edge.from);
-      const toNode = nodes.get(edge.to);
-      if (!fromNode || !toNode) continue;
-      // Ignore back-edges (cycles) when computing hierarchical rank
-      if (fromNode.order >= toNode.order) continue;
-      const fromRank = ranks.get(edge.from) ?? 0;
-      const toRank = ranks.get(edge.to) ?? 0;
-      if (toRank <= fromRank && edge.from !== edge.to) {
-        ranks.set(edge.to, fromRank + 1);
-      }
-    }
-  }
-  const byRank = new Map<number, string[]>();
-  for (const [id, rank] of ranks.entries()) {
-    const group = byRank.get(rank) ?? [];
-    group.push(id);
-    byRank.set(rank, group);
-  }
-  const positions = new Map<string, { rank: number; row: number; groupSize: number }>();
-  for (const [rank, group] of byRank.entries()) {
-    group.forEach((id, idx) => positions.set(id, { rank, row: idx, groupSize: group.length }));
-  }
-  return positions;
-}
-
-function computeNodeDimensions(n: FlowNode): { w: number; h: number } {
-  if (n.shape === 'start' || n.shape === 'end') {
-    return { w: 22, h: 22 };
-  }
-  const textWidth = Math.ceil(n.label.length * 7.4) + 28;
-  return {
-    w: Math.max(116, textWidth),
-    h: 34,
-  };
-}
-
-function renderGraphSvg(
-  nodes: Map<string, FlowNode>,
-  edges: FlowEdge[],
-  direction: string,
-  rawLinesForFallback: string[],
-): string {
-  if (nodes.size === 0) {
-    return `<pre class="a2ui-mermaid-fallback"><code>${escapeHtml(rawLinesForFallback.join('\n'))}</code></pre>`;
-  }
-  const isHorizontal = direction === 'LR' || direction === 'RL';
-  const positions = computeNodeRanks(nodes, edges);
-  const dims = new Map<string, { w: number; h: number }>();
-  for (const [id, n] of nodes.entries()) {
-    dims.set(id, computeNodeDimensions(n));
-  }
-
-  let maxRank = 0;
-  let maxGroupSize = 1;
-  for (const pos of positions.values()) {
-    maxRank = Math.max(maxRank, pos.rank);
-    maxGroupSize = Math.max(maxGroupSize, pos.groupSize);
-  }
-
-  // Check if there are any back-edges so we reserve left margin in vertical layout
-  const hasBackEdge = edges.some((e) => {
-    const f = positions.get(e.from);
-    const t = positions.get(e.to);
-    return f && t && f.rank >= t.rank;
-  });
-
-  const coords = new Map<
-    string,
-    { cx: number; cy: number; w: number; h: number; rank: number; row: number }
-  >();
-  let maxX = 0;
-  let maxY = 0;
-
-  if (isHorizontal) {
-    const padX = 16;
-    const padY = 16;
-    const gapY = 54;
-    const colWidths: number[] = new Array(maxRank + 1).fill(116);
-    for (const [id, pos] of positions.entries()) {
-      const d = dims.get(id)!;
-      colWidths[pos.rank] = Math.max(colWidths[pos.rank], d.w);
-    }
-
-    const colGap: number[] = new Array(maxRank + 1).fill(46);
-    for (const e of edges) {
-      const f = positions.get(e.from);
-      const t = positions.get(e.to);
-      if (f && t && t.rank > f.rank && e.label) {
-        colGap[f.rank] = Math.max(colGap[f.rank], Math.ceil(e.label.length * 6.4) + 28);
-      }
-    }
-
-    const colCenterX: number[] = [];
-    let cursorX = padX;
-    for (let r = 0; r <= maxRank; r++) {
-      colCenterX[r] = cursorX + colWidths[r] / 2;
-      cursorX += colWidths[r] + colGap[r];
-    }
-    maxX = cursorX - (colGap[maxRank] ?? 46) + padX;
-    const totalRowsHeight = (maxGroupSize - 1) * gapY + 34;
-    maxY = padY * 2 + totalRowsHeight + (hasBackEdge ? 28 : 0);
-
-    for (const [id, pos] of positions.entries()) {
-      const d = dims.get(id)!;
-      const rowOffset = (maxGroupSize - pos.groupSize) / 2;
-      const cy = padY + (hasBackEdge ? 20 : 0) + (pos.row + rowOffset) * gapY + 17;
-      coords.set(id, {
-        cx: colCenterX[pos.rank],
-        cy,
-        w: d.w,
-        h: d.h,
-        rank: pos.rank,
-        row: pos.row,
-      });
-    }
-  } else {
-    const leftMargin = hasBackEdge ? 96 : 16;
-    const rightMargin = 24;
-    const padY = 16;
-    const colGapX = 28;
-
-    // Group nodes by rank to compute row widths and incoming edge label widths
-    const byRank = new Map<number, string[]>();
-    for (const [id, pos] of positions.entries()) {
-      const list = byRank.get(pos.rank) ?? [];
-      list.push(id);
-      byRank.set(pos.rank, list);
-    }
-
-    const incomingLabelWidth = new Map<string, number>();
-    const labeledEdgesByRank = new Map<number, number>();
-    for (const e of edges) {
-      const f = positions.get(e.from);
-      const t = positions.get(e.to);
-      if (f && t && f.rank < t.rank && e.label) {
-        const labelW = Math.ceil(e.label.length * 6.2) + 22;
-        incomingLabelWidth.set(e.to, Math.max(incomingLabelWidth.get(e.to) ?? 0, labelW));
-        labeledEdgesByRank.set(f.rank, (labeledEdgesByRank.get(f.rank) ?? 0) + 1);
-      }
-    }
-
-    const getSlotWidth = (id: string, rankSize: number): number => {
-      const baseW = dims.get(id)!.w;
-      if (rankSize <= 1) return baseW;
-      return Math.max(baseW, incomingLabelWidth.get(id) ?? 0);
-    };
-
-    let maxRowWidth = 220;
-    for (const list of byRank.values()) {
-      const rowW =
-        list.reduce((sum, id) => sum + getSlotWidth(id, list.length), 0) +
-        Math.max(0, list.length - 1) * colGapX;
-      maxRowWidth = Math.max(maxRowWidth, rowW);
-    }
-
-    const rankCenterY: number[] = [];
-    let cursorY = padY + 17;
-    for (let r = 0; r <= maxRank; r++) {
-      rankCenterY[r] = cursorY;
-      const gapY = (labeledEdgesByRank.get(r) ?? 0) >= 2 ? 88 : 66;
-      cursorY += gapY;
-    }
-
-    maxX = leftMargin + maxRowWidth + rightMargin;
-    maxY = (rankCenterY[maxRank] ?? padY + 17) + 17 + padY;
-
-    for (const [rank, list] of byRank.entries()) {
-      const rowW =
-        list.reduce((sum, id) => sum + getSlotWidth(id, list.length), 0) +
-        Math.max(0, list.length - 1) * colGapX;
-      let startX = leftMargin + (maxRowWidth - rowW) / 2;
-      const cy = rankCenterY[rank];
-      list.forEach((id, idx) => {
-        const d = dims.get(id)!;
-        const slotW = getSlotWidth(id, list.length);
-        const cx = startX + slotW / 2;
-        startX += slotW + colGapX;
-        coords.set(id, { cx, cy, w: d.w, h: d.h, rank, row: idx });
-      });
-    }
-  }
-
-  // Group forward edges by source node to spread fan-out ports and stagger labels
-  const forwardOutBySource = new Map<string, FlowEdge[]>();
-  for (const e of edges) {
-    const f = coords.get(e.from);
-    const t = coords.get(e.to);
-    if (!f || !t || f.rank >= t.rank || e.from === e.to) continue;
-    const list = forwardOutBySource.get(e.from) ?? [];
-    list.push(e);
-    forwardOutBySource.set(e.from, list);
-  }
-  for (const list of forwardOutBySource.values()) {
-    list.sort((a, b) => {
-      const ca = coords.get(a.to)!;
-      const cb = coords.get(b.to)!;
-      return isHorizontal ? ca.cy - cb.cy : ca.cx - cb.cx;
-    });
-  }
-
-  const labelHaloAttrs =
-    'paint-order="stroke fill" stroke="var(--a2ui-color-surface, #ffffff)" stroke-width="4" stroke-linejoin="round"';
-  const edgeLines: string[] = [];
-  const edgeLabels: string[] = [];
-
-  for (const e of edges) {
-    const from = coords.get(e.from);
-    const to = coords.get(e.to);
-    if (!from || !to) continue;
-    const isBackEdge = from.rank >= to.rank && e.from !== e.to;
-    const dash = e.dashed || isBackEdge ? ' stroke-dasharray="4 3"' : '';
-
-    if (isBackEdge) {
-      if (isHorizontal) {
-        const x1 = from.cx;
-        const y1 = from.cy - from.h / 2;
-        const x2 = to.cx;
-        const y2 = to.cy - to.h / 2 - 4;
-        const ctrlY = Math.min(y1, y2) - 26;
-        const midX = (x1 + x2) / 2;
-        edgeLines.push(
-          `<path d="M ${x1} ${y1} Q ${midX} ${ctrlY} ${x2} ${y2}" fill="none" stroke="var(--a2ui-color-primary, #0b57d0)" stroke-width="1.5"${dash} marker-end="url(#a2ui-arrow)" />`,
-        );
-        if (e.label) {
-          edgeLabels.push(
-            `<text x="${midX}" y="${ctrlY + 4}" text-anchor="middle" font-size="10.5" ${labelHaloAttrs} fill="var(--a2ui-text-caption-color, #70757a)">${escapeHtml(e.label)}</text>`,
-          );
-        }
-      } else {
-        const x1 = from.cx - from.w / 2;
-        const y1 = from.cy;
-        const x2 = to.cx - to.w / 2 - 4;
-        const y2 = to.cy;
-        const arcX = Math.min(x1, x2) - 44;
-        const midY = (y1 + y2) / 2;
-        edgeLines.push(
-          `<path d="M ${x1} ${y1} C ${arcX} ${y1}, ${arcX} ${y2}, ${x2} ${y2}" fill="none" stroke="var(--a2ui-color-primary, #0b57d0)" stroke-width="1.5"${dash} marker-end="url(#a2ui-arrow)" />`,
-        );
-        if (e.label) {
-          edgeLabels.push(
-            `<text x="${arcX - 4}" y="${midY + 3}" text-anchor="end" font-size="10.5" ${labelHaloAttrs} fill="var(--a2ui-text-caption-color, #70757a)">${escapeHtml(e.label)}</text>`,
-          );
-        }
-      }
-      continue;
-    }
-
-    const siblings = forwardOutBySource.get(e.from) ?? [e];
-    const outCount = siblings.length;
-    const outIdx = Math.max(0, siblings.indexOf(e));
-
-    if (!isHorizontal && outCount > 1) {
-      const spread = Math.min(44, from.w * 0.36);
-      const x1 = from.cx + ((outIdx - (outCount - 1) / 2) / Math.max(1, outCount - 1)) * spread;
-      const y1 = from.cy + from.h / 2;
-      const x2 = to.cx;
-      const y2 = to.cy - to.h / 2 - 4;
-      if (Math.abs(x1 - x2) > 6) {
-        const ctrlY = y1 + (y2 - y1) * 0.45;
-        edgeLines.push(
-          `<path d="M ${x1} ${y1} C ${x1} ${ctrlY}, ${x2} ${ctrlY}, ${x2} ${y2}" fill="none" stroke="var(--a2ui-color-primary, #0b57d0)" stroke-width="1.5"${dash} marker-end="url(#a2ui-arrow)" />`,
-        );
-      } else {
-        edgeLines.push(
-          `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--a2ui-color-primary, #0b57d0)" stroke-width="1.5"${dash} marker-end="url(#a2ui-arrow)" />`,
-        );
-      }
-      if (e.label) {
-        const xFraction = 0.76;
-        const yFraction = outCount >= 3 ? (outIdx % 2 === 0 ? 0.46 : 0.76) : 0.58;
-        const labelX = x1 + xFraction * (x2 - x1);
-        const labelY = y1 + yFraction * (y2 - y1) + 3;
-        edgeLabels.push(
-          `<text x="${labelX}" y="${labelY}" text-anchor="middle" font-size="10.5" ${labelHaloAttrs} fill="var(--a2ui-text-caption-color, #70757a)">${escapeHtml(e.label)}</text>`,
-        );
-      }
-      continue;
-    }
-
-    const x1 = isHorizontal ? from.cx + from.w / 2 : from.cx;
-    const y1 = isHorizontal ? from.cy : from.cy + from.h / 2;
-    const x2 = isHorizontal ? to.cx - to.w / 2 - 4 : to.cx;
-    const y2 = isHorizontal ? to.cy : to.cy - to.h / 2 - 4;
-    const midX = (x1 + x2) / 2;
-    const midY = isHorizontal ? (y1 + y2) / 2 - 6 : (y1 + y2) / 2 + 3;
-    const textOffset = !isHorizontal && Math.abs(x1 - x2) < 8 ? 8 : 0;
-    const anchor = textOffset > 0 ? 'start' : 'middle';
-    edgeLines.push(
-      `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--a2ui-color-primary, #0b57d0)" stroke-width="1.5"${dash} marker-end="url(#a2ui-arrow)" />`,
-    );
-    if (e.label) {
-      edgeLabels.push(
-        `<text x="${midX + textOffset}" y="${midY}" text-anchor="${anchor}" font-size="10.5" ${labelHaloAttrs} fill="var(--a2ui-text-caption-color, #70757a)">${escapeHtml(e.label)}</text>`,
-      );
-    }
-  }
-  const edgeSvg = edgeLines.join('');
-  const edgeLabelSvg = edgeLabels.join('');
-
-  const nodeSvg = Array.from(nodes.values())
-    .map((n) => {
-      const c = coords.get(n.id)!;
-      if (n.shape === 'start') {
-        return `<g class="a2ui-mermaid-node"><circle cx="${c.cx}" cy="${c.cy}" r="8" fill="var(--a2ui-color-primary, #0b57d0)" /></g>`;
-      }
-      if (n.shape === 'end') {
-        return `<g class="a2ui-mermaid-node"><circle cx="${c.cx}" cy="${c.cy}" r="9" fill="none" stroke="var(--a2ui-color-primary, #0b57d0)" stroke-width="1.5" /><circle cx="${c.cx}" cy="${c.cy}" r="5" fill="var(--a2ui-color-primary, #0b57d0)" /></g>`;
-      }
-      const x = c.cx - c.w / 2;
-      const y = c.cy - c.h / 2;
-      const rx = n.shape === 'round' ? 14 : 6;
-      const shapeEl =
-        n.shape === 'diamond'
-          ? `<polygon points="${c.cx},${y} ${x + c.w},${c.cy} ${c.cx},${y + c.h} ${x},${c.cy}" fill="var(--a2ui-color-secondary, #f1f3f4)" stroke="var(--a2ui-color-primary, #0b57d0)" stroke-width="1.5" />`
-          : `<rect x="${x}" y="${y}" width="${c.w}" height="${c.h}" rx="${rx}" fill="var(--a2ui-color-secondary, #f1f3f4)" stroke="var(--a2ui-color-border, #dadce0)" stroke-width="1.5" />`;
-      return `<g class="a2ui-mermaid-node">${shapeEl}<text x="${c.cx}" y="${c.cy + 4}" text-anchor="middle" font-size="12" font-weight="500" fill="var(--a2ui-text-color-text, #1f1f1f)">${escapeHtml(n.label)}</text></g>`;
-    })
-    .join('');
-
-  const maxH = isHorizontal ? 200 : 300;
-  return `<div class="a2ui-mermaid"><svg class="a2ui-mermaid-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${maxX} ${maxY}" width="100%" style="max-width:${maxX}px;max-height:${maxH}px;height:auto;display:block;margin:0 auto"><defs><marker id="a2ui-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 1 L 10 5 L 0 9 z" fill="var(--a2ui-color-primary, #0b57d0)" /></marker></defs>${edgeSvg}${nodeSvg}${edgeLabelSvg}</svg></div>`;
-}
-
-function renderFlowchartSvg(lines: string[], direction: string): string {
-  const { nodes, edges } = parseFlowchartLines(lines);
-  return renderGraphSvg(nodes, edges, direction, lines);
-}
-
-function renderStateDiagramSvg(lines: string[]): string {
-  const { nodes, edges, direction } = parseStateDiagramLines(lines);
-  return renderGraphSvg(nodes, edges, direction, lines);
 }
 
 function renderSequenceSvg(lines: string[]): string {
@@ -1031,30 +556,35 @@ function renderSequenceSvg(lines: string[]): string {
  * or `sequenceDiagram`) to an inline SVG.
  */
 
-function renderPieSvg(header: string, lines: string[]): string {
-  let title = '';
+interface PieSpec {
+  readonly title: string;
+  readonly showData: boolean;
+  readonly slices: ReadonlyArray<{ label: string; value: number }>;
+}
+
+function parsePieSpec(header: string, lines: readonly string[]): PieSpec {
   const showData = /\bshowData\b/i.test(header);
   const inlineTitle = /^pie(?:\s+showData)?\s+title\s+(.+)$/i.exec(header);
-  if (inlineTitle) {
-    title = inlineTitle[1].trim().replace(/^"(.*)"$/, '$1');
-  }
+  let title = inlineTitle ? inlineTitle[1].trim().replace(/^"(.*)"$/, '$1') : '';
   const slices: Array<{ label: string; value: number }> = [];
   for (const raw of lines) {
     const line = raw.trim();
-    if (!line) continue;
     const titleMatch = /^title\s+(.+)$/i.exec(line);
     if (titleMatch) {
       title = titleMatch[1].trim().replace(/^"(.*)"$/, '$1');
       continue;
     }
     const sliceMatch = /^"([^"]+)"\s*:\s*([+-]?\d+(?:\.\d+)?)$/.exec(line);
-    if (sliceMatch) {
-      const value = Number(sliceMatch[2]);
-      if (Number.isFinite(value) && value >= 0) {
-        slices.push({ label: sliceMatch[1], value });
-      }
+    const value = sliceMatch ? Number(sliceMatch[2]) : NaN;
+    if (sliceMatch && Number.isFinite(value) && value >= 0) {
+      slices.push({ label: sliceMatch[1], value });
     }
   }
+  return { title, showData, slices };
+}
+
+function renderPieSvg(header: string, lines: string[]): string {
+  const { title, showData, slices } = parsePieSpec(header, lines);
   if (slices.length === 0) {
     return `<pre class="a2ui-mermaid-fallback"><code>${escapeHtml([header, ...lines].join('\n'))}</code></pre>`;
   }
@@ -1077,8 +607,7 @@ function renderPieSvg(header: string, lines: string[]): string {
     const color = resolveSeriesColor(idx);
     const d = describeSectorPath(cx, cy, radius, 0, start, end);
     const pct = Math.round((s.value / total) * 100);
-    const mid = start + span / 2;
-    const labelPos = polarToCartesian(cx, cy, radius * 0.65, mid);
+    const labelPos = polarToCartesian(cx, cy, radius * 0.65, start + span / 2);
     paths.push(
       `<path d="${d}" fill="${color}" stroke="var(--a2ui-color-surface, #ffffff)" stroke-width="1.5" />`,
     );
@@ -1113,51 +642,101 @@ function parseBracketList(raw: string): string[] {
   );
 }
 
-function renderXyChartSvg(lines: string[]): string {
-  let title = '';
-  let xCategories: string[] = [];
-  let yAxisTitle = '';
-  let explicitMin: number | undefined;
-  let explicitMax: number | undefined;
-  const series: Array<{ kind: 'bar' | 'line'; values: number[] }> = [];
+interface XyChartSpec {
+  title: string;
+  xCategories: string[];
+  yAxisTitle: string;
+  explicitMin?: number;
+  explicitMax?: number;
+  series: Array<{ kind: 'bar' | 'line'; values: number[] }>;
+}
 
-  for (const raw of lines) {
-    const line = raw.trim();
-    if (!line) continue;
-    const titleMatch = /^title\s+(.+)$/i.exec(line);
-    if (titleMatch) {
-      title = titleMatch[1].trim().replace(/^"(.*)"$/, '$1');
-      continue;
+function parseSingleXyChartLine(line: string, spec: XyChartSpec): void {
+  const titleMatch = /^title\s+(.+)$/i.exec(line);
+  if (titleMatch) {
+    spec.title = titleMatch[1].trim().replace(/^"(.*)"$/, '$1');
+    return;
+  }
+  const xAxisMatch = /^x-axis\s+(?:"[^"]*"\s+)?(\[.*\])$/i.exec(line);
+  if (xAxisMatch) {
+    spec.xCategories = parseBracketList(xAxisMatch[1]);
+    return;
+  }
+  const yAxisMatch =
+    /^y-axis\s+(?:"([^"]*)"\s*)?(?:([+-]?\d+(?:\.\d+)?)\s*-->\s*([+-]?\d+(?:\.\d+)?))?$/i.exec(
+      line,
+    );
+  if (yAxisMatch) {
+    if (yAxisMatch[1]) spec.yAxisTitle = yAxisMatch[1];
+    if (yAxisMatch[2] !== undefined && yAxisMatch[3] !== undefined) {
+      spec.explicitMin = Number(yAxisMatch[2]);
+      spec.explicitMax = Number(yAxisMatch[3]);
     }
-    const xAxisMatch = /^x-axis\s+(?:"[^"]*"\s+)?(\[.*\])$/i.exec(line);
-    if (xAxisMatch) {
-      xCategories = parseBracketList(xAxisMatch[1]);
-      continue;
-    }
-    const yAxisMatch =
-      /^y-axis\s+(?:"([^"]*)"\s*)?(?:([+-]?\d+(?:\.\d+)?)\s*-->\s*([+-]?\d+(?:\.\d+)?))?$/i.exec(
-        line,
-      );
-    if (yAxisMatch) {
-      if (yAxisMatch[1]) yAxisTitle = yAxisMatch[1];
-      if (yAxisMatch[2] !== undefined && yAxisMatch[3] !== undefined) {
-        explicitMin = Number(yAxisMatch[2]);
-        explicitMax = Number(yAxisMatch[3]);
-      }
-      continue;
-    }
-    const seriesMatch = /^(bar|line)\s+(?:"[^"]*"\s+)?(\[.*\])$/i.exec(line);
-    if (seriesMatch) {
-      const kind = seriesMatch[1].toLowerCase() as 'bar' | 'line';
-      const vals = parseBracketList(seriesMatch[2])
-        .map((v) => Number(v))
-        .filter((n) => Number.isFinite(n));
-      if (vals.length > 0) {
-        series.push({ kind, values: vals });
-      }
+    return;
+  }
+  const seriesMatch = /^(bar|line)\s+(?:"[^"]*"\s+)?(\[.*\])$/i.exec(line);
+  if (seriesMatch) {
+    const kind = seriesMatch[1].toLowerCase() as 'bar' | 'line';
+    const vals = parseBracketList(seriesMatch[2])
+      .map((v) => Number(v))
+      .filter((n) => Number.isFinite(n));
+    if (vals.length > 0) {
+      spec.series.push({ kind, values: vals });
     }
   }
+}
 
+function parseXyChartSpec(lines: readonly string[]): XyChartSpec {
+  const spec: XyChartSpec = { title: '', xCategories: [], yAxisTitle: '', series: [] };
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (line) {
+      parseSingleXyChartLine(line, spec);
+    }
+  }
+  return spec;
+}
+
+function renderXySeriesParts(
+  series: ReadonlyArray<{ kind: 'bar' | 'line'; values: number[] }>,
+  padLeft: number,
+  slotW: number,
+  barWidth: number,
+  zeroY: number,
+  yFor: (v: number) => number,
+): string[] {
+  const parts: string[] = [];
+  let barIdx = 0;
+  series.forEach((s, sIdx) => {
+    const color = resolveSeriesColor(sIdx);
+    if (s.kind === 'bar') {
+      const bOffset = barIdx++;
+      s.values.forEach((v, idx) => {
+        const x = padLeft + idx * slotW + slotW * 0.175 + bOffset * barWidth;
+        const yTop = v >= 0 ? yFor(v) : zeroY;
+        const yBot = v >= 0 ? zeroY : yFor(v);
+        const h = Math.max(2, Math.abs(yBot - yTop));
+        parts.push(
+          `<rect x="${Number(x.toFixed(2))}" y="${Number(Math.min(yTop, yBot).toFixed(2))}" width="${Number(barWidth.toFixed(2))}" height="${Number(h.toFixed(2))}" rx="2" fill="${color}" />`,
+        );
+      });
+      return;
+    }
+    const pts = s.values.map((v, idx) => ({
+      x: Number((padLeft + (idx + 0.5) * slotW).toFixed(2)),
+      y: Number(yFor(v).toFixed(2)),
+    }));
+    parts.push(
+      `<polyline fill="none" stroke="${color}" stroke-width="2.2" points="${pts.map((p) => `${p.x},${p.y}`).join(' ')}" />`,
+      ...pts.map((p) => `<circle cx="${p.x}" cy="${p.y}" r="3.5" fill="${color}" />`),
+    );
+  });
+  return parts;
+}
+
+function renderXyChartSvg(lines: string[]): string {
+  const { title, xCategories, yAxisTitle, explicitMin, explicitMax, series } =
+    parseXyChartSpec(lines);
   if (series.length === 0) {
     return `<pre class="a2ui-mermaid-fallback"><code>${escapeHtml(['xychart-beta', ...lines].join('\n'))}</code></pre>`;
   }
@@ -1200,37 +779,8 @@ function renderXyChartSvg(lines: string[]): string {
   parts.push(
     `<line x1="${padLeft}" y1="${padTop}" x2="${padLeft}" y2="${padTop + plotH}" stroke="var(--a2ui-chart-axis-color, rgba(128,134,139,0.55))" />`,
     `<line x1="${padLeft}" y1="${Number(zeroY.toFixed(2))}" x2="${padLeft + plotW}" y2="${Number(zeroY.toFixed(2))}" stroke="var(--a2ui-chart-axis-color, rgba(128,134,139,0.55))" />`,
+    ...renderXySeriesParts(series, padLeft, slotW, barWidth, zeroY, yFor),
   );
-
-  let barIdx = 0;
-  series.forEach((s, sIdx) => {
-    const color = resolveSeriesColor(sIdx);
-    if (s.kind === 'bar') {
-      const bOffset = barIdx++;
-      s.values.forEach((v, idx) => {
-        const groupStart = padLeft + idx * slotW + slotW * 0.175;
-        const x = groupStart + bOffset * barWidth;
-        const yTop = v >= 0 ? yFor(v) : zeroY;
-        const yBot = v >= 0 ? zeroY : yFor(v);
-        const h = Math.max(2, Math.abs(yBot - yTop));
-        parts.push(
-          `<rect x="${Number(x.toFixed(2))}" y="${Number(Math.min(yTop, yBot).toFixed(2))}" width="${Number(barWidth.toFixed(2))}" height="${Number(h.toFixed(2))}" rx="2" fill="${color}" />`,
-        );
-      });
-    } else {
-      const pts = s.values.map((v, idx) => {
-        const x = Number((padLeft + (idx + 0.5) * slotW).toFixed(2));
-        const y = Number(yFor(v).toFixed(2));
-        return { x, y };
-      });
-      parts.push(
-        `<polyline fill="none" stroke="${color}" stroke-width="2.2" points="${pts.map((p) => `${p.x},${p.y}`).join(' ')}" />`,
-      );
-      for (const p of pts) {
-        parts.push(`<circle cx="${p.x}" cy="${p.y}" r="3.5" fill="${color}" />`);
-      }
-    }
-  });
 
   for (let i = 0; i < maxPoints; i++) {
     const lbl = xCategories[i] ?? String(i + 1);
@@ -1243,28 +793,33 @@ function renderXyChartSvg(lines: string[]): string {
   return `<div class="a2ui-mermaid"><svg class="a2ui-mermaid-svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="${escapeHtml(title || 'XY chart')}">${parts.join('')}</svg></div>`;
 }
 
-export function renderMermaidSvg(code: string): string {
-  const rawLines = code
+export function renderMermaidSvg(code: string, options?: MermaidLayoutOptions): string {
+  const lines = code
     .trim()
     .split(/\r?\n/)
     .filter((l) => !l.trim().startsWith('%%'));
-  const header = rawLines[0]?.trim() ?? '';
+  const header = lines[0]?.trim() ?? '';
   const flowMatch = /^(?:flowchart|graph)(?:\s+(TD|TB|LR|RL|BT))?\b/i.exec(header);
   if (flowMatch) {
-    const dir = (flowMatch[1] ?? 'TD').toUpperCase();
-    return renderFlowchartSvg(rawLines.slice(1), dir);
+    return renderFlowchartGraphSvg(
+      parseFlowchartLines(lines.slice(1), options),
+      (flowMatch[1] ?? 'TD').toUpperCase(),
+      lines,
+      options,
+    );
   }
   if (/^stateDiagram(?:-v2)?\b/i.test(header)) {
-    return renderStateDiagramSvg(rawLines.slice(1));
+    const parsed = parseStateDiagramLines(lines.slice(1), options);
+    return renderFlowchartGraphSvg(parsed, parsed.direction ?? 'TD', lines, options);
   }
   if (/^sequenceDiagram\b/i.test(header)) {
-    return renderSequenceSvg(rawLines.slice(1));
+    return renderSequenceSvg(lines.slice(1));
   }
   if (/^pie\b/i.test(header)) {
-    return renderPieSvg(header, rawLines.slice(1));
+    return renderPieSvg(header, lines.slice(1));
   }
   if (/^xychart(?:-beta)?\b/i.test(header)) {
-    return renderXyChartSvg(rawLines.slice(1));
+    return renderXyChartSvg(lines.slice(1));
   }
   return `<pre class="a2ui-mermaid-fallback"><code>${escapeHtml(code.trim())}</code></pre>`;
 }
@@ -1328,6 +883,65 @@ export function restoreNonHttpLinks(html: string, links: readonly string[]): str
     .replace(/<a\b([^>]*\bhref="https?:[^"]*"[^>]*)>/gi, '<a$1 rel="noopener noreferrer">');
 }
 
+interface MarkdownFragment {
+  token: string;
+  html: string;
+  isBlock: boolean;
+}
+
+function resolveCustomMermaidRenderer(
+  options?: RichMarkdownOptions,
+): ((code: string) => Promise<string> | string) | undefined {
+  if (options?.mermaidRenderer) {
+    return options.mermaidRenderer;
+  }
+  const globalMermaid = (globalThis as any).mermaid;
+  if (typeof globalMermaid?.render !== 'function') {
+    return undefined;
+  }
+  return async (code: string) => {
+    const res = await globalMermaid.render(
+      `a2ui-mmd-${Math.random().toString(36).slice(2, 8)}`,
+      code,
+    );
+    return typeof res === 'string' ? res : res.svg;
+  };
+}
+
+async function resolveMermaidFragments(
+  fragments: MarkdownFragment[],
+  options?: RichMarkdownOptions,
+): Promise<void> {
+  const customMermaid = resolveCustomMermaidRenderer(options);
+  for (const frag of fragments) {
+    if (!customMermaid) {
+      frag.html = renderMermaidSvg(frag.html, options?.mermaidLayout);
+      continue;
+    }
+    try {
+      const rawSvg = await customMermaid(frag.html);
+      frag.html = `<div class="a2ui-mermaid">${sanitizeSvgFragment(String(rawSvg))}</div>`;
+    } catch {
+      frag.html = renderMermaidSvg(frag.html, options?.mermaidLayout);
+    }
+  }
+}
+
+function substituteFragments(rendered: string, fragments: readonly MarkdownFragment[]): string {
+  let out = rendered;
+  for (const frag of fragments) {
+    if (frag.isBlock) {
+      const wrappedRegex = new RegExp(`<p[^>]*>\\s*${frag.token}\\s*<\\/p>`, 'g');
+      if (wrappedRegex.test(out)) {
+        out = out.replace(wrappedRegex, frag.html);
+        continue;
+      }
+    }
+    out = out.replaceAll(frag.token, frag.html);
+  }
+  return out;
+}
+
 /**
  * Renders Markdown enriched with LaTeX MathML (`$...$`, `$$...$$`, `\(...\)`, `\[...\]`)
  * and Mermaid SVG diagrams (` ```mermaid `), preserving DOMPurify XSS sanitization.
@@ -1343,7 +957,7 @@ export async function renderRichMarkdown(
   }
 
   const protectedCode: string[] = [];
-  const fragments: Array<{ token: string; html: string; isBlock: boolean }> = [];
+  const fragments: MarkdownFragment[] = [];
 
   // 1. Extract ```mermaid blocks first and protect other fenced code blocks / inline code spans
   const withFencesProcessed = value.replace(
@@ -1372,30 +986,7 @@ export async function renderRichMarkdown(
     protectNonHttpLinks(withInlineCodeProtected);
 
   // 2. Resolve any Mermaid blocks (via custom renderer, globalThis.mermaid, or built-in SVG)
-  const customMermaid =
-    options?.mermaidRenderer ??
-    (typeof (globalThis as any).mermaid?.render === 'function'
-      ? async (code: string) => {
-          const res = await (globalThis as any).mermaid.render(
-            `a2ui-mmd-${Math.random().toString(36).slice(2, 8)}`,
-            code,
-          );
-          return typeof res === 'string' ? res : res.svg;
-        }
-      : undefined);
-
-  for (const frag of fragments) {
-    if (customMermaid) {
-      try {
-        const rawSvg = await customMermaid(frag.html);
-        frag.html = `<div class="a2ui-mermaid">${sanitizeSvgFragment(String(rawSvg))}</div>`;
-      } catch {
-        frag.html = renderMermaidSvg(frag.html);
-      }
-    } else {
-      frag.html = renderMermaidSvg(frag.html);
-    }
-  }
+  await resolveMermaidFragments(fragments, options);
 
   // 3. Extract block math ($$...$$ and \[...\]) and inline math (\(...\) and $...$)
   const addMathFragment = (tex: string, displayMode: boolean): string => {
@@ -1426,7 +1017,7 @@ export async function renderRichMarkdown(
 
   // 5. Render standard Markdown + DOMPurify via @a2ui/markdown-it, then restore the
   //    protected link destinations as data-a2ui-href and harden http(s) anchors
-  let rendered = restoreNonHttpLinks(
+  const rendered = restoreNonHttpLinks(
     await renderMarkdown(restoredForMarkdown, {
       tagClassMap: options?.tagClassMap,
     }),
@@ -1434,16 +1025,5 @@ export async function renderRichMarkdown(
   );
 
   // 6. Substitute sanitized MathML and Mermaid SVG fragments
-  for (const frag of fragments) {
-    if (frag.isBlock) {
-      const wrappedRegex = new RegExp(`<p[^>]*>\\s*${frag.token}\\s*<\\/p>`, 'g');
-      if (wrappedRegex.test(rendered)) {
-        rendered = rendered.replace(wrappedRegex, frag.html);
-        continue;
-      }
-    }
-    rendered = rendered.replaceAll(frag.token, frag.html);
-  }
-
-  return rendered;
+  return substituteFragments(rendered, fragments);
 }

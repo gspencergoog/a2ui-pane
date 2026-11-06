@@ -280,7 +280,7 @@
             "value": "The comprehension eval (C3) or the replay eval (C2), and syncing to the public skills repo."
           }
         ],
-        "waveDiagram": "```mermaid\nflowchart LR\n    W1[\"Wave 1: plan_model.py + overview data contract\"] --> A[\"2A: validator checks\"]\n    W1 --> B[\"2B: plan_surfaces.py\"]\n    W1 --> C[\"2C: plan templates and references\"]\n    W1 --> D[\"2D: a2ui-pane plan_overview template\"]\n    A --> W3[\"Wave 3: SKILL.md, lint, tests, promote, commit\"]\n    B --> W3\n    C --> W3\n    D --> W3\n```",
+        "waveDiagram": "```mermaid\nflowchart TD\n    W1[\"Wave 1 · plan_model.py + overview data contract (PR 1)\"]\n    subgraph W2[\"Wave 2 · Checks, surfaces, templates, and overview (Verifier · PR 2, PR 3)\"]\n        W2T0[\"2A · validator checks\"]\n        W2T1[\"2B · plan_surfaces.py\"]\n        W2T2[\"2C · plan templates and references\"]\n        W2T3[\"2D · a2ui-pane plan_overview template\"]\n    end\n    W3[\"Wave 3 · SKILL.md, lint, tests, promote, commit (PR 4)\"]\n    W1 --> W2\n    W2 --> W3\n```",
         "prsHeading": "### Planned changes",
         "prs": [
           {
