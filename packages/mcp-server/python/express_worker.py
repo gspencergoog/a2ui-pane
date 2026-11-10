@@ -62,16 +62,13 @@ class WorkerState:
             ValueError: If no catalog paths are provided or a catalog JSON is invalid.
         """
         from a2ui.core import Catalog
-        try:
-            from a2ui.inference_formats.express import (
-                ExpressCompiler,
-                ExpressPromptGenerator,
-            )
-        except ImportError:
-            from a2ui.inference_formats.experimental.express import (
-                ExpressCompiler,
-                ExpressPromptGenerator,
-            )
+        from a2ui.inference_formats.express import ExpressCompiler
+
+        # a2ui PR #3568 stopped re-exporting the per-format prompt generators
+        # from the package, so import the class from its defining module.
+        from a2ui.inference_formats.express.prompt_generator import (
+            ExpressPromptGenerator,
+        )
 
         paths = [catalog_paths] if isinstance(catalog_paths, str) else list(catalog_paths)
         paths = [p for p in paths if isinstance(p, str) and p.strip()]
@@ -147,10 +144,7 @@ class WorkerState:
         Raises:
             RuntimeError: If `init` has not been called on this worker state.
         """
-        try:
-            from a2ui.inference_formats.express import ExpressDecompiler
-        except ImportError:
-            from a2ui.inference_formats.experimental.express import ExpressDecompiler
+        from a2ui.inference_formats.express import ExpressDecompiler
         from a2ui.parser.messages import to_message_models
 
         self._require_init()
