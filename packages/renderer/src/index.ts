@@ -13,7 +13,12 @@ export {
   type SurfaceDataModelLike,
   type ButtonOneShotConfig,
 } from './button-state.js';
-export { LineApplier, type LineApplyError, type ResetListener } from './line-applier.js';
+export {
+  LineApplier,
+  type AppliedListener,
+  type LineApplyError,
+  type ResetListener,
+} from './line-applier.js';
 export {
   A2uiPaneView,
   type SurfaceChangedDetail,

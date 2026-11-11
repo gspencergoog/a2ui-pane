@@ -56,7 +56,7 @@ function applyStatusBadge(statusBadge: HTMLElement, status: ConnectionStatus): v
 function applyErrorBanner(
   errorBanner: HTMLElement,
   errorMessage: HTMLElement,
-  errors: Array<{ seq: number; error: string }>,
+  errors: ReadonlyArray<{ seq: number; error: string }>,
 ): void {
   if (errors.length > 0) {
     const latest = errors[errors.length - 1];
@@ -505,9 +505,22 @@ export async function initPaneApp(options: InitOptions = {}): Promise<PaneAppIns
 
   paneView.processor = applier.getProcessor();
 
+  // Mirror per-surface failures into the view so a surface that cannot be
+  // applied shows up as an error card instead of vanishing.
+  const syncFailedSurfaces = () => {
+    paneView.failedSurfaces = new Map(
+      Array.from(applier.getFailedSurfaces(), ([id, failure]) => [id, failure.error]),
+    );
+  };
+  applier.onApplied(() => {
+    syncFailedSurfaces();
+    updateErrors();
+  });
+
   applier.onReset((newProcessor) => {
     paneView.clearSubmittedSurfaces();
     paneView.processor = newProcessor;
+    syncFailedSurfaces();
     updateErrors();
   });
 

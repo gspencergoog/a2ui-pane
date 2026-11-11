@@ -84,6 +84,40 @@ restore_published_packages() {
   fi
 }
 
+# Surfaces written while the worker ran from a newer a2ui checkout may carry
+# `@`-prefixed v1.0 envelope keys (`@catalogId`, `@metadata`, ...) that the
+# published renderer does not read; on replay they fail and the pane shows only
+# an error card for them. When installing the pinned packages, find such stored
+# surfaces and offer to delete them (or list them when not interactive).
+check_stale_surfaces() {
+  local data_dir="${A2UI_PANE_DATA:-${HOME}/.gemini/jetski/plugin_data/a2ui-pane}"
+  local conv_dir="${data_dir}/conversations"
+  [ -d "${conv_dir}" ] || return 0
+  local stale=()
+  local f
+  while IFS= read -r f; do
+    stale+=("${f}")
+  done < <(grep -lE '"@(catalogId|metadata|accessibility|checks)"' "${conv_dir}"/*/*.jsonl 2>/dev/null || true)
+  [ "${#stale[@]}" -gt 0 ] || return 0
+
+  echo "" >&2
+  echo "Warning: ${#stale[@]} stored surface(s) use @-prefixed envelope keys the pinned renderer cannot read:" >&2
+  for f in "${stale[@]}"; do
+    echo "  ${f#"${conv_dir}/"}" >&2
+  done
+  if [ -t 0 ]; then
+    local answer
+    read -r -p "Delete these surface files now? [y/N] " answer
+    if [ "${answer}" = "y" ] || [ "${answer}" = "Y" ]; then
+      rm -f "${stale[@]}"
+      echo "Deleted ${#stale[@]} stale surface file(s)." >&2
+      return 0
+    fi
+  fi
+  echo "They will show as failed surfaces in the pane until removed (the pane's Remove button deletes them)." >&2
+  echo "To delete them all: rm ${conv_dir}/*/<surface>.jsonl for the files above." >&2
+}
+
 # Builds the renderer-side packages in the a2ui checkout and links them into
 # node_modules in place of the published versions.
 link_dogfood_packages() {
@@ -188,6 +222,7 @@ else
   PYTHON_BIN="${VENV_DIR}/bin/python3"
   AGENT_SDK_PATH=""
   echo "Using Python interpreter: ${PYTHON_BIN} ($(grep -v '^#' "${REQUIREMENTS}" | tr -d '[:space:]'))"
+  check_stale_surfaces
 fi
 
 # Generate mcp_config.json from template

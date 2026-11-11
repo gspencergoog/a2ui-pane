@@ -17,6 +17,9 @@ export interface LineApplyError {
 /** Callback invoked when the processor is reset with a fresh instance. */
 export type ResetListener = (newProcessor: MessageProcessor<any>) => void;
 
+/** Callback invoked after a batch of lines was applied, reconciled, or the applier was reset. */
+export type AppliedListener = () => void;
+
 const MAX_ERRORS = 50;
 
 /** Key under which lines that name no surface share one seq counter. */
@@ -108,8 +111,11 @@ export class LineApplier {
   /** The `createSurface` each mounted surface was last built from. */
   private readonly snapshots = new Map<string, SurfaceSnapshot>();
   private errors: LineApplyError[] = [];
+  /** Surfaces whose latest line failed to apply and that the processor does not hold. */
+  private readonly failedSurfaces = new Map<string, LineApplyError>();
   private readonly processorFactory: () => MessageProcessor<any>;
   private readonly resetListeners = new Set<ResetListener>();
+  private readonly appliedListeners = new Set<AppliedListener>();
 
   constructor(
     processorOrFactory?: MessageProcessor<any> | (() => MessageProcessor<any>),
@@ -154,6 +160,18 @@ export class LineApplier {
     return this.errors;
   }
 
+  /**
+   * Surfaces whose latest line failed to apply, keyed by surface id.
+   *
+   * A failed `createSurface` leaves no surface in the processor (a partial one
+   * is removed), so the view cannot show it; this map lets the view show the
+   * failure in its place. An entry is dropped when a later line for the surface
+   * applies, when the surface is deleted, or when a snapshot no longer lists it.
+   */
+  getFailedSurfaces(): ReadonlyMap<string, LineApplyError> {
+    return this.failedSurfaces;
+  }
+
   clearErrors(): void {
     this.errors = [];
   }
@@ -165,12 +183,31 @@ export class LineApplier {
     };
   }
 
+  /** Registers a listener called after `apply`, `reconcile`, and `reset` finish. */
+  onApplied(listener: AppliedListener): () => void {
+    this.appliedListeners.add(listener);
+    return () => {
+      this.appliedListeners.delete(listener);
+    };
+  }
+
+  private notifyApplied(): void {
+    for (const listener of this.appliedListeners) {
+      try {
+        listener();
+      } catch (err) {
+        console.error('[LineApplier] Error in applied listener:', err);
+      }
+    }
+  }
+
   /** Applies lines in seq order, skipping lines at or below their surface's recorded seq. */
   apply(lines: StoreLine[]): void {
     if (!Array.isArray(lines) || lines.length === 0) return;
     for (const line of sortedLines(lines)) {
       this.applyLine(line);
     }
+    this.notifyApplied();
   }
 
   /**
@@ -195,8 +232,14 @@ export class LineApplier {
     for (const sid of Array.from(this.surfaceSeq.keys())) {
       if (!live.has(sid)) this.surfaceSeq.delete(sid);
     }
+    for (const sid of Array.from(this.failedSurfaces.keys())) {
+      if (!live.has(sid)) this.failedSurfaces.delete(sid);
+    }
     this.forgetSeqsAbove(valid);
-    this.apply(valid);
+    for (const line of valid) {
+      this.applyLine(line);
+    }
+    this.notifyApplied();
   }
 
   /**
@@ -223,6 +266,7 @@ export class LineApplier {
     this.processor = this.processorFactory();
     this.surfaceSeq.clear();
     this.snapshots.clear();
+    this.failedSurfaces.clear();
     this.errors = [];
 
     for (const listener of this.resetListeners) {
@@ -232,21 +276,56 @@ export class LineApplier {
         console.error('[LineApplier] Error in reset listener:', err);
       }
     }
+    this.notifyApplied();
   }
 
   private applyLine(line: StoreLine): void {
+    let sid = NO_SURFACE_KEY;
+    let isCreate = false;
     try {
       const msg = normalizeMessage(line.message);
-      const sid = messageSurfaceId(msg) ?? NO_SURFACE_KEY;
+      sid = messageSurfaceId(msg) ?? NO_SURFACE_KEY;
+      isCreate = Boolean(msg.createSurface);
       if (this.isStale(sid, line.seq, Boolean(msg.deleteSurface))) return;
+      if (msg.deleteSurface && this.failedSurfaces.has(sid) && !this.processor.getSurface(sid)) {
+        // Tombstone for a surface that never mounted: nothing to delete in the processor.
+        this.failedSurfaces.delete(sid);
+        this.surfaceSeq.delete(sid);
+        return;
+      }
       this.dispatch(msg, sid);
       if (msg.deleteSurface) {
         this.surfaceSeq.delete(sid);
       } else {
         this.surfaceSeq.set(sid, line.seq);
       }
+      this.failedSurfaces.delete(sid);
     } catch (err: any) {
-      this.recordError(line.seq, err?.message || String(err));
+      const error = err?.message || String(err);
+      this.recordError(line.seq, error);
+      if (sid !== NO_SURFACE_KEY) {
+        if (isCreate) this.discardPartialSurface(sid);
+        if (!this.processor.getSurface(sid)) {
+          this.failedSurfaces.set(sid, { seq: line.seq, error });
+        }
+      }
+    }
+  }
+
+  /**
+   * Removes a surface the processor created before a `createSurface` failed
+   * part way (for example on an unreadable component), so no half-built
+   * surface is rendered in its place.
+   */
+  private discardPartialSurface(sid: string): void {
+    if (!this.processor.getSurface(sid)) return;
+    this.snapshots.delete(sid);
+    try {
+      this.processor.processMessages([
+        { version: '1.0', deleteSurface: { surfaceId: sid } } as any,
+      ]);
+    } catch {
+      // The partial surface is already unusable; the failure is recorded.
     }
   }
 

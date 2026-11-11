@@ -114,6 +114,7 @@ export class A2uiPaneView extends LitElement {
     processor: { type: Object },
     pendingComponents: { type: Object },
     dismissibleSurfaces: { type: Boolean },
+    failedSurfaces: { type: Object },
     surfaceIds: { state: true },
     submittedSurfaces: { state: true },
     dismissedSurfaces: { state: true },
@@ -122,6 +123,12 @@ export class A2uiPaneView extends LitElement {
   declare processor?: MessageProcessor<any>;
   declare pendingComponents: ReadonlySet<string>;
   declare dismissibleSurfaces: boolean;
+  /**
+   * Surfaces that failed to apply, keyed by surface id with the failure text.
+   * Each is shown as an error card where the surface would be, so a bad
+   * surface is visible and dismissible instead of silently missing.
+   */
+  declare failedSurfaces: ReadonlyMap<string, string>;
   declare surfaceIds: string[];
   declare submittedSurfaces: ReadonlyMap<string, string>;
   declare dismissedSurfaces: ReadonlySet<string>;
@@ -134,6 +141,7 @@ export class A2uiPaneView extends LitElement {
     this.surfaceIds = [];
     this.pendingComponents = new Set();
     this.dismissibleSurfaces = false;
+    this.failedSurfaces = new Map();
     this.submittedSurfaces = new Map();
     this.dismissedSurfaces = new Set();
     // Provide markdown renderer context to descendant components (e.g. Text)
@@ -280,6 +288,34 @@ export class A2uiPaneView extends LitElement {
         color: var(--a2ui-color-border, #6e7781);
         font-size: 14px;
         text-align: center;
+      }
+
+      .a2ui-surface-failed {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 10px 12px;
+        border: 1px solid var(--a2ui-color-error, #cf222e);
+        border-radius: 6px;
+        background: color-mix(in srgb, var(--a2ui-color-error, #cf222e) 8%, transparent);
+        font-size: 12px;
+      }
+
+      .a2ui-surface-failed-body {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .a2ui-surface-failed-title {
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+
+      .a2ui-surface-failed-error {
+        font-family: var(--a2ui-font-mono, monospace);
+        white-space: pre-wrap;
+        word-break: break-word;
+        opacity: 0.85;
       }
     `,
     unsafeCSS(SURFACE_LAYOUT_CSS),
@@ -565,14 +601,38 @@ export class A2uiPaneView extends LitElement {
     `;
   }
 
+  private renderFailedSurface(id: string, error: string) {
+    return html`
+      <div class="a2ui-surface-wrapper" data-surface-id="${id}" data-failed-surface="${id}">
+        <div class="a2ui-surface-failed" role="alert">
+          <div class="a2ui-surface-failed-body">
+            <div class="a2ui-surface-failed-title">Surface "${id}" could not be rendered</div>
+            <div class="a2ui-surface-failed-error">${error}</div>
+          </div>
+          <button
+            type="button"
+            class="a2ui-surface-dismiss-btn"
+            title="Remove this surface"
+            @click=${() => this.handleCloseSurfaceClick(id)}
+          >
+            Remove
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
   override render() {
     const visibleIds = this.processor
       ? this.surfaceIds.filter(
           (id) => !this.dismissedSurfaces.has(id) && Boolean(this.processor?.getSurface(id)),
         )
       : [];
+    const failed = Array.from(this.failedSurfaces ?? []).filter(
+      ([id]) => !this.dismissedSurfaces.has(id) && !visibleIds.includes(id),
+    );
 
-    if (!this.processor || visibleIds.length === 0) {
+    if (!this.processor || (visibleIds.length === 0 && failed.length === 0)) {
       return html`
         <slot name="empty">
           <div class="a2ui-empty-state">No surfaces rendered. Waiting for A2UI messages...</div>
@@ -593,6 +653,7 @@ export class A2uiPaneView extends LitElement {
           const surface = this.processor?.getSurface(id);
           return this.renderSurfaceEntry(id, surface);
         })}
+        ${failed.map(([id, error]) => this.renderFailedSurface(id, error))}
       </div>
     `;
   }

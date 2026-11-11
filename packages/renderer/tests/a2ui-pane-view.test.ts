@@ -31,6 +31,44 @@ describe('A2uiPaneView', () => {
     expect(emptyState!.textContent).toContain('No surfaces rendered');
   });
 
+  it('renders an error card for a failed surface beside live ones and removes it on click', async () => {
+    const processor = createProcessor();
+    processor.processMessages([
+      { version: 'v0.9', createSurface: { surfaceId: 'live', catalogId: 'basic' } },
+    ]);
+    element.processor = processor;
+    element.dismissibleSurfaces = true;
+    element.failedSurfaces = new Map([['broken', "Component 'root' names no catalogId"]]);
+    await element.updateComplete;
+
+    const shadowRoot = element.shadowRoot!;
+    expect(shadowRoot.querySelector('.a2ui-empty-state')).toBeNull();
+    expect(shadowRoot.querySelectorAll('a2ui-surface')).toHaveLength(1);
+    const card = shadowRoot.querySelector('[data-failed-surface="broken"]')!;
+    expect(card).not.toBeNull();
+    expect(card.textContent).toContain('Surface "broken" could not be rendered');
+    expect(card.textContent).toContain('names no catalogId');
+
+    const dismissed: string[] = [];
+    element.addEventListener('surface-dismissed', (evt) => {
+      dismissed.push((evt as CustomEvent<{ surfaceId: string }>).detail.surfaceId);
+    });
+    (card.querySelector('button') as HTMLButtonElement).click();
+    await element.updateComplete;
+    expect(dismissed).toEqual(['broken']);
+    expect(shadowRoot.querySelector('[data-failed-surface="broken"]')).toBeNull();
+    expect(shadowRoot.querySelectorAll('a2ui-surface')).toHaveLength(1);
+  });
+
+  it('shows a failed surface even when no live surface exists', async () => {
+    element.processor = createProcessor();
+    element.failedSurfaces = new Map([['only', 'boom']]);
+    await element.updateComplete;
+    const shadowRoot = element.shadowRoot!;
+    expect(shadowRoot.querySelector('.a2ui-empty-state')).toBeNull();
+    expect(shadowRoot.querySelector('[data-failed-surface="only"]')).not.toBeNull();
+  });
+
   it('renders surfaces present on the processor when bound', async () => {
     const processor = createProcessor();
     processor.processMessages([

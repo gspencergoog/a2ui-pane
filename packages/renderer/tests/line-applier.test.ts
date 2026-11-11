@@ -158,6 +158,88 @@ describe('LineApplier', () => {
     expect(applier.getErrors()).toHaveLength(0);
   });
 
+  describe('failed surfaces', () => {
+    const line = (seq: number, message: Record<string, unknown>): StoreLine =>
+      ({ seq, timestamp: new Date().toISOString(), callId: `c${seq}`, message }) as StoreLine;
+    // A v1.0 createSurface whose root names no catalog: the processor rejects it.
+    const brokenCreate = (seq: number, surfaceId: string): StoreLine =>
+      line(seq, {
+        version: '1.0',
+        createSurface: {
+          surfaceId,
+          components: [{ id: 'root', component: 'Text', '@catalogId': 'nope', text: 'x' }],
+        },
+      });
+    const goodCreate = (seq: number, surfaceId: string): StoreLine =>
+      line(seq, { version: 'v0.9', createSurface: { surfaceId, catalogId: 'basic' } });
+
+    it('records a failed createSurface per surface, leaves no partial surface, and notifies', () => {
+      const applier = new LineApplier();
+      const applied = vi.fn();
+      applier.onApplied(applied);
+
+      applier.apply([goodCreate(1, 'ok'), brokenCreate(2, 'broken')]);
+
+      expect(applier.getProcessor().getSurface('ok')).toBeDefined();
+      expect(applier.getProcessor().getSurface('broken')).toBeUndefined();
+      const failed = applier.getFailedSurfaces();
+      expect(Array.from(failed.keys())).toEqual(['broken']);
+      expect(failed.get('broken')?.seq).toBe(2);
+      expect(failed.get('broken')?.error).toMatch(/catalog/i);
+      expect(applied).toHaveBeenCalledTimes(1);
+    });
+
+    it('forgets the failure when a later line for the surface applies', () => {
+      const applier = new LineApplier();
+      applier.apply([brokenCreate(1, 's')]);
+      expect(applier.getFailedSurfaces().has('s')).toBe(true);
+
+      applier.apply([goodCreate(2, 's')]);
+      expect(applier.getFailedSurfaces().size).toBe(0);
+      expect(applier.getProcessor().getSurface('s')).toBeDefined();
+    });
+
+    it('drops the failure on a tombstone without touching the processor', () => {
+      const applier = new LineApplier();
+      applier.apply([brokenCreate(1, 's')]);
+      const before = applier.getErrors().length;
+
+      applier.apply([line(2, { version: '1.0', deleteSurface: { surfaceId: 's' } })]);
+
+      expect(applier.getFailedSurfaces().size).toBe(0);
+      expect(applier.getErrors()).toHaveLength(before);
+    });
+
+    it('drops failures for surfaces a snapshot no longer lists and clears them on reset', () => {
+      const applier = new LineApplier();
+      applier.apply([brokenCreate(1, 'gone'), brokenCreate(2, 'kept')]);
+      expect(applier.getFailedSurfaces().size).toBe(2);
+
+      applier.reconcile([brokenCreate(2, 'kept')]);
+      expect(Array.from(applier.getFailedSurfaces().keys())).toEqual(['kept']);
+
+      const applied = vi.fn();
+      applier.onApplied(applied);
+      applier.reset();
+      expect(applier.getFailedSurfaces().size).toBe(0);
+      expect(applied).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not report a surface that is still mounted after a failed update', () => {
+      const applier = new LineApplier();
+      applier.apply([goodCreate(1, 's')]);
+      applier.apply([
+        line(2, {
+          version: 'v0.9',
+          updateComponents: { surfaceId: 's', components: 'not-an-array' },
+        }),
+      ]);
+      expect(applier.getErrors().length).toBeGreaterThan(0);
+      expect(applier.getProcessor().getSurface('s')).toBeDefined();
+      expect(applier.getFailedSurfaces().size).toBe(0);
+    });
+  });
+
   it('safely handles empty or non-array inputs', () => {
     const applier = new LineApplier();
     applier.apply([] as any);
