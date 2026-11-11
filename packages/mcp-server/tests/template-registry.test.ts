@@ -2,7 +2,12 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { TemplateRegistry, parseTemplateHeader } from '../src/template-registry.js';
+import {
+  TemplateRegistry,
+  checkTemplateData,
+  parseDeclaredDataKeys,
+  parseTemplateHeader,
+} from '../src/template-registry.js';
 
 const SAMPLE = `// @genui id=triage_matrix surface=pane
 // @summary Classify items into buckets.
@@ -38,6 +43,83 @@ describe('parseTemplateHeader', () => {
 
   it('ignores an invalid surface value', () => {
     expect(parseTemplateHeader('// @genui id=x surface=huge').surface).toBe('either');
+  });
+});
+
+describe('parseDeclaredDataKeys', () => {
+  it('reads scalar, list, and shaped keys', () => {
+    const keys = parseDeclaredDataKeys([
+      '/title',
+      '/overall',
+      '{score,max}',
+      '/rows[]',
+      '{label,score,max,tone,rationale}',
+      '/labels[]',
+    ]);
+    expect(keys).toEqual([
+      { name: 'title', isList: false, rowFields: [] },
+      { name: 'overall', isList: false, rowFields: ['score', 'max'] },
+      { name: 'rows', isList: true, rowFields: ['label', 'score', 'max', 'tone', 'rationale'] },
+      { name: 'labels', isList: true, rowFields: [] },
+    ]);
+  });
+
+  it('treats nested shapes as opaque', () => {
+    const keys = parseDeclaredDataKeys(['/transitions', '{t1:{desc,policy},t2:{desc}}']);
+    expect(keys).toEqual([{ name: 'transitions', isList: false, rowFields: [] }]);
+  });
+});
+
+describe('checkTemplateData', () => {
+  const scorecard = parseDeclaredDataKeys([
+    '/title',
+    '/intro',
+    '/overall',
+    '{score,max}',
+    '/rows[]',
+    '{label,score,max,tone,rationale}',
+    '/note',
+    '/submitLabel',
+  ]);
+
+  it('accepts data that uses declared keys, with or without a path prefix', () => {
+    const data = {
+      '$/title': '### Frozen',
+      '/overall': { score: 9, max: 10 },
+      rows: [{ label: 'a', score: 9, max: 10, tone: 'success', rationale: 'ok' }],
+      'overall/score': 8,
+    };
+    expect(checkTemplateData('scorecard', scorecard, data)).toBeUndefined();
+  });
+
+  it('rejects keys the template never reads', () => {
+    const problem = checkTemplateData('scorecard', scorecard, {
+      title: 'x',
+      items: [{ id: 'a', title: 'A', score: 100, status: 'pass' }],
+      overall_score: 97,
+    });
+    expect(problem).toContain("Template 'scorecard' does not read the data you passed");
+    expect(problem).toContain('unknown data keys `items`, `overall_score`');
+    expect(problem).toContain(
+      'Declared data keys: title, intro, overall {score,max}, rows[] {label,score,max,tone,rationale}',
+    );
+  });
+
+  it('rejects list rows whose fields share nothing with the declared row shape', () => {
+    const problem = checkTemplateData('scorecard', scorecard, {
+      rows: [{ id: 'a', title: 'A', status: 'pass' }],
+    });
+    expect(problem).toContain(
+      '`rows[]` rows have fields {id,title,status} but the template reads {label,score,max,tone,rationale}',
+    );
+  });
+
+  it('accepts partial rows and empty lists, and skips templates without declared keys', () => {
+    expect(
+      checkTemplateData('scorecard', scorecard, { rows: [{ label: 'only label' }] }),
+    ).toBeUndefined();
+    expect(checkTemplateData('scorecard', scorecard, { rows: [] })).toBeUndefined();
+    expect(checkTemplateData('bare', [], { anything: 1 })).toBeUndefined();
   });
 });
 

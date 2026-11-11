@@ -127,6 +127,24 @@ describe('render_a2ui Express paths', () => {
     expect(result.content[0].text).toContain('surface(s) [main]');
   });
 
+  it('rejects template data whose keys the template never reads', async () => {
+    const result = await resolveMessages(
+      { template: 'greeting', data: { label: 'Greg', items: [{ id: 'x' }] } },
+      { worker, templates },
+    );
+    const text = (result as any).content[0].text as string;
+    expect((result as any).isError).toBe(true);
+    expect(text).toContain("Template 'greeting' does not read the data you passed");
+    expect(text).toContain('unknown data keys `label`, `items`');
+    expect(text).toContain('Declared data keys: name');
+
+    const ok = await resolveMessages(
+      { template: 'greeting', data: { '$/name': 'Greg' } },
+      { worker, templates },
+    );
+    expect((ok as any).authored).toBe('template');
+  });
+
   it('reports unknown templates and invalid surface ids', async () => {
     const unknown = await resolveMessages({ template: 'nope' }, { worker, templates });
     expect((unknown as any).content[0].text).toContain("Unknown template 'nope'");

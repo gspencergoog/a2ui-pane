@@ -12,7 +12,7 @@ import {
   ExpressWorkerError,
   ExpressWorkerUnavailableError,
 } from '../express-worker.js';
-import type { TemplateRegistry } from '../template-registry.js';
+import { checkTemplateData, type TemplateRegistry } from '../template-registry.js';
 import {
   checkChoicePresets,
   formatPresetErrors,
@@ -224,9 +224,10 @@ function formatCompileError(err: ExpressWorkerError, source: string): string {
 }
 
 /**
- * Normalizes and converts data model dictionary/JSON inputs into Express data assignment statements (`$/key = value`).
+ * Parses a data model input (object or JSON string) into a key-value record.
+ * Returns a tool error result for malformed JSON or non-object values.
  */
-export function formatDataAsExpressDsl(data: unknown): string | ToolResult {
+export function parseDataRecord(data: unknown): Record<string, unknown> | ToolResult {
   let parsed: unknown = data;
   if (typeof data === 'string') {
     try {
@@ -238,12 +239,26 @@ export function formatDataAsExpressDsl(data: unknown): string | ToolResult {
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return errorResult('Invalid data: must be an object of data model assignments.');
   }
+  return parsed as Record<string, unknown>;
+}
+
+/**
+ * Normalizes and converts data model dictionary/JSON inputs into Express data assignment statements (`$/key = value`).
+ */
+export function formatDataAsExpressDsl(data: unknown): string | ToolResult {
+  const parsed = parseDataRecord(data);
+  if (isToolError(parsed)) return parsed;
   const lines: string[] = [];
-  for (const [key, val] of Object.entries(parsed as Record<string, unknown>)) {
+  for (const [key, val] of Object.entries(parsed)) {
     const cleanKey = key.startsWith('$/') ? key.slice(2) : key.startsWith('/') ? key.slice(1) : key;
     lines.push(`$/${cleanKey} = ${JSON.stringify(val)}`);
   }
   return lines.join('\n');
+}
+
+/** Distinguishes a `ToolResult` error from a parsed data record. */
+function isToolError(value: Record<string, unknown> | ToolResult): value is ToolResult {
+  return (value as ToolResult).isError === true;
 }
 
 /**
@@ -256,8 +271,12 @@ export async function resolveMessages(
 ): Promise<{ messages: unknown[]; authored: 'messages' | 'dsl' | 'template' } | ToolResult> {
   const rawData = args.data ?? args.dataModel ?? args.dataModelJSON;
   let dataDsl = '';
+  let parsedData: Record<string, unknown> | undefined;
   if (rawData !== undefined && rawData !== null && rawData !== '') {
-    const formatted = formatDataAsExpressDsl(rawData);
+    const parsed = parseDataRecord(rawData);
+    if (isToolError(parsed)) return parsed;
+    parsedData = parsed;
+    const formatted = formatDataAsExpressDsl(parsed);
     if (typeof formatted !== 'string') {
       return formatted;
     }
@@ -298,6 +317,13 @@ export async function resolveMessages(
       );
     }
     try {
+      if (parsedData) {
+        const entry = deps.templates.resolve(args.template as string);
+        if (entry) {
+          const problem = checkTemplateData(entry.id, entry.declaredData, parsedData);
+          if (problem) return errorResult(problem);
+        }
+      }
       source = deps.templates.inflate(args.template as string, surfaceId, {
         callerDsl: effectiveDsl,
       });

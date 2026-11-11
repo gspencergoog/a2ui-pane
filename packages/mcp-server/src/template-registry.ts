@@ -13,6 +13,8 @@ export interface TemplateEntry {
   summary: string;
   /** Data keys declared by the `// @data` header line, as written. */
   dataKeys: string[];
+  /** Parsed form of `dataKeys`: top-level names, list markers, and list-row shapes. */
+  declaredData: DeclaredDataKey[];
   /** Action event name declared by the `// @action` header line. */
   action?: string;
   /** Component variable names declared by the `// @customize` header line. */
@@ -81,6 +83,98 @@ export function parseTemplateHeader(source: string): {
     }
   }
   return result;
+}
+
+/** A top-level data key declared by a template's `// @data` line, with its list-row shape if any. */
+export interface DeclaredDataKey {
+  /** Key name without the leading `/` or trailing `[]` (for example `rows`). */
+  name: string;
+  /** True when the header wrote the key as `/name[]`. */
+  isList: boolean;
+  /** Field names from a `{a,b,c}` shape hint that follows a list key; empty when none or nested. */
+  rowFields: string[];
+}
+
+/**
+ * Parses the raw `@data` tokens (`/title`, `/rows[]`, `{label,score}`) into declared keys.
+ * A `{...}` token describes the key that precedes it. Nested shapes (containing `:` or inner
+ * braces) are kept as opaque and contribute no row fields.
+ */
+export function parseDeclaredDataKeys(tokens: string[]): DeclaredDataKey[] {
+  const keys: DeclaredDataKey[] = [];
+  for (const token of tokens) {
+    if (token.startsWith('/')) {
+      const isList = token.endsWith('[]');
+      const name = token.slice(1, isList ? -2 : undefined);
+      if (name) keys.push({ name, isList, rowFields: [] });
+    } else if (token.startsWith('{') && token.endsWith('}') && keys.length > 0) {
+      const inner = token.slice(1, -1);
+      if (!/[{}:]/.test(inner)) {
+        keys[keys.length - 1].rowFields = inner.split(',').filter(Boolean);
+      }
+    }
+  }
+  return keys;
+}
+
+/** Strips the `$/` or `/` prefix a caller may write on a data key and keeps the first path segment. */
+function topLevelDataKey(key: string): string {
+  const clean = key.startsWith('$/') ? key.slice(2) : key.startsWith('/') ? key.slice(1) : key;
+  return clean.split('/')[0];
+}
+
+/**
+ * Checks caller `data` against a template's declared `@data` keys.
+ * Returns an error message when the data contains keys the template never reads, or when a
+ * declared list key holds objects that share no field with the declared row shape; both cases
+ * compile cleanly and then render an empty or stale surface, so they must fail loudly here.
+ * Returns undefined when the data is consistent or the template declares no keys.
+ */
+export function checkTemplateData(
+  templateId: string,
+  declared: DeclaredDataKey[],
+  data: Record<string, unknown>,
+): string | undefined {
+  if (declared.length === 0) return undefined;
+  const byName = new Map(declared.map((k) => [k.name, k]));
+  const declaredList = declared
+    .map(
+      (k) =>
+        `${k.name}${k.isList ? '[]' : ''}${k.rowFields.length ? ` {${k.rowFields.join(',')}}` : ''}`,
+    )
+    .join(', ');
+  const unknown: string[] = [];
+  const problems: string[] = [];
+  for (const [rawKey, value] of Object.entries(data)) {
+    const name = topLevelDataKey(rawKey);
+    const decl = byName.get(name);
+    if (!decl) {
+      unknown.push(name);
+      continue;
+    }
+    if (decl.isList && decl.rowFields.length > 0 && Array.isArray(value)) {
+      const first = value.find((v) => v !== null && typeof v === 'object' && !Array.isArray(v));
+      if (first) {
+        const fields = Object.keys(first as Record<string, unknown>);
+        if (fields.length > 0 && !fields.some((f) => decl.rowFields.includes(f))) {
+          problems.push(
+            `\`${name}[]\` rows have fields {${fields.join(',')}} but the template reads {${decl.rowFields.join(',')}}`,
+          );
+        }
+      }
+    }
+  }
+  if (unknown.length > 0) {
+    problems.unshift(
+      `unknown data key${unknown.length > 1 ? 's' : ''} ${unknown.map((k) => `\`${k}\``).join(', ')}`,
+    );
+  }
+  if (problems.length === 0) return undefined;
+  return (
+    `Template '${templateId}' does not read the data you passed: ${problems.join('; ')}. ` +
+    `Declared data keys: ${declaredList}. ` +
+    `Rename the keys to match (the surface would otherwise render empty), or author the surface with \`dsl\` instead.`
+  );
 }
 
 /**
@@ -209,6 +303,7 @@ export class TemplateRegistry {
         surface: header.surface,
         summary: header.summary,
         dataKeys: header.dataKeys,
+        declaredData: parseDeclaredDataKeys(header.dataKeys),
         action: header.action,
         customize: header.customize,
       });
