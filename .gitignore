@@ -12,3 +12,4 @@ plugin/mcp/dist/
 plugin/mcp_config.json
 coverage/
 **/coverage/**
+plugin/mcp/.venv/

@@ -54,8 +54,12 @@ export interface ExpressWorkerOptions {
   log?: (line: string) => void;
 }
 
-/** Default PEP 508 package specifier passed to `uv run --with` when no local SDK is set. */
-export const DEFAULT_AGENT_SDK_SPEC = 'a2ui-agent-sdk>0.8.0';
+/**
+ * Default PEP 508 package specifier passed to `uv run --with` when no local SDK is set.
+ * Must match the pin in `plugin/mcp/requirements.txt`, which explains the coupling with
+ * the `@a2ui/web_core` version.
+ */
+export const DEFAULT_AGENT_SDK_SPEC = 'a2ui-agent-sdk==0.11.0';
 const UNAVAILABLE_MEMO_MS = 60_000;
 
 /**

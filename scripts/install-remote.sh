@@ -11,9 +11,14 @@
 #   --target-dir <path>       Target installation directory (default: ~/.gemini/config/plugins/a2ui-pane)
 #   --tarball-url <url>       Direct URL to tarball archive
 #   --tarball-path <path>     Local tarball archive to install from (for testing/offline)
-#   --agent-sdk-path <path>   Path to a2ui checkout for Python Express authoring
+#   --agent-sdk-path <path>   Python-only override: run the Express worker from a local
+#                             a2ui checkout instead of the pinned published SDK
 #   --no-agent-sdk            Explicitly disable Express authoring (raw messages only)
-#   --protocol-version <ver>  Target protocol version for compiled Express (default: v0.9)
+#   --protocol-version <ver>  Target protocol version for compiled Express (default: 1.0)
+#
+# By default the Express worker runs in a plugin-owned venv (<target>/mcp/.venv)
+# with the published a2ui-agent-sdk pinned in <target>/mcp/requirements.txt.
+# Requires uv (https://docs.astral.sh/uv/); without it, Express authoring is skipped.
 #
 
 set -euo pipefail
@@ -71,9 +76,10 @@ Options:
   --target-dir <path>       Target directory (default: ~/.gemini/config/plugins/a2ui-pane)
   --tarball-url <url>       Download directly from a custom URL
   --tarball-path <path>     Install from a local .tar.gz archive
-  --agent-sdk-path <path>   Path to a2ui checkout for Python Express authoring
+  --agent-sdk-path <path>   Python-only override: run the Express worker from a local
+                            a2ui checkout instead of the pinned published SDK
   --no-agent-sdk            Explicitly disable Express authoring (raw messages only)
-  --protocol-version <ver>  Target protocol version for compiled Express (default: v0.9)
+  --protocol-version <ver>  Target protocol version for compiled Express (default: 1.0)
   -h, --help                Show this help message
 EOF
       exit 0
@@ -193,22 +199,35 @@ echo "Extracting plugin into: ${TARGET_DIR}"
 mkdir -p "${TARGET_DIR}"
 
 # Remove existing plugin-managed directories and files cleanly (preserving user data if any)
+# The pinned Python venv under mcp/.venv is kept across upgrades; `uv pip install` below
+# brings it to the release's pin.
+if [[ -d "${TARGET_DIR}/mcp/.venv" ]]; then
+  mv "${TARGET_DIR}/mcp/.venv" "${TEMP_DIR}/keep-venv"
+fi
 rm -rf "${TARGET_DIR}/mcp" "${TARGET_DIR}/sidecars" "${TARGET_DIR}/rules" "${TARGET_DIR}/skills"
 rm -f "${TARGET_DIR}/plugin.json" "${TARGET_DIR}/mcp_config.template.json"
 
 tar -xzf "${ARCHIVE_FILE}" -C "${TARGET_DIR}"
+if [[ -d "${TEMP_DIR}/keep-venv" ]]; then
+  mkdir -p "${TARGET_DIR}/mcp"
+  mv "${TEMP_DIR}/keep-venv" "${TARGET_DIR}/mcp/.venv"
+fi
 
 # 4. Configure Python Express worker (optional)
 PYTHON_BIN=""
-if [[ -n "${AGENT_SDK_PATH}" && "${NO_AGENT_SDK}" -eq 0 ]]; then
+UV_BIN="${A2UI_PANE_UV:-}"
+if [[ -z "${UV_BIN}" ]]; then
+  UV_BIN="$(command -v uv 2>/dev/null || true)"
+fi
+if [[ -z "${UV_BIN}" && -x "${HOME}/.local/bin/uv" ]]; then
+  UV_BIN="${HOME}/.local/bin/uv"
+fi
+if [[ "${NO_AGENT_SDK}" -eq 1 ]]; then
+  AGENT_SDK_PATH=""
+elif [[ -n "${AGENT_SDK_PATH}" ]]; then
+  # Python-only override: the worker runs from a local a2ui checkout while the
+  # prebuilt renderer stays on the published @a2ui packages.
   AGENT_SDK_PATH="$(cd "${AGENT_SDK_PATH}" && pwd)"
-  UV_BIN="${A2UI_PANE_UV:-}"
-  if [[ -z "${UV_BIN}" ]]; then
-    UV_BIN="$(command -v uv 2>/dev/null || true)"
-  fi
-  if [[ -z "${UV_BIN}" && -x "${HOME}/.local/bin/uv" ]]; then
-    UV_BIN="${HOME}/.local/bin/uv"
-  fi
   if [[ -z "${UV_BIN}" ]]; then
     echo "Warning: 'uv' not found. Disabling Express worker." >&2
     AGENT_SDK_PATH=""
@@ -217,9 +236,29 @@ if [[ -n "${AGENT_SDK_PATH}" && "${NO_AGENT_SDK}" -eq 0 ]]; then
     AGENT_SDK_PATH=""
   else
     PYTHON_BIN="$("${UV_BIN}" run --project "${AGENT_SDK_PATH}" --package a2ui-agent-sdk python -c 'import sys; print(sys.executable)' 2>/dev/null || true)"
+    echo "Warning: the checkout's compiler may emit a newer wire format than this release's renderer reads." >&2
   fi
 else
+  # Default: a plugin-owned venv with the published SDK pinned in mcp/requirements.txt.
   AGENT_SDK_PATH=""
+  REQUIREMENTS="${TARGET_DIR}/mcp/requirements.txt"
+  VENV_DIR="${TARGET_DIR}/mcp/.venv"
+  if [[ -z "${UV_BIN}" ]]; then
+    echo "Warning: 'uv' not found; installing without Express authoring (raw messages only)." >&2
+    echo "Install uv (https://docs.astral.sh/uv/) and re-run to enable it." >&2
+  elif [[ ! -f "${REQUIREMENTS}" ]]; then
+    echo "Warning: ${REQUIREMENTS} missing from the release; installing without Express authoring." >&2
+  else
+    if [[ ! -x "${VENV_DIR}/bin/python3" ]]; then
+      "${UV_BIN}" venv -q "${VENV_DIR}"
+    fi
+    if "${UV_BIN}" pip install -q --python "${VENV_DIR}/bin/python3" -r "${REQUIREMENTS}"; then
+      PYTHON_BIN="${VENV_DIR}/bin/python3"
+      echo "Express worker: ${PYTHON_BIN} ($(grep -v '^#' "${REQUIREMENTS}" | tr -d '[:space:]'))"
+    else
+      echo "Warning: failed to install the pinned Python SDK; installing without Express authoring." >&2
+    fi
+  fi
 fi
 
 # 5. Generate mcp_config.json from template
@@ -254,7 +293,11 @@ if [[ -n "${PYTHON_BIN}" && -f "${TARGET_DIR}/mcp/dist/express_worker.py" ]]; th
     --catalog "${TARGET_DIR}/mcp/dist/catalogs/v1_0/charts/catalog.json" \
     --catalog "${TARGET_DIR}/mcp/dist/catalogs/v1_0/status/catalog.json" \
     --version "${PROTOCOL_VERSION}" || {
-    echo "Warning: Express worker selftest failed; check that ${AGENT_SDK_PATH} is synced (uv sync --all-packages)." >&2
+    if [[ -n "${AGENT_SDK_PATH}" ]]; then
+      echo "Warning: Express worker selftest failed; check that ${AGENT_SDK_PATH} is synced (uv sync --all-packages)." >&2
+    else
+      echo "Warning: Express worker selftest failed; delete ${TARGET_DIR}/mcp/.venv and re-run to rebuild the pinned environment." >&2
+    fi
   }
 fi
 

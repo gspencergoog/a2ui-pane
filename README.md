@@ -31,14 +31,10 @@ A plugin for Antigravity and compatible agent hosts that renders agent-generated
 Install or update the latest pre-built plugin release directly without cloning the repository or building from source:
 
 ```bash
-# Basic install (raw A2UI JSON messages):
 curl -fsSL https://raw.githubusercontent.com/gspencergoog/a2ui-pane/main/scripts/install-remote.sh | bash
-
-# With A2UI Express authoring support enabled:
-curl -fsSL https://raw.githubusercontent.com/gspencergoog/a2ui-pane/main/scripts/install-remote.sh | bash -s -- --agent-sdk-path ~/code/a2ui/main
 ```
 
-Prerequisites: Only `node` (>= 20) and `curl` or `wget` are required.
+Prerequisites: `node` (>= 20), `curl` or `wget`, and [`uv`](https://docs.astral.sh/uv/) for A2UI Express authoring. The installer creates a plugin-owned Python environment under `<plugin>/mcp/.venv` with the published `a2ui-agent-sdk` pinned in `mcp/requirements.txt`. Without `uv` (or with `--no-agent-sdk`), the plugin renders raw A2UI JSON messages only.
 
 To update to the latest release at any time, re-run the install command.
 
@@ -77,18 +73,29 @@ yarn package
 Run the install script from your local checkout to build packages, stage the plugin, and symlink it into your host plugins directory:
 
 ```bash
-./scripts/install.sh --agent-sdk-path ~/code/a2ui/main
+./scripts/install.sh
 ```
 
-Without `--agent-sdk-path` (or `A2UI_PANE_AGENT_SDK_PATH`), pass `--no-agent-sdk` to install with raw `messages` rendering only.
+By default the Express worker runs in a plugin-owned environment (`plugin/mcp/.venv`) with the published `a2ui-agent-sdk` pinned in [`plugin/mcp/requirements.txt`](plugin/mcp/requirements.txt). That pin is coupled to the `@a2ui/web_core` and `@a2ui/lit` versions in `packages/*/package.json`: the Python compiler writes the component envelope the TypeScript renderer reads, and the a2ui repository publishes PyPI and npm packages separately, so bump the renderer packages before or together with the Python pin.
+
+Other modes:
+
+| Invocation                                         | Compiler (Python)             | Renderer (`@a2ui/*`)                  | Use when                                                          |
+| :------------------------------------------------- | :---------------------------- | :------------------------------------ | :---------------------------------------------------------------- |
+| `./scripts/install.sh`                             | Pinned PyPI release           | Pinned npm release                    | Normal use.                                                       |
+| `./scripts/install.sh --dogfood <checkout>`        | The checkout's `uv` workspace | Built from and linked to the checkout | Testing unreleased a2ui changes end to end ("dogfooding" `main`). |
+| `./scripts/install.sh --agent-sdk-path <checkout>` | The checkout's `uv` workspace | Pinned npm release                    | Rarely; the two sides can disagree on the wire format.            |
+| `./scripts/install.sh --no-agent-sdk`              | None (raw `messages` only)    | Pinned npm release                    | No `uv` available.                                                |
+
+Dogfood mode builds `@a2ui/web_core`, `@a2ui/lit`, and `@a2ui/markdown-it` in the checkout and symlinks them into `node_modules` before building the plugin. Re-running without `--dogfood` removes the links and restores the published packages.
 
 The script writes these into `plugin/mcp_config.json`:
 
-| Variable                     | Meaning                                                                                                     |
-| :--------------------------- | :---------------------------------------------------------------------------------------------------------- |
-| `A2UI_PANE_PYTHON`           | Interpreter that can import `a2ui.inference_formats.express` (resolved from the checkout's `uv` workspace). |
-| `A2UI_PANE_AGENT_SDK_PATH`   | The a2ui checkout; used with `uv run --project` if `A2UI_PANE_PYTHON` is unset.                             |
-| `A2UI_PANE_PROTOCOL_VERSION` | Target protocol version for compiled Express (`v0.9` today; the renderer does not draw v1.0 yet).           |
+| Variable                     | Meaning                                                                                                                           |
+| :--------------------------- | :-------------------------------------------------------------------------------------------------------------------------------- |
+| `A2UI_PANE_PYTHON`           | Interpreter that can import `a2ui.inference_formats.express` (the pinned venv, or the checkout's `uv` workspace in dogfood mode). |
+| `A2UI_PANE_AGENT_SDK_PATH`   | The a2ui checkout (dogfood and `--agent-sdk-path` modes); used with `uv run --project` if `A2UI_PANE_PYTHON` is unset.            |
+| `A2UI_PANE_PROTOCOL_VERSION` | Target protocol version for compiled Express (default `1.0`).                                                                     |
 
 User templates: drop `.a2ui` files into `${PLUGIN_DATA}/templates/`. They shadow built-in templates with the same id.
 

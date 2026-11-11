@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -99,6 +99,19 @@ describe('buildSpawnArgs', () => {
       command: 'uv',
       args: ['run', '--with', DEFAULT_AGENT_SDK_SPEC, 'python', '/w.py'],
     });
+  });
+
+  it('pins the published SDK to the same version as plugin/mcp/requirements.txt', () => {
+    const requirements = readFileSync(
+      resolve(__dirname, '..', '..', '..', 'plugin', 'mcp', 'requirements.txt'),
+      'utf-8',
+    );
+    const pins = requirements
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith('#'));
+    expect(pins).toEqual([DEFAULT_AGENT_SDK_SPEC]);
+    expect(DEFAULT_AGENT_SDK_SPEC).toMatch(/^a2ui-agent-sdk==\d+\.\d+\.\d+$/);
   });
 });
 

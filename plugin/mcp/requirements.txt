@@ -1,0 +1,14 @@
+# Python packages for the Express worker (plugin/mcp/dist/express_worker.py).
+#
+# This pin is coupled to the `@a2ui/web_core` and `@a2ui/lit` versions in
+# packages/*/package.json: the Python compiler writes the component envelope
+# that the TypeScript renderer reads, and the a2ui repository publishes its
+# PyPI and npm packages separately, so a release on one side can cross a wire
+# format change before the other side ships. Bump the reader (web_core) before
+# or together with the writer (a2ui-agent-sdk), never after. Known crossing:
+# a2ui-agent-sdk releases after 0.11.0 emit `@catalogId` (a2ui PR #4044), which
+# only web_core releases containing PR #4037 read.
+#
+# DEFAULT_AGENT_SDK_SPEC in packages/mcp-server/src/express-worker.ts must
+# match this line (a unit test checks it).
+a2ui-agent-sdk==0.11.0

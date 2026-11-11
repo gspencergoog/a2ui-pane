@@ -87,6 +87,7 @@ cp "${REPO_ROOT}/packages/mcp-server/dist/server.mjs" "${STAGING_DIR}/mcp/dist/"
 cp "${REPO_ROOT}/packages/embed/dist/embed.iife.js" "${STAGING_DIR}/mcp/dist/"
 cp "${REPO_ROOT}/packages/mcp-server/dist/express_worker.py" "${STAGING_DIR}/mcp/dist/"
 cp -R "${REPO_ROOT}/packages/mcp-server/dist/catalogs" "${STAGING_DIR}/mcp/dist/"
+cp "${REPO_ROOT}/plugin/mcp/requirements.txt" "${STAGING_DIR}/mcp/requirements.txt"
 
 # 4. Sidecar server and web application
 mkdir -p "${STAGING_DIR}/sidecars/a2ui-pane/dist/pane"
