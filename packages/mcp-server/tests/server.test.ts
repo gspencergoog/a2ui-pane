@@ -447,7 +447,7 @@ describe('MCP Server Tools and Entrypoint', () => {
       expect(result.content[0].text).toContain('[surfToDelete]');
     });
 
-    it('resolves effective dataDir from environment variables or /tmp in inline mode', async () => {
+    it('resolves effective dataDir from environment variables or os.tmpdir() in inline mode', async () => {
       // 1. With A2UI_PANE_DATA
       process.env.A2UI_PANE_DATA = tempDir;
       const res1 = await handleRenderA2ui(
@@ -475,18 +475,22 @@ describe('MCP Server Tools and Entrypoint', () => {
       );
       expect(res2.isError).toBeUndefined();
 
-      // 3. Fallback to /tmp
+      // 3. Fallback to os.tmpdir()
       delete process.env.PLUGIN_DATA;
-      const res3 = await handleRenderA2ui(
-        {
-          conversationId: 'env-fallback-tmp',
-          mode: 'inline',
-          messages: [],
-        },
-        serverInstance.getState,
-        serverInstance.catalogs,
-      );
-      expect(res3.isError).toBeUndefined();
+      try {
+        const res3 = await handleRenderA2ui(
+          {
+            conversationId: 'env-fallback-tmp',
+            mode: 'inline',
+            messages: [],
+          },
+          serverInstance.getState,
+          serverInstance.catalogs,
+        );
+        expect(res3.isError).toBeUndefined();
+      } finally {
+        rmSync(join(tmpdir(), 'embeds', 'env-fallback-tmp'), { recursive: true, force: true });
+      }
     });
 
     it('returns false for isMainModule when argv[1] is undefined or error occurs', () => {

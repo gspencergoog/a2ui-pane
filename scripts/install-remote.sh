@@ -323,10 +323,9 @@ fi
 
 # 6. Signal Language Server & update config.json
 echo "Registering plugin with host..."
-pkill -f "a2ui-pane/mcp/dist/server.mjs" 2>/dev/null || true
 
 command python3 -c '
-import glob, json, os, re, subprocess, urllib.request
+import glob, json, os, re, subprocess, time, urllib.request
 
 instances = []
 
@@ -336,7 +335,7 @@ env_token = os.environ.get("ANTIGRAVITY_CSRF_TOKEN")
 if env_addr and env_token:
     instances.append((env_addr, env_token))
 
-# 2. Linux /proc scan
+# 2. Linux /proc scan (while child sidecar/MCP processes are still alive)
 for env_file in glob.glob("/proc/[0-9]*/environ"):
     try:
         raw = open(env_file, "rb").read().decode("utf-8", errors="ignore")
@@ -348,10 +347,29 @@ for env_file in glob.glob("/proc/[0-9]*/environ"):
     except Exception:
         pass
 
-# 3. Process table inspection (macOS & external terminals)
+def probe_ls_port(test_port, token):
+    try:
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{test_port}/exa.language_server_pb.LanguageServerService/GetUnleashData",
+            data=b"{}",
+            headers={"Content-Type": "application/json", "x-codeium-csrf-token": token},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=1) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
+
+# 3. Process table inspection (macOS & Linux external terminals)
 try:
     res = subprocess.run(["ps", "ax", "-o", "pid=,command="], capture_output=True, text=True, check=False)
     if res.returncode == 0:
+        log_candidates = [
+            os.path.expanduser("~/Library/Logs/Antigravity/language_server.log"),
+            os.path.expanduser("~/.gemini/antigravity/logs/language_server.log"),
+            os.path.expanduser("~/.gemini/jetski/logs/language_server.log"),
+            os.path.expanduser("~/.config/Antigravity/logs/language_server.log"),
+        ]
         for line in res.stdout.splitlines():
             if "language_server" in line and "--csrf_token" in line:
                 m_token = re.search(r"--csrf_token[= ]([a-f0-9-]+)", line)
@@ -360,44 +378,48 @@ try:
                 token = m_token.group(1)
 
                 port = None
-                log_path = os.path.expanduser("~/Library/Logs/Antigravity/language_server.log")
-                if os.path.isfile(log_path):
-                    try:
-                        with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
-                            for l in reversed(f.readlines()[-200:]):
-                                m_port = re.search(r"listening on .* port at (\d+) for HTTP\b", l)
-                                if m_port:
-                                    port = m_port.group(1)
-                                    break
-                    except Exception:
-                        pass
+                for log_path in log_candidates:
+                    if os.path.isfile(log_path):
+                        try:
+                            with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
+                                for l in reversed(f.readlines()[-200:]):
+                                    m_port = re.search(r"listening on .* port at (\d+) for HTTP\b", l)
+                                    if m_port and probe_ls_port(m_port.group(1), token):
+                                        port = m_port.group(1)
+                                        break
+                        except Exception:
+                            pass
+                    if port:
+                        break
 
                 if not port:
                     m_pid = re.match(r"\s*(\d+)", line)
                     if m_pid:
                         pid = m_pid.group(1)
+                        candidate_ports = []
                         try:
                             lsof_res = subprocess.run(
                                 ["lsof", "-nP", "-iTCP", "-sTCP:LISTEN", "-a", "-p", pid],
                                 capture_output=True, text=True, check=False
                             )
-                            for p_match in re.finditer(r":(\d+)\s+\(LISTEN\)", lsof_res.stdout):
-                                test_port = p_match.group(1)
-                                try:
-                                    req = urllib.request.Request(
-                                        f"http://127.0.0.1:{test_port}/exa.language_server_pb.LanguageServerService/GetUnleashData",
-                                        data=b"{}",
-                                        headers={"Content-Type": "application/json", "x-codeium-csrf-token": token},
-                                        method="POST",
-                                    )
-                                    with urllib.request.urlopen(req, timeout=1) as resp:
-                                        if resp.status == 200:
-                                            port = test_port
-                                            break
-                                except Exception:
-                                    pass
+                            candidate_ports.extend(re.findall(r":(\d+)\s+\(LISTEN\)", lsof_res.stdout))
                         except Exception:
                             pass
+                        if not candidate_ports:
+                            try:
+                                ss_res = subprocess.run(
+                                    ["ss", "-tlpn"],
+                                    capture_output=True, text=True, check=False
+                                )
+                                for sline in ss_res.stdout.splitlines():
+                                    if f"pid={pid}," in sline:
+                                        candidate_ports.extend(re.findall(r":(\d+)\s", sline))
+                            except Exception:
+                                pass
+                        for test_port in candidate_ports:
+                            if probe_ls_port(test_port, token):
+                                port = test_port
+                                break
 
                 if port:
                     addr = f"127.0.0.1:{port}"
@@ -419,6 +441,10 @@ if os.path.isfile(cfg_path):
                 json.dump(cfg, f, indent=2)
     except Exception:
         pass
+
+# Terminate stale MCP server processes before asking LS to refresh MCP servers
+subprocess.run(["pkill", "-f", "a2ui-pane/mcp/dist/server.mjs"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+time.sleep(0.5)
 
 for addr, token in instances:
     try:
@@ -443,6 +469,29 @@ for addr, token in instances:
     except Exception:
         pass
 ' 2>/dev/null || true
+
+# Restart the running sidecar so it loads the new build
+SIDECAR_DIR="$(cd "${TARGET_DIR}/sidecars/a2ui-pane" 2>/dev/null && pwd -P || true)"
+pid_cwd() {
+  local pid="$1" dir=""
+  if [[ -e "/proc/${pid}/cwd" ]]; then
+    dir="$(readlink "/proc/${pid}/cwd" 2>/dev/null || true)"
+  elif command -v lsof >/dev/null 2>&1; then
+    dir="$(lsof -a -p "${pid}" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -n 1)"
+  fi
+  [[ -n "${dir}" ]] && (cd "${dir}" 2>/dev/null && pwd -P) || true
+}
+if [[ -n "${SIDECAR_DIR}" ]]; then
+  restarted_sidecar=false
+  for pid in $(pgrep -f "dist/main.mjs" 2>/dev/null || true); do
+    if [[ "$(pid_cwd "${pid}")" == "${SIDECAR_DIR}" ]]; then
+      kill "${pid}" 2>/dev/null && restarted_sidecar=true
+    fi
+  done
+  if [[ "${restarted_sidecar}" == true ]]; then
+    echo "Restarted the a2ui-pane sidecar; the host respawns it in a few seconds."
+  fi
+fi
 
 echo ""
 echo "✨ Successfully installed a2ui-pane to: ${TARGET_DIR}"

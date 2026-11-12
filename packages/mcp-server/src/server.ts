@@ -195,7 +195,7 @@ export function isMainModule(): boolean {
   if (!process.argv[1]) return false;
   try {
     const realArgv = realpathSync(process.argv[1]);
-    const realUrlPath = fileURLToPath(import.meta.url);
+    const realUrlPath = realpathSync(fileURLToPath(import.meta.url));
     return realArgv === realUrlPath;
   } catch {
     return false;
