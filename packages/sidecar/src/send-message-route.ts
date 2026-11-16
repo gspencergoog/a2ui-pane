@@ -29,6 +29,7 @@ function updateActionConfigJson(
   rawJson: string,
   componentId?: string,
   group?: string,
+  submittedDataModel?: unknown,
 ): string | null {
   let parsed: Record<string, any>;
   try {
@@ -44,15 +45,28 @@ function updateActionConfigJson(
   const nextGroups = appendUniqueString(parsed.submittedGroups, group);
   if (nextGroups) parsed.submittedGroups = nextGroups;
 
+  if (submittedDataModel === null) {
+    delete parsed.submittedDataModel;
+  } else if (typeof submittedDataModel === 'object' && !Array.isArray(submittedDataModel)) {
+    parsed.submittedDataModel = submittedDataModel;
+  }
+
   return JSON.stringify(parsed).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
 }
 
+/**
+ * Records a submission in the action config block of an embed file on disk.
+ *
+ * `submittedDataModel` holds the surfaces' data model roots at submission: an object replaces
+ * the recorded snapshot, `null` removes it, and any other value leaves it as it is.
+ */
 function stampEmbedActionConfig(
   dataDir: string,
   conversationId: string,
   embedFile?: string,
   componentId?: string,
   group?: string,
+  submittedDataModel?: unknown,
 ): void {
   if (!dataDir || !embedFile || !EMBED_FILE_REGEX.test(embedFile)) return;
   const filePath = path.resolve(dataDir, 'embeds', conversationId, embedFile);
@@ -63,10 +77,15 @@ function stampEmbedActionConfig(
     const match = ACTION_CONFIG_SCRIPT_RE.exec(html);
     if (!match) return;
 
-    const updatedJson = updateActionConfigJson(match[2], componentId, group);
+    const updatedJson = updateActionConfigJson(match[2], componentId, group, submittedDataModel);
     if (!updatedJson) return;
 
-    const updatedHtml = html.replace(ACTION_CONFIG_SCRIPT_RE, `$1${updatedJson}$3`);
+    // A replacer function, because the JSON holds user-entered text and `String.replace`
+    // would expand `$&`, `$1`, and similar patterns in a replacement string.
+    const updatedHtml = html.replace(
+      ACTION_CONFIG_SCRIPT_RE,
+      (_match, open: string, _body: string, close: string) => `${open}${updatedJson}${close}`,
+    );
     fs.writeFileSync(filePath, updatedHtml, { mode: 0o600 });
   } catch {
     // Ignore filesystem errors during best-effort embed stamping
@@ -155,6 +174,7 @@ export function handleSendMessage(
         parsed.embedFile,
         typeof parsed.sourceComponentId === 'string' ? parsed.sourceComponentId : undefined,
         typeof parsed.group === 'string' ? parsed.group : undefined,
+        parsed.submittedDataModel,
       );
     }
 

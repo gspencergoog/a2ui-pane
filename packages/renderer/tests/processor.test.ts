@@ -3,6 +3,8 @@ import {
   createProcessor,
   markComponentSubmitted,
   clearSubmittedState,
+  snapshotSurfaceData,
+  restoreSurfaceData,
   isOneShotButton,
   isComponentSubmitted,
   LineApplier,
@@ -303,5 +305,85 @@ describe('createProcessor', () => {
     // Modal trigger is repeatable
     expect(isOneShotButton(defaultComp, [defaultComp, modalComp]).oneShot).toBe(false);
     expect(isOneShotButton(primaryComp, [primaryComp], true).oneShot).toBe(false);
+  });
+});
+
+describe('surface data snapshots', () => {
+  function createFormProcessor() {
+    const processor = createProcessor();
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: { surfaceId: 'formA', catalogId: 'basic', sendDataModel: true },
+      },
+      // formB never opts into sendDataModel; its data is still part of a snapshot.
+      { version: 'v0.9', createSurface: { surfaceId: 'formB', catalogId: 'basic' } },
+      {
+        version: 'v0.9',
+        updateDataModel: {
+          surfaceId: 'formA',
+          path: '/',
+          value: { choice: 'a', notes: { text: 'first' } },
+        },
+      },
+      { version: 'v0.9', updateDataModel: { surfaceId: 'formB', path: '/flag', value: true } },
+    ]);
+    return processor;
+  }
+
+  it('snapshots every surface without the submitted flags, detached from the live data', () => {
+    const processor = createFormProcessor();
+    markComponentSubmitted(processor, 'formA', 'submit_btn', 'form_group');
+
+    const snapshot = snapshotSurfaceData(processor);
+    expect(snapshot).toEqual({
+      formA: { choice: 'a', notes: { text: 'first' } },
+      formB: { flag: true },
+    });
+
+    (snapshot.formA.notes as any).text = 'changed in the copy';
+    expect(processor.getSurface('formA').dataModel.get('/notes/text')).toBe('first');
+    expect(processor.getSurface('formA').dataModel.get('/_submitted/submit_btn')).toBe(true);
+
+    expect(snapshotSurfaceData(undefined)).toEqual({});
+  });
+
+  it('restores a snapshot over the initial data and still accepts submitted flags', () => {
+    const processor = createFormProcessor();
+
+    restoreSurfaceData(processor, {
+      formA: { choice: 'b', notes: { text: 'second' } },
+      formB: 'not an object',
+      missingSurface: { ignored: true },
+    });
+
+    const formA = processor.getSurface('formA').dataModel;
+    expect(formA.get('/choice')).toBe('b');
+    expect(formA.get('/notes/text')).toBe('second');
+    // Entries that are not objects leave the surface untouched.
+    expect(processor.getSurface('formB').dataModel.get('/flag')).toBe(true);
+    expect(processor.getSurface('missingSurface')).toBeUndefined();
+
+    markComponentSubmitted(processor, 'formA', 'submit_btn');
+    expect(isComponentSubmitted(formA, 'submit_btn')).toBe(true);
+    expect(formA.get('/choice')).toBe('b');
+  });
+
+  it('ignores snapshots that are not objects', () => {
+    const processor = createFormProcessor();
+    restoreSurfaceData(processor, ['formA']);
+    restoreSurfaceData(processor, null);
+    restoreSurfaceData(undefined, { formA: { choice: 'b' } });
+    expect(processor.getSurface('formA').dataModel.get('/choice')).toBe('a');
+  });
+
+  it('round-trips: restoring a snapshot reproduces the data it was taken from', () => {
+    const source = createFormProcessor();
+    source.getSurface('formA').dataModel.set('/choice', 'c');
+    const snapshot = snapshotSurfaceData(source);
+
+    const reloaded = createFormProcessor();
+    restoreSurfaceData(reloaded, JSON.parse(JSON.stringify(snapshot)));
+    expect(snapshotSurfaceData(reloaded)).toEqual(snapshot);
   });
 });

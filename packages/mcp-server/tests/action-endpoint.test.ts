@@ -435,4 +435,38 @@ describe('ActionEndpoint', () => {
     expect(updatedHtml).toContain('"submittedComponents":["submit_btn"]');
     expect(updatedHtml).toContain('"submittedGroups":["main_group"]');
   });
+
+  it('stamps submittedDataModel into embed_*.html on disk and clears it on null', async () => {
+    const { writeEmbed } = await import('../src/embed-writer.js');
+    endpoint = new ActionEndpoint({
+      dataDir: tempDir,
+      sendActionDirectly: async () => {},
+    });
+    const port = await endpoint.start();
+    const key = endpoint.registerEmbed('conv_data_ep', 'surf_data_ep');
+
+    const embedPath = writeEmbed(tempDir, 'conv_data_ep', ['surf_data_ep'], [], {
+      actionConfig: { port, key, surfaceId: 'surf_data_ep', conversationId: 'conv_data_ep' },
+    });
+    const embedFile = embedPath.split('/').pop()!;
+    const post = (submittedDataModel: unknown) =>
+      fetch(`http://127.0.0.1:${port}/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-A2UI-Key': key },
+        body: JSON.stringify({
+          action: { name: 'submitForm' },
+          embedFile,
+          sourceComponentId: 'submit_btn',
+          submittedDataModel,
+        }),
+      });
+
+    expect((await post({ surf_data_ep: { choice: 'b' } })).status).toBe(200);
+    expect(readFileSync(embedPath, 'utf-8')).toContain(
+      '"submittedDataModel":{"surf_data_ep":{"choice":"b"}}',
+    );
+
+    expect((await post(null)).status).toBe(200);
+    expect(readFileSync(embedPath, 'utf-8')).not.toContain('submittedDataModel');
+  });
 });

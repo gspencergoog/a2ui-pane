@@ -83,6 +83,55 @@ export function clearSubmittedState(
   notifySurfaceButtons(surface);
 }
 
+/** Data model roots of the surfaces in one view, keyed by surface ID. */
+export type SurfaceDataSnapshot = Record<string, Record<string, unknown>>;
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * Copies the data model root of every surface, leaving out the internal `/_submitted` flags.
+ *
+ * Unlike the data model attached to an action, the snapshot covers surfaces that did not
+ * enable `sendDataModel`, so it holds everything needed to show the user's entries again
+ * with `restoreSurfaceData`. The copy is detached from the live data model.
+ */
+export function snapshotSurfaceData(
+  processor: MessageProcessor<any> | undefined,
+): SurfaceDataSnapshot {
+  const snapshot: SurfaceDataSnapshot = {};
+  if (!processor) return snapshot;
+
+  for (const [surfaceId, surface] of processor.getSurfaces()) {
+    const root: unknown = (surface as any)?.dataModel?.get('/');
+    if (!isPlainObject(root)) continue;
+    const copy = JSON.parse(JSON.stringify(root)) as Record<string, unknown>;
+    delete copy._submitted;
+    snapshot[surfaceId] = copy;
+  }
+  return snapshot;
+}
+
+/**
+ * Replaces the data model root of each surface named in `snapshot`.
+ *
+ * Entries for unknown surfaces and entries that are not objects are skipped. Replacing the
+ * root drops the `/_submitted` flags, so call this before `markComponentSubmitted`.
+ */
+export function restoreSurfaceData(
+  processor: MessageProcessor<any> | undefined,
+  snapshot: unknown,
+): void {
+  if (!processor || !isPlainObject(snapshot)) return;
+
+  for (const [surfaceId, root] of Object.entries(snapshot)) {
+    const dataModel = processor.getSurface(surfaceId)?.dataModel;
+    if (!dataModel || !isPlainObject(root)) continue;
+    dataModel.set('/', root);
+  }
+}
+
 function stripSubmittedFromDataModel(
   rawDataModel: Record<string, unknown> | undefined,
 ): Record<string, unknown> | undefined {

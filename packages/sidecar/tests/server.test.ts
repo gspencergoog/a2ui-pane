@@ -754,6 +754,69 @@ describe('SidecarServer', () => {
         await new Promise<void>((resolve) => custom.close(() => resolve()));
       }
     });
+
+    it('stamps submittedDataModel into embed_*.html literally, keeps it when absent, and clears it on null', async () => {
+      const embedDir = path.join(tmpDir, 'embeds', 'default-conv-id');
+      fs.mkdirSync(embedDir, { recursive: true });
+      const embedFile = 'embed_surf2_1700000000000_abcdef0123456789.html';
+      const embedPath = path.join(embedDir, embedFile);
+      const blockRe =
+        /<script id="a2ui-action-config" type="application\/json">\r?\n([\s\S]*?)\r?\n\s*<\/script>/;
+      const initialHtml = `<!DOCTYPE html><html><body>
+  <script id="a2ui-action-config" type="application/json">
+{"surfaceId":"surf2","conversationId":"default-conv-id","embedFile":"${embedFile}"}
+  </script>
+  <script>// bundle</script>
+</body></html>`;
+      fs.writeFileSync(embedPath, initialHtml);
+      const readConfig = () => JSON.parse(fs.readFileSync(embedPath, 'utf-8').match(blockRe)![1]);
+
+      const fakeExec = vi.fn((_f: any, _a: any, _o: any, cb: any) => {
+        cb(null, '{"ok":true}', '');
+      }) as any;
+      const custom = createSidecarServer(env, {
+        storeReader,
+        notifier,
+        staticDir,
+        execFileFn: fakeExec,
+      });
+      const p = await new Promise<number>((resolve) => {
+        custom.listen(0, '127.0.0.1', () => resolve((custom.address() as any).port));
+      });
+      const post = (extra: Record<string, unknown>) =>
+        fetch(`http://127.0.0.1:${p}/_sidecar/send-message?token=test-secret-token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            conversationId: 'default-conv-id',
+            message: '[A2UI] Triggered "Approve"',
+            embedFile,
+            sourceComponentId: 'confirm_btn',
+            ...extra,
+          }),
+        });
+
+      try {
+        // `$&`, `$1`, `` $` `` and `$'` are String.replace patterns; `</script>` would end the block.
+        const notes = "costs $1 or $& or $` or $' </script><script>alert(1)</script>";
+        expect((await post({ submittedDataModel: { surf2: { notes } } })).status).toBe(200);
+        expect(readConfig().submittedDataModel).toEqual({ surf2: { notes } });
+        const stampedHtml = fs.readFileSync(embedPath, 'utf-8');
+        expect(stampedHtml.match(blockRe)![1]).not.toContain('<');
+        expect(stampedHtml.replace(blockRe, '')).toBe(initialHtml.replace(blockRe, ''));
+
+        // The loopback endpoint forwards here without a snapshot; that must not erase it.
+        expect((await post({})).status).toBe(200);
+        expect((await post({ submittedDataModel: ['surf2'] })).status).toBe(200);
+        expect(readConfig().submittedDataModel).toEqual({ surf2: { notes } });
+
+        expect((await post({ submittedDataModel: null })).status).toBe(200);
+        expect('submittedDataModel' in readConfig()).toBe(false);
+        expect(readConfig().submittedComponents).toEqual(['confirm_btn']);
+      } finally {
+        await new Promise<void>((resolve) => custom.close(() => resolve()));
+      }
+    });
   });
 
   it('exercises preload cache on repeated calls', async () => {

@@ -2,8 +2,11 @@ export {
   createProcessor,
   markComponentSubmitted,
   clearSubmittedState,
+  snapshotSurfaceData,
+  restoreSurfaceData,
   type ActionHandler,
   type DispatchedActionDetails,
+  type SurfaceDataSnapshot,
 } from './processor.js';
 export {
   installButtonStateRenderer,

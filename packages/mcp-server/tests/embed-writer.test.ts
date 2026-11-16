@@ -163,4 +163,75 @@ describe('embed-writer', () => {
       }),
     ).toBe(false);
   });
+
+  it('stamps submittedDataModel: an object replaces it, null removes it, absent keeps it', () => {
+    const filePath = writeEmbed(tmpDir, 'conv_data', ['surf'], [], {
+      embedBundleJs: '// bundle',
+      actionConfig: { surfaceId: 'surf', conversationId: 'conv_data' },
+    });
+    const embedFile = path.basename(filePath);
+    const readConfig = () => {
+      const match = fs
+        .readFileSync(filePath, 'utf-8')
+        .match(
+          /<script id="a2ui-action-config" type="application\/json">\r?\n([\s\S]*?)\r?\n\s*<\/script>/,
+        );
+      return JSON.parse(match![1]);
+    };
+    const stamp = (extra: Record<string, unknown>) =>
+      stampEmbedSubmitted({
+        dataDir: tmpDir,
+        conversationId: 'conv_data',
+        embedFile,
+        componentId: 'submit_btn',
+        ...extra,
+      });
+
+    expect(stamp({ submittedDataModel: { surf: { choice: 'a' } } })).toBe(true);
+    expect(readConfig().submittedDataModel).toEqual({ surf: { choice: 'a' } });
+
+    // A later submission replaces the snapshot instead of merging into it.
+    expect(stamp({ submittedDataModel: { surf: { other: 1 } } })).toBe(true);
+    expect(readConfig().submittedDataModel).toEqual({ surf: { other: 1 } });
+
+    // A stamp that carries no snapshot, or one of the wrong type, keeps the recorded one.
+    expect(stamp({})).toBe(true);
+    expect(stamp({ submittedDataModel: ['surf'] })).toBe(true);
+    expect(stamp({ submittedDataModel: 'surf' })).toBe(true);
+    expect(readConfig().submittedDataModel).toEqual({ surf: { other: 1 } });
+
+    expect(stamp({ submittedDataModel: null })).toBe(true);
+    const cleared = readConfig();
+    expect('submittedDataModel' in cleared).toBe(false);
+    expect(cleared.submittedComponents).toEqual(['submit_btn']);
+  });
+
+  it('writes user-entered text in submittedDataModel literally', () => {
+    const filePath = writeEmbed(tmpDir, 'conv_text', ['surf'], [], {
+      embedBundleJs: '// bundle',
+      actionConfig: { surfaceId: 'surf', conversationId: 'conv_text' },
+    });
+    const before = fs.readFileSync(filePath, 'utf-8');
+    // `$&`, `$1`, `` $` `` and `$'` are String.replace patterns; `</script>` would end the block.
+    const notes = "costs $1 or $& or $` or $' </script><script>alert(1)</script>";
+
+    expect(
+      stampEmbedSubmitted({
+        dataDir: tmpDir,
+        conversationId: 'conv_text',
+        embedFile: path.basename(filePath),
+        componentId: 'submit_btn',
+        submittedDataModel: { surf: { notes } },
+      }),
+    ).toBe(true);
+
+    const after = fs.readFileSync(filePath, 'utf-8');
+    const blockRe =
+      /<script id="a2ui-action-config" type="application\/json">\r?\n([\s\S]*?)\r?\n\s*<\/script>/;
+    const block = after.match(blockRe)![1];
+    expect(JSON.parse(block).submittedDataModel).toEqual({ surf: { notes } });
+    expect(block).not.toContain('<');
+    // Nothing outside the config block changed.
+    expect(after.replace(blockRe, '')).toBe(before.replace(blockRe, ''));
+  });
 });

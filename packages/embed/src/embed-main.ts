@@ -4,8 +4,11 @@ import {
   LineApplier,
   A2uiPaneView,
   openLink,
+  snapshotSurfaceData,
+  restoreSurfaceData,
   type DispatchedActionDetails,
   type A2uiLinkClickDetail,
+  type SurfaceDataSnapshot,
 } from '@a2ui-pane/renderer';
 import { SurfaceResizeObserver } from './surface-resize-observer.js';
 
@@ -20,6 +23,13 @@ export interface ActionConfig {
   embedFile?: string;
   submittedComponents?: string[];
   submittedGroups?: string[];
+  /**
+   * The surfaces' data model roots at the last one-shot submission, keyed by surface ID.
+   *
+   * The action endpoints write it into the embed file, so a reloaded iframe shows what the
+   * user submitted instead of the surface's initial values.
+   */
+  submittedDataModel?: SurfaceDataSnapshot;
 }
 
 /** Options for initializing a standalone A2UI inline embed iframe. */
@@ -49,6 +59,29 @@ interface SideChannelEmbedMeta {
   embedFile?: string;
   sourceComponentId?: string;
   group?: string;
+  submittedDataModel?: SurfaceDataSnapshot;
+}
+
+/**
+ * Largest side-channel request body sent with a data snapshot.
+ *
+ * Both action endpoints reject bodies over 120 KB, so this leaves headroom for the sidecar
+ * hop that the loopback endpoint makes with the same text.
+ */
+const MAX_BODY_BYTES_WITH_SNAPSHOT = 100 * 1024;
+
+/**
+ * Serializes a side-channel request body.
+ *
+ * When `submittedDataModel` would push the body past `MAX_BODY_BYTES_WITH_SNAPSHOT`, it is
+ * sent as `null` so the action is still delivered. `null` tells the endpoint to drop the
+ * snapshot of an earlier submission, which would otherwise show outdated values.
+ */
+export function serializeActionBody(body: Record<string, unknown>): string {
+  const json = JSON.stringify(body);
+  if (body.submittedDataModel === undefined) return json;
+  if (new TextEncoder().encode(json).length <= MAX_BODY_BYTES_WITH_SNAPSHOT) return json;
+  return JSON.stringify({ ...body, submittedDataModel: null });
 }
 
 /**
@@ -171,7 +204,7 @@ async function trySidecarDispatch(
       headers: {
         'Content-Type': 'text/plain;charset=UTF-8',
       },
-      body: JSON.stringify({
+      body: serializeActionBody({
         conversationId,
         message: promptText,
         ...meta,
@@ -204,7 +237,7 @@ async function tryLoopbackDispatch(
         'Content-Type': 'application/json',
         'X-A2UI-Key': key,
       },
-      body: JSON.stringify({
+      body: serializeActionBody({
         action,
         dataModel,
         ...meta,
@@ -226,6 +259,7 @@ async function dispatchViaSideChannel(
   action: DispatchedActionDetails,
   dataModel: Record<string, unknown> | undefined,
   promptText: string,
+  surfaceData: SurfaceDataSnapshot | undefined,
   fetchFn?: typeof fetch,
 ): Promise<boolean> {
   if (!fetchFn) return false;
@@ -234,6 +268,7 @@ async function dispatchViaSideChannel(
     embedFile: actionConfig.embedFile,
     sourceComponentId: isOneShot ? action.sourceComponentId : undefined,
     group: isOneShot ? action.group : undefined,
+    submittedDataModel: isOneShot ? surfaceData : undefined,
   };
   if (actionConfig.sidecarUrl && actionConfig.conversationId) {
     const ok = await trySidecarDispatch(
@@ -258,11 +293,24 @@ async function dispatchViaSideChannel(
   return false;
 }
 
+/**
+ * Puts a reloaded embed back into the state its file recorded: the data the user submitted,
+ * then the lock on the buttons they pressed.
+ */
 function restorePersistedEmbedSubmission(
   paneView: A2uiPaneView,
   actionConfig: ActionConfig | undefined,
   setSubmittedState: (submitted: boolean) => void,
 ): void {
+  // The data goes first: replacing a data model root clears the submitted flags set below.
+  if (actionConfig?.submittedDataModel && paneView.processor) {
+    try {
+      restoreSurfaceData(paneView.processor, actionConfig.submittedDataModel);
+    } catch (err) {
+      console.warn('[a2ui-embed] Failed to restore submitted data:', err);
+    }
+  }
+
   const comps = actionConfig?.submittedComponents ?? [];
   const groups = actionConfig?.submittedGroups ?? [];
   if (comps.length === 0 && groups.length === 0) return;
@@ -405,6 +453,7 @@ export function initEmbed(options: InitEmbedOptions = {}): EmbedInstance | null 
         action,
         dataModel,
         promptText,
+        isOneShot ? snapshotSurfaceData(paneView.processor) : undefined,
         options.fetchFn ?? (typeof fetch !== 'undefined' ? fetch : undefined),
       );
       isSubmitting = false;

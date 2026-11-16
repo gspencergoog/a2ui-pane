@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { initEmbed } from '../src/embed-main.js';
+import { initEmbed, serializeActionBody } from '../src/embed-main.js';
 import { parseActionText } from '@a2ui-pane/protocol';
 
 describe('initEmbed', () => {
@@ -665,5 +665,172 @@ describe('initEmbed', () => {
     expect(submitPayload.group).toBe('form_group');
 
     instance?.destroy();
+  });
+
+  it('sends the surface data as submittedDataModel with one-shot actions on both endpoints', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, status: 200 }) // one-shot via sidecar
+      .mockResolvedValueOnce({ ok: true, status: 200 }) // repeatable via sidecar
+      .mockResolvedValueOnce({ ok: false, status: 502 }) // sidecar fails...
+      .mockResolvedValueOnce({ ok: true, status: 200 }); // ...loopback takes the one-shot
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const instance = initEmbed({
+      container,
+      messagesJson: JSON.stringify([
+        // No sendDataModel: the snapshot does not depend on it.
+        { version: 'v0.9', createSurface: { surfaceId: 'surfSnap', catalogId: 'basic' } },
+        {
+          version: 'v0.9',
+          updateDataModel: { surfaceId: 'surfSnap', path: '/choice', value: 'default' },
+        },
+      ]),
+      actionConfig: {
+        port: 54321,
+        key: 'snap-key',
+        surfaceId: 'surfSnap',
+        conversationId: 'conv-snap',
+        sidecarUrl: 'https://sidecar.example.com/_sidecar/send-message?token=tok1',
+        embedFile: 'embed_surfSnap_1700000000000_abcdef0123456789.html',
+      },
+      fetchFn: mockFetch as any,
+    });
+    const surface = instance!.applier.getProcessor().getSurface('surfSnap');
+
+    // The user changes a value, then submits.
+    surface.dataModel.set('/choice', 'picked');
+    await surface.dispatchAction({ name: 'submit', context: { label: 'Submit' } });
+    const sidecarBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(sidecarBody.submittedDataModel).toEqual({ surfSnap: { choice: 'picked' } });
+
+    // A repeatable action does not record a submission.
+    instance!.setSubmittedState(false);
+    await surface.dispatchAction({ name: 'refresh', context: { _oneShot: false } });
+    const repeatableBody = JSON.parse(mockFetch.mock.calls[1][1].body);
+    expect('submittedDataModel' in repeatableBody).toBe(false);
+
+    surface.dataModel.set('/choice', 'picked again');
+    await surface.dispatchAction({ name: 'submit', context: { label: 'Submit' } });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(mockFetch).toHaveBeenCalledTimes(4);
+    expect(mockFetch.mock.calls[3][0]).toBe('http://127.0.0.1:54321/action');
+    const loopbackBody = JSON.parse(mockFetch.mock.calls[3][1].body);
+    expect(loopbackBody.submittedDataModel).toEqual({ surfSnap: { choice: 'picked again' } });
+
+    consoleWarnSpy.mockRestore();
+    instance?.destroy();
+  });
+
+  it('shows the submitted values again when a reloaded embed has submittedDataModel', async () => {
+    const messages = [
+      { version: 'v0.9', createSurface: { surfaceId: 'surfReload', catalogId: 'basic' } },
+      {
+        version: 'v0.9',
+        updateDataModel: { surfaceId: 'surfReload', path: '/', value: { choice: 'default' } },
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'surfReload',
+          components: [
+            { id: 'root', component: 'Column', children: ['choice_txt', 'submit_btn'] },
+            { id: 'choice_txt', component: 'Text', text: { path: '/choice' } },
+            { id: 'submit_txt', component: 'Text', text: 'Submit' },
+            {
+              id: 'submit_btn',
+              component: 'Button',
+              variant: 'primary',
+              child: 'submit_txt',
+              action: { event: { name: 'submit_form' } },
+            },
+          ],
+        },
+      },
+    ];
+
+    const instance = initEmbed({
+      container,
+      messagesJson: JSON.stringify(messages),
+      actionConfig: {
+        port: 54321,
+        key: 'reload-key',
+        surfaceId: 'surfReload',
+        submittedComponents: ['submit_btn'],
+        submittedDataModel: { surfReload: { choice: 'picked before reload' } },
+      },
+      fetchFn: vi.fn() as any,
+    });
+
+    const dataModel = instance!.applier.getProcessor().getSurface('surfReload').dataModel;
+    expect(dataModel.get('/choice')).toBe('picked before reload');
+    // Restoring the data must not undo the lock.
+    expect(instance?.isSubmitted()).toBe(true);
+    expect(dataModel.get('/_submitted/submit_btn')).toBe(true);
+
+    await instance!.paneView.updateComplete;
+    const surfaceEl = instance!.paneView.shadowRoot!.querySelector('a2ui-surface')!;
+    await (surfaceEl as any).updateComplete;
+    await new Promise((r) => setTimeout(r, 30));
+    const rendered = (surfaceEl.shadowRoot ?? surfaceEl).textContent ?? '';
+    expect(rendered).toContain('picked before reload');
+    expect(rendered).not.toContain('default');
+
+    // "Edit / Resubmit" unlocks the form with the submitted values still in place.
+    (container.querySelector('.a2ui-embed-resubmit-btn') as HTMLButtonElement).click();
+    expect(instance?.isSubmitted()).toBe(false);
+    expect(dataModel.get('/choice')).toBe('picked before reload');
+
+    instance?.destroy();
+  });
+
+  it('keeps the initial values when submittedDataModel is malformed', () => {
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const instance = initEmbed({
+      container,
+      messagesJson: JSON.stringify([
+        { version: 'v0.9', createSurface: { surfaceId: 'surfBad', catalogId: 'basic' } },
+        {
+          version: 'v0.9',
+          updateDataModel: { surfaceId: 'surfBad', path: '/choice', value: 'default' },
+        },
+      ]),
+      actionConfig: {
+        surfaceId: 'surfBad',
+        submittedDataModel: { surfBad: 'not an object' } as any,
+      },
+    });
+
+    const dataModel = instance!.applier.getProcessor().getSurface('surfBad').dataModel;
+    expect(dataModel.get('/choice')).toBe('default');
+    expect(instance?.isSubmitted()).toBe(false);
+
+    consoleWarnSpy.mockRestore();
+    instance?.destroy();
+  });
+});
+
+describe('serializeActionBody', () => {
+  it('sends the snapshot when the body fits', () => {
+    const body = { message: 'hi', submittedDataModel: { surf: { choice: 'a' } } };
+    expect(JSON.parse(serializeActionBody(body))).toEqual(body);
+  });
+
+  it('replaces an oversized snapshot with null so the action is still delivered', () => {
+    const body = {
+      message: 'hi',
+      sourceComponentId: 'submit_btn',
+      submittedDataModel: { surf: { notes: 'é'.repeat(60 * 1024) } },
+    };
+    expect(JSON.parse(serializeActionBody(body))).toEqual({
+      message: 'hi',
+      sourceComponentId: 'submit_btn',
+      submittedDataModel: null,
+    });
+  });
+
+  it('leaves a body without a snapshot unchanged, whatever its size', () => {
+    const body = { message: 'x'.repeat(200 * 1024) };
+    expect(serializeActionBody(body)).toBe(JSON.stringify(body));
   });
 });

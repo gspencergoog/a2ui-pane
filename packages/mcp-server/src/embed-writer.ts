@@ -19,6 +19,7 @@ export interface EmbedWriterOptions {
     embedFile?: string;
     submittedComponents?: string[];
     submittedGroups?: string[];
+    submittedDataModel?: Record<string, unknown>;
   };
 }
 
@@ -164,13 +165,20 @@ ${bundleJs}
   return filePath;
 }
 
-/** Options for recording submitted button state inside an existing embed HTML file on disk. */
+/** Options for recording a submission inside an existing embed HTML file on disk. */
 export interface StampEmbedSubmittedOptions {
   dataDir: string;
   conversationId: string;
   embedFile: string;
   componentId?: string;
   group?: string;
+  /**
+   * The surfaces' data model roots at submission, keyed by surface ID.
+   *
+   * An object replaces the recorded snapshot and `null` removes it. Any other value,
+   * including `undefined`, leaves the recorded snapshot as it is.
+   */
+  submittedDataModel?: unknown;
 }
 
 const ACTION_CONFIG_SCRIPT_RE =
@@ -187,6 +195,7 @@ function updateActionConfigJson(
   rawJson: string,
   componentId?: string,
   group?: string,
+  submittedDataModel?: unknown,
 ): string | null {
   let parsed: Record<string, any>;
   try {
@@ -204,12 +213,19 @@ function updateActionConfigJson(
   const nextGroups = appendUniqueString(parsed.submittedGroups, group);
   if (nextGroups) parsed.submittedGroups = nextGroups;
 
+  if (submittedDataModel === null) {
+    delete parsed.submittedDataModel;
+  } else if (typeof submittedDataModel === 'object' && !Array.isArray(submittedDataModel)) {
+    parsed.submittedDataModel = submittedDataModel;
+  }
+
   return escapeJsonForScript(parsed);
 }
 
 /**
  * Updates the `<script id="a2ui-action-config">` JSON block inside an existing `embed_*.html` file
- * on disk to record `submittedComponents` and `submittedGroups` so remounted iframes stay disabled.
+ * on disk to record `submittedComponents`, `submittedGroups`, and `submittedDataModel`, so a
+ * remounted iframe stays disabled and shows the values the user submitted.
  */
 export function stampEmbedSubmitted(opts: StampEmbedSubmittedOptions): boolean {
   if (!opts.dataDir || !isValidId(opts.conversationId)) {
@@ -229,10 +245,20 @@ export function stampEmbedSubmitted(opts: StampEmbedSubmittedOptions): boolean {
     const match = ACTION_CONFIG_SCRIPT_RE.exec(html);
     if (!match) return false;
 
-    const updatedJson = updateActionConfigJson(match[2], opts.componentId, opts.group);
+    const updatedJson = updateActionConfigJson(
+      match[2],
+      opts.componentId,
+      opts.group,
+      opts.submittedDataModel,
+    );
     if (!updatedJson) return false;
 
-    const updatedHtml = html.replace(ACTION_CONFIG_SCRIPT_RE, `$1${updatedJson}$3`);
+    // A replacer function, because the JSON holds user-entered text and `String.replace`
+    // would expand `$&`, `$1`, and similar patterns in a replacement string.
+    const updatedHtml = html.replace(
+      ACTION_CONFIG_SCRIPT_RE,
+      (_match, open: string, _body: string, close: string) => `${open}${updatedJson}${close}`,
+    );
     fs.writeFileSync(filePath, updatedHtml, { mode: 0o600 });
     return true;
   } catch {
