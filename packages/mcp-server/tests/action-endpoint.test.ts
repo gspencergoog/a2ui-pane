@@ -461,12 +461,17 @@ describe('ActionEndpoint', () => {
         }),
       });
 
+    const readConfig = () => {
+      const match = readFileSync(embedPath, 'utf-8').match(
+        /<script id="a2ui-action-config" type="application\/json">\r?\n([\s\S]*?)\r?\n\s*<\/script>/,
+      );
+      return JSON.parse(match![1]);
+    };
+
     expect((await post({ surf_data_ep: { choice: 'b' } })).status).toBe(200);
-    expect(readFileSync(embedPath, 'utf-8')).toContain(
-      '"submittedDataModel":{"surf_data_ep":{"choice":"b"}}',
-    );
+    expect(readConfig().submittedDataModel).toEqual({ surf_data_ep: { choice: 'b' } });
 
     expect((await post(null)).status).toBe(200);
-    expect(readFileSync(embedPath, 'utf-8')).not.toContain('submittedDataModel');
+    expect('submittedDataModel' in readConfig()).toBe(false);
   });
 });

@@ -103,7 +103,7 @@ export function createServer(dataDir: string, options: ServerOptions = {}) {
 
   const server = new McpServer({
     name: 'a2ui-pane',
-    version: '0.1.0',
+    version: '0.2.0',
   });
 
   server.tool(

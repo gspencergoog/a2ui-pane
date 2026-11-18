@@ -1,6 +1,6 @@
 {
   "name": "@a2ui-pane/sidecar",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "build": "esbuild src/main.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/main.mjs --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\"",

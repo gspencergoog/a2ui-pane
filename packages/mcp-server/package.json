@@ -1,6 +1,6 @@
 {
   "name": "@a2ui-pane/mcp-server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "build": "esbuild src/server.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/server.mjs --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\" && node scripts/stage-assets.mjs",
